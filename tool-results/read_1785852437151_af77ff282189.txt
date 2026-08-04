@@ -1,0 +1,666 @@
+     1→#!/usr/bin/env python3
+     2→"""
+     3→Extrai dados de faturas ENERGISA (PDF) e gera planilha Excel.
+     4→Suporta 4 modelos: MTA (Azul), MTV (Verde), MTC (Convencional B3), MTB (Branca).
+     5→"""
+     6→
+     7→import re
+     8→import json
+     9→import sys
+    10→import os
+    11→
+    12→# === Config ===
+    13→PDF_SKILL_DIR = os.path.expanduser("~/my-project/skills/pdf")
+    14→UPLOAD_DIR = os.path.expanduser("~/my-project/upload")
+    15→OUTPUT_FILE = os.path.expanduser("~/my-project/download/Extracao_Faturas_ENERGISA.xlsx")
+    16→
+    17→PDF_FILES = [
+    18→    "144378605167.PDF",
+    19→    "8092005187.PDF",
+    20→    "7948705165.PDF",
+    21→    "7929105158.PDF",
+    22→    "4456305122.PDF",
+    23→    "4167605165.PDF",
+    24→    "2305505194.PDF",
+    25→    "2214205140.PDF",
+    26→    "724705186.PDF",
+    27→    "565605136.PDF",
+    28→]
+    29→
+    30→
+    31→def extract_text_from_pdf(pdf_path):
+    32→    """Extract full text from PDF using pdfplumber."""
+    33→    import pdfplumber
+    34→    all_text = ""
+    35→    with pdfplumber.open(pdf_path) as pdf:
+    36→        for page in pdf.pages:
+    37→            text = page.extract_text() or ""
+    38→            all_text += text + "\n"
+    39→    return all_text
+    40→
+    41→
+    42→def parse_numero(s):
+    43→    """Parse Brazilian number format (1.234,56) to float."""
+    44→    if s is None:
+    45→        return None
+    46→    s = str(s).strip()
+    47→    if not s or s == '-':
+    48→        return None
+    49→    # Remove R$ prefix
+    50→    s = re.sub(r'^R\$\s*', '', s)
+    51→    # Handle negative with parentheses or minus
+    52→    s = s.replace('(', '-').replace(')', '')
+    53→    # Remove thousand separators (dots) and replace comma
+    54→    s = s.replace('.', '').replace(',', '.')
+    55→    try:
+    56→        val = float(s)
+    57→        return val if val != 0 else 0.0
+    58→    except ValueError:
+    59→        return None
+    60→
+    61→
+    62→def parse_quant(s):
+    63→    """Parse quantity (1.234,56 or 1234,56) to float."""
+    64→    if s is None:
+    65→        return None
+    66→    s = str(s).strip()
+    67→    if not s or s == '*':
+    68→        return None
+    69→    s = s.replace('.', '').replace(',', '.')
+    70→    try:
+    71→        return float(s)
+    72→    except ValueError:
+    73→        return None
+    74→
+    75→
+    76→def findall(pattern, text):
+    77→    """Find all matches and return first group."""
+    78→    m = re.search(pattern, text)
+    79→    if m:
+    80→        return m.group(1).strip()
+    81→    return None
+    82→
+    83→
+    84→def findall_float(pattern, text):
+    85→    """Find match and parse as float."""
+    86→    m = re.search(pattern, text)
+    87→    if m:
+    88→        return parse_numero(m.group(1))
+    89→    return None
+    90→
+    91→
+    92→def extract_fatura_data(text, filename):
+    93→    """Extract all fields from fatura text."""
+    94→    data = {}
+    95→    data["Arquivo"] = filename
+    96→
+    97→    # === UC ===
+    98→    # UC appears right before "NOTA FISCAL" on the same line
+    99→    uc_match = re.search(r'(\d[\d.]*\.\d{3}-\d{2})\s+NOTA FISCAL', text)
+   100→    if uc_match:
+   101→        data["UC"] = uc_match.group(1)
+   102→    else:
+   103→        # Fallback: find any pattern like NNN.NNN.NNN-NN
+   104→        uc_match2 = re.search(r'(\d{1,3}\.\d{3}\.\d{3}-\d{2})', text)
+   105→        data["UC"] = uc_match2.group(1) if uc_match2 else None
+   106→
+   107→    # === Cidade ===
+   108→    # City appears in format like "DOURADOS (AG: 10)" or "ARAL MOREIRA (AG: 70)"
+   109→    # First occurrence is DOMICÍLIO DE ENTREGA (billing), second is the actual UC city
+   110→    all_cidades = re.findall(r'([A-ZÇÃÁÀÉÊÍÓÔÕÚÂ][A-ZÇÃÁÀÉÊÍÓÔÕÚÂ ]*?)\s*\(AG:\s*\d+\)', text)
+   111→    if len(all_cidades) >= 2:
+   112→        data["Cidade"] = all_cidades[1].strip().title()
+   113→    elif len(all_cidades) == 1:
+   114→        data["Cidade"] = all_cidades[0].strip().title()
+   115→    else:
+   116→        data["Cidade"] = None
+   117→
+   118→    # === Tipo & Mercado (from Classificação) ===
+   119→    class_match = re.search(r'Classificação:\s*(.*?)\s+LIGAÇÃO:', text, re.DOTALL)
+   120→    if class_match:
+   121→        class_text = class_match.group(1).strip()
+   122→        class_text = re.sub(r'\s+', ' ', class_text)
+   123→        data["Tipo"] = class_text
+   124→        # Extract mercado
+   125→        if 'SERVIÇO PÚBLICO' in class_text.upper() or 'SERVICO PUBLICO' in class_text.upper():
+   126→            data["Mercado"] = "Serviço Público"
+   127→        elif 'COMERCIAL' in class_text.upper():
+   128→            data["Mercado"] = "Comercial"
+   129→        elif 'RESIDENCIAL' in class_text.upper():
+   130→            data["Mercado"] = "Residencial"
+   131→        elif 'INDUSTRIAL' in class_text.upper():
+   132→            data["Mercado"] = "Industrial"
+   133→        elif 'RURAL' in class_text.upper():
+   134→            data["Mercado"] = "Rural"
+   135→        else:
+   136→            data["Mercado"] = class_text
+   137→    else:
+   138→        data["Tipo"] = None
+   139→        data["Mercado"] = None
+   140→
+   141→    # === Concessionária ===
+   142→    conc_match = re.search(r'ENERGISA\s+(.*?)(?:\n|\s*-\s*DISTR)', text)
+   143→    if conc_match:
+   144→        data["Concessionária"] = "ENERGISA " + conc_match.group(1).strip()
+   145→    else:
+   146→        data["Concessionária"] = "ENERGISA MATO GROSSO DO SUL"
+   147→
+   148→    # === Mês Referência ===
+   149→    # Find "Referência: MM/AAAA" or from date range
+   150→    ref_match = re.search(r'Referência:\s*(\d{2}/\d{4})', text)
+   151→    if ref_match:
+   152→        data["Mês Referência"] = ref_match.group(1)
+   153→    else:
+   154→        data["Mês Referência"] = None
+   155→
+   156→    # === Ano Leitura ===
+   157→    if data["Mês Referência"]:
+   158→        data["Ano Leitura"] = data["Mês Referência"].split("/")[1]
+   159→    else:
+   160→        data["Ano Leitura"] = None
+   161→
+   162→    # === Vencimento ===
+   163→    # Format: DD/MM/AAAA next to "Junho / 2026"
+   164→    # Pattern: "Junho / 2026 DD/MM/AAAA R$ valor"
+   165→    venc_match = re.search(r'(?:Janeiro|Fevereiro|Março|Abril|Maio|Junho|Julho|Agosto|Setembro|Outubro|Novembro|Dezembro)\s*/\s*\d{4}\s+(\d{2}/\d{2}/\d{4})', text)
+   166→    if venc_match:
+   167→        data["Vencimento"] = venc_match.group(1)
+   168→    else:
+   169→        # Try another pattern
+   170→        venc_match2 = re.search(r'VENCIMENTO\s+(\d{2}/\d{2}/\d{4})', text)
+   171→        if venc_match2:
+   172→            data["Vencimento"] = venc_match2.group(1)
+   173→        else:
+   174→            data["Vencimento"] = None
+   175→
+   176→    # === Nota Fiscal ===
+   177→    nf_match = re.search(r'NOTA FISCAL Nº:\s*([\d.]+)', text)
+   178→    if nf_match:
+   179→        data["Nota Fiscal"] = nf_match.group(1)
+   180→    else:
+   181→        data["Nota Fiscal"] = None
+   182→
+   183→    # === Modalidade Tarifária ===
+   184→    class_full = data.get("Tipo", "") or ""
+   185→    if 'AZUL' in class_full.upper():
+   186→        data["Modalidade Tarifária"] = "Azul"
+   187→    elif 'VERDE' in class_full.upper():
+   188→        data["Modalidade Tarifária"] = "Verde"
+   189→    elif 'BRANCA' in class_full.upper():
+   190→        data["Modalidade Tarifária"] = "Branca"
+   191→    elif 'CONVENCIONAL' in class_full.upper():
+   192→        data["Modalidade Tarifária"] = "Convencional"
+   193→    else:
+   194→        data["Modalidade Tarifária"] = None
+   195→
+   196→    # === Subgrupo ===
+   197→    sub_match = re.search(r'/\s*([AB]\d)\s', class_full)
+   198→    if sub_match:
+   199→        data["Subgrupo"] = sub_match.group(1)
+   200→    else:
+   201→        data["Subgrupo"] = None
+   202→
+   203→    # === Determine tariff model ===
+   204→    is_azul = data["Modalidade Tarifária"] == "Azul"
+   205→    is_verde = data["Modalidade Tarifária"] == "Verde"
+   206→    is_branca = data["Modalidade Tarifária"] == "Branca"
+   207→    is_convencional = data["Modalidade Tarifária"] == "Convencional"
+   208→    is_grupo_b = data["Subgrupo"] and data["Subgrupo"].startswith("B")
+   209→
+   210→    # === Valor Total ===
+   211→    # Pattern 1: "Mês/Ano DD/MM/AAAA R$ X.XXX,XX" (before the items table)
+   212→    total_match = re.search(r'(?:Janeiro|Fevereiro|Março|Abril|Maio|Junho|Julho|Agosto|Setembro|Outubro|Novembro|Dezembro)\s*/\s*\d{4}\s+\d{2}/\d{2}/\d{4}\s+R\$\s*([\d.,]+)', text)
+   213→    if total_match:
+   214→        data["Valor Total (R$)"] = parse_numero(total_match.group(1))
+   215→    else:
+   216→        # Pattern 2: "TOTAL: X.XXX,XX" (in the items table)
+   217→        total_match2 = re.search(r'TOTAL:\s*([\d.,]+)', text)
+   218→        if total_match2:
+   219→            data["Valor Total (R$)"] = parse_numero(total_match2.group(1))
+   220→        else:
+   221→            data["Valor Total (R$)"] = None
+   222→
+   223→    # === Consumo Grupo B ===
+   224→    if is_grupo_b:
+   225→        # For B3, there's a single "Consumo em kWh" line (no Ponta/FP suffix)
+   226→        pat = r'Consumo em kWh\b\s+KWH\s+([\d.,]+)\s+[\d.,]+\s+([\d.,]+)'
+   227→        m = re.search(pat, text)
+   228→        if m:
+   229→            data["Consumo Grupo B (kWh)"] = parse_quant(m.group(1))
+   230→        else:
+   231→            data["Consumo Grupo B (kWh)"] = None
+   232→    else:
+   233→        data["Consumo Grupo B (kWh)"] = None
+   234→
+   235→    # === Demanda Contratada ===
+   236→    # "Demanda ponta - kW XXXX" and "Demanda fora ponta - kW XXXX"
+   237→    dem_ponta_c = re.search(r'Demanda ponta\s*-\s*kW\s*([\d,*]+)', text)
+   238→    data["Demanda Contratada Ponta (kW)"] = parse_quant(dem_ponta_c.group(1)) if dem_ponta_c else None
+   239→
+   240→    dem_fp_c = re.search(r'Demanda fora ponta\s*-\s*kW\s*([\d,*]+)', text)
+   241→    data["Demanda Contratada Fora Ponta (kW)"] = parse_quant(dem_fp_c.group(1)) if dem_fp_c else None
+   242→
+   243→    # === Parse the items table ===
+   244→    # We need to extract individual line items from the fatura
+   245→    # The table has lines like:
+   246→    # "Consumo em kWh - Ponta KWH 75009,90 0,766180 57.471,85"
+   247→    # "Demanda de Potência Medida - Ponta KW 1.276,80 84,707650 108.154,73"
+   248→
+   249→    lines = text.split('\n')
+   250→    items_text = []
+   251→    in_items = False
+   252→    for line in lines:
+   253→        if 'Itens da Fatura' in line:
+   254→            in_items = True
+   255→            continue
+   256→        if in_items and ('TOTAL:' in line or 'LANÇAMENTOS' in line):
+   257→            in_items = False
+   258→            break
+   259→        if in_items:
+   260→            items_text.append(line)
+   261→
+   262→    items_full = ' '.join(items_text)
+   263→
+   264→    # Helper to extract item quantity and value from items section
+   265→    # Format: Item_Name KWH/KW Quantity Unit_Price Value ...
+   266→    def extract_item(pattern, items_text):
+   267→        m = re.search(pattern, items_text)
+   268→        if m:
+   269→            return parse_quant(m.group(1)), parse_numero(m.group(2))
+   270→        return None, None
+   271→
+   272→    # Helper: qty and value (skipping unit price) - 3-number pattern
+   273→    def extract_item_qv(item_name, unit, items_text):
+   274→        """Extract quantity and value, skipping unit price.
+   275→        Pattern: ItemName UNIT QTY UNIT_PRICE VALUE"""
+   276→        pat = item_name + r'\s+' + unit + r'\s+([\d.,]+)\s+[\d.,]+\s+([\d.,]+)'
+   277→        m = re.search(pat, items_text)
+   278→        if m:
+   279→            return parse_quant(m.group(1)), parse_numero(m.group(2))
+   280→        return None, None
+   281→
+   282→    # === Demanda Medida Ponta ===
+   283→    q, v = extract_item_qv(r'Demanda de Potência Medida - Ponta', r'KW', items_full)
+   284→    data["Demanda Medida Ponta (kW)"] = q
+   285→    data["Valor Demanda Medida Ponta (R$)"] = v
+   286→
+   287→    # === Demanda Medida Fora Ponta ===
+   288→    q, v = extract_item_qv(r'Demanda de Potência Medida - Fora Ponta', r'KW', items_full)
+   289→    data["Demanda Medida Fora Ponta (kW)"] = q
+   290→    data["Valor Demanda Medida Fora Ponta (R$)"] = v
+   291→
+   292→    # === Consumo Ponta/Fora Ponta ===
+   293→    if is_azul or is_verde:
+   294→        q, v = extract_item_qv(r'Consumo em kWh - Ponta', r'KWH', items_full)
+   295→        data["Consumo Ponta (kWh)"] = q
+   296→        data["Valor Consumo Ponta (R$)"] = v
+   297→
+   298→        q, v = extract_item_qv(r'Consumo em kWh - Fora Ponta', r'KWH', items_full)
+   299→        data["Consumo Fora Ponta (kWh)"] = q
+   300→        data["Valor Consumo Fora Ponta (R$)"] = v
+   301→    elif is_convencional and not is_grupo_b:
+   302→        # MTC (A group) - single consumption line
+   303→        q, v = extract_item_qv(r'Consumo em kWh\b', r'KWH', items_full)
+   304→        data["Consumo Ponta (kWh)"] = q
+   305→        data["Valor Consumo Ponta (R$)"] = v
+   306→        data["Consumo Fora Ponta (kWh)"] = None
+   307→        data["Valor Consumo Fora Ponta (R$)"] = None
+   308→    elif is_branca:
+   309→        # Tarifa Branca - different format: no KWH unit on same line
+   310→        # Extract quantities from meter reading section: "KWH Ponta ... 89,00 89,00"
+   311→        branc_q_ponta = re.search(r'KWH Ponta\s+[\d.,]+\s+[\d.,]+\s+[\d.,]+\s+([\d.,]+)', text)
+   312→        branc_q_fp = re.search(r'KWH FPonta\s+[\d.,]+\s+[\d.,]+\s+[\d.,]+\s+([\d.,]+)', text)
+   313→        data["Consumo Ponta (kWh)"] = parse_quant(branc_q_ponta.group(1)) if branc_q_ponta else None
+   314→        data["Consumo Fora Ponta (kWh)"] = parse_quant(branc_q_fp.group(1)) if branc_q_fp else None
+   315→
+   316→        # Values from items section: "Consumo em kWh - Ponta PRICE VALUE"
+   317→        branc_val_ponta = re.search(r'Consumo em kWh - Ponta\s+([\d.,]+)\s+([\d.,]+)', items_full)
+   318→        if branc_val_ponta:
+   319→            # First number is unit price, second is value
+   320→            data["Valor Consumo Ponta (R$)"] = parse_numero(branc_val_ponta.group(2))
+   321→
+   322→        branc_val_fp = re.search(r'Consumo em kWh - Fora Ponta\s+([\d.,]+)\s+([\d.,]+)', items_full)
+   323→        if branc_val_fp:
+   324→            data["Valor Consumo Fora Ponta (R$)"] = parse_numero(branc_val_fp.group(2))
+   325→    else:
+   326→        data["Consumo Ponta (kWh)"] = None
+   327→        data["Valor Consumo Ponta (R$)"] = None
+   328→        data["Consumo Fora Ponta (kWh)"] = None
+   329→        data["Valor Consumo Fora Ponta (R$)"] = None
+   330→
+   331→    # === Demanda Todos os Períodos (kW) ===
+   332→    # For Verde tariff, there's a single demand measured in "Fora Ponta"
+   333→    # For Branca, no demand
+   334→    if is_verde:
+   335→        # In Verde, the single demand appears as "Demanda de Potência Medida - Fora Ponta"
+   336→        data["Demanda Todos os Períodos (kW)"] = data.get("Demanda Medida Fora Ponta (kW)")
+   337→    else:
+   338→        data["Demanda Todos os Períodos (kW)"] = None
+   339→
+   340→    # === Demanda Não Consumida Ponta ===
+   341→    q, v = extract_item_qv(r'Demanda Potência Não Consumida - Ponta', r'KW', items_full)
+   342→    data["Demanda Não Consumida Ponta (kW)"] = q
+   343→    data["Valor Demanda Não Consumida Ponta (R$)"] = v
+   344→
+   345→    # === Demanda Não Consumida Fora Ponta ===
+   346→    q, v = extract_item_qv(r'Demanda Potência Não Consumida - F Ponta', r'KW', items_full)
+   347→    data["Demanda Não Consumida Fora Ponta (kW)"] = q
+   348→    data["Valor Demanda Não Consumida Fora Ponta (R$)"] = v
+   349→
+   350→    # === Ultrapassagem Ponta ===
+   351→    q, v = extract_item_qv(r'Demanda Potência Ativa - Ultrap - Ponta', r'KW', items_full)
+   352→    data["Ultrapassagem Ponta (kW)"] = q
+   353→    data["Valor Ultrapassagem Ponta (R$)"] = v
+   354→
+   355→    # === Ultrapassagem Fora Ponta ===
+   356→    q, v = extract_item_qv(r'Demanda Potência Ativa - Ultrap - F Ponta', r'KW', items_full)
+   357→    data["Ultrapassagem Fora Ponta (kW)"] = q
+   358→    data["Valor Ultrapassagem Fora Ponta (R$)"] = v
+   359→
+   360→    # === Reativa Excedente Ponta ===
+   361→    q, v = extract_item_qv(r'Energia Reativa Exced em KWh - Ponta', r'UN', items_full)
+   362→    data["Reativa Excedente Ponta (kVArh)"] = q
+   363→    data["Valor Reativa Excedente Ponta (R$)"] = v
+   364→
+   365→    # === Reativa Excedente Fora Ponta ===
+   366→    q, v = extract_item_qv(r'Energia Reativa Exced em KWh - Fponta', r'UN', items_full)
+   367→    data["Reativa Excedente Fora Ponta (kVArh)"] = q
+   368→    data["Valor Reativa Excedente Fora Ponta (R$)"] = v
+   369→
+   370→    # Also try alternate pattern for reativa in convencional (no Ponta/FP suffix)
+   371→    if data["Reativa Excedente Ponta (kVArh)"] is None and data["Reativa Excedente Fora Ponta (kVArh)"] is None:
+   372→        q, v = extract_item_qv(r'Energia Reativa Exced em KWh\b', r'UN', items_full)
+   373→        if q is not None:
+   374→            data["Reativa Excedente Fora Ponta (kVArh)"] = q
+   375→            data["Valor Reativa Excedente Fora Ponta (R$)"] = v
+   376→
+   377→    # === GDI oUC ===
+   378→    gdi_ouc_match = re.findall(r'Energia Atv Injetada GDI oUC\s+\d+/\d+\s+mPT\s+KWH\s+([\d.,]+)\s+([\d.,]+)\s+(-?[\d.,]+)', items_full)
+   379→    total_q_ouc = 0
+   380→    total_v_ouc = 0
+   381→    for m in gdi_ouc_match:
+   382→        total_q_ouc += parse_quant(m[0]) or 0
+   383→        total_v_ouc += parse_numero(m[2]) or 0  # Value is negative (credit)
+   384→    data["GDI oUC (kWh)"] = total_q_ouc if total_q_ouc > 0 else None
+   385→    data["Valor GDI oUC (R$)"] = total_v_ouc if total_v_ouc != 0 else None
+   386→
+   387→    # === GDI mUC ===
+   388→    gdi_muc_match = re.findall(r'Energia Atv Injetada GDI mUC\s+\d+/\d+\s+mPT\s+KWH\s+([\d.,]+)\s+([\d.,]+)\s+(-?[\d.,]+)', items_full)
+   389→    total_q_muc = 0
+   390→    total_v_muc = 0
+   391→    for m in gdi_muc_match:
+   392→        total_q_muc += parse_quant(m[0]) or 0
+   393→        total_v_muc += parse_numero(m[2]) or 0
+   394→    data["GDI mUC (kWh)"] = total_q_muc if total_q_muc > 0 else None
+   395→    data["Valor GDI mUC (R$)"] = total_v_muc if total_v_muc != 0 else None
+   396→
+   397→    # === CIP ===
+   398→    cip_match = re.search(r'CONT\.IL\.PUB-CIP MUNICIPAL\s+([\d.,]+)', text)
+   399→    if cip_match:
+   400→        data["CIP (R$)"] = parse_numero(cip_match.group(1))
+   401→    else:
+   402→        data["CIP (R$)"] = None
+   403→
+   404→    # === Outros Encargos ===
+   405→    outros_lines = []
+   406→    in_outros = False
+   407→    skip_keywords = ['CONT.IL.PUB-CIP', 'Demanda', 'kW', 'KW', 'TUSDG', 'KWTG',
+   408→                       'Nº DIAS', 'CONSUMO', 'Energia', 'NOTA FISCAL', 'FATURAMENTO',
+   409→                       'chave de acesso', 'Protocolo', 'GDI', 'COMPENSACAO']
+   410→    for line in text.split('\n'):
+   411→        if 'LANÇAMENTOS E SERVIÇOS' in line:
+   412→            in_outros = True
+   413→            remainder = line.split('LANÇAMENTOS E SERVIÇOS')[-1].strip()
+   414→            if remainder and not any(k in remainder for k in skip_keywords) and not re.search(r'[A-ZÇÃÁÀÉÊÍÓÔÕÚÂ]{3}/', remainder):
+   415→                outros_lines.append(remainder)
+   416→            continue
+   417→        if in_outros:
+   418→            if not line.strip() or 'TOTAL:' in line:
+   419→                break
+   420→            if re.search(r'[A-ZÇÃÁÀÉÊÍÓÔÕÚÂ]{3}/\d{2,4}', line):
+   421→                break
+   422→            if any(k in line for k in skip_keywords):
+   423→                break
+   424→            outros_lines.append(line.strip())
+   425→
+   426→    outros_total = 0
+   427→    has_outros = False
+   428→    for line in outros_lines:
+   429→        if not line:
+   430→            continue
+   431→        val_match = re.search(r'([\d.,]+)\s*$', line)
+   432→        if val_match:
+   433→            v = parse_numero(val_match.group(1))
+   434→            if v is not None and v != 0:
+   435→                outros_total += v
+   436→                has_outros = True
+   437→    data["Outros Encargos (R$)"] = outros_total if has_outros else None
+   438→
+   439→    # === PIS, COFINS, ICMS ===
+   440→    # Strategy: extract from TOTAL line (4 values: total, PIS/COFINS, base ICMS, ICMS)
+   441→    # For Branca model, PIS and COFINS appear separately
+   442→
+   443→    # First try Branca model: PIS and COFINS as separate lines
+   444→    pis_separate = re.search(r'\bPIS\s+[\d.,]+\s+[\d.,]+\s+([\d.,]+)', text)
+   445→    cofins_separate = re.search(r'\bCOFINS\s+[\d.,]+\s+[\d.,]+\s+([\d.,]+)', text)
+   446→
+   447→    if pis_separate and cofins_separate and is_branca:
+   448→        data["PIS (R$)"] = parse_numero(pis_separate.group(1))
+   449→        data["COFINS (R$)"] = parse_numero(cofins_separate.group(1))
+   450→        # ICMS from separate line
+   451→        icms_sep = re.search(r'\bICMS\s+[\d.,]+\s+([\d.,]+)\s*%?\s*([\d.,]+)', text)
+   452→        data["ICMS (R$)"] = parse_numero(icms_sep.group(2)) if icms_sep else None
+   453→    else:
+   454→        # For other models: extract from TOTAL line
+   455→        total_line_match = re.search(r'TOTAL:\s*[\d.,]+\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)', text)
+   456→        if total_line_match:
+   457→            pis_cofins_total = parse_numero(total_line_match.group(1))
+   458→            icms_val = parse_numero(total_line_match.group(3))
+   459→            data["ICMS (R$)"] = icms_val
+   460→
+   461→            # Try to find PIS rate to split PIS/COFINS
+   462→            pis_rate_match = re.search(r'PIS\s+([\d.,]+)', text)
+   463→            pis_rate = parse_numero(pis_rate_match.group(1)) if pis_rate_match else None
+   464→
+   465→            if pis_rate and pis_cofins_total:
+   466→                # COFINS rate is typically ~4.174x PIS rate (for A group) or use known ratio
+   467→                # PIS: 0.9660% or 1.6019%, COFINS: ~4.174% or 7.3786%
+   468→                if pis_rate > 1.0:
+   469→                    # B group rates
+   470→                    cofins_rate = 7.3786
+   471→                else:
+   472→                    # A group rates
+   473→                    cofins_rate = 4.174
+   474→                ratio_pis = pis_rate / (pis_rate + cofins_rate)
+   475→                data["PIS (R$)"] = round(pis_cofins_total * ratio_pis, 2)
+   476→                data["COFINS (R$)"] = round(pis_cofins_total * (1 - ratio_pis), 2)
+   477→            else:
+   478→                data["PIS (R$)"] = None
+   479→                data["COFINS (R$)"] = pis_cofins_total
+   480→        else:
+   481→            data["PIS (R$)"] = None
+   482→            data["COFINS (R$)"] = None
+   483→            data["ICMS (R$)"] = None
+   484→
+   485→    return data
+   486→
+   487→
+   488→def create_excel(all_data):
+   489→    """Create Excel file with extracted data."""
+   490→    import openpyxl
+   491→    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+   492→    from openpyxl.utils import get_column_letter
+   493→
+   494→    wb = openpyxl.Workbook()
+   495→    ws = wb.active
+   496→    ws.title = "Extracao Faturas"
+   497→
+   498→    # === Column definitions ===
+   499→    columns = [
+   500→        ("Arquivo", 20),
+   501→        ("UC", 20),
+   502→        ("Gerência", 15),
+   503→        ("LOCINS", 15),
+   504→        ("Cidade", 18),
+   505→        ("Tipo", 50),
+   506→        ("Mercado", 18),
+   507→        ("Concessionária", 40),
+   508→        ("Mês Referência", 15),
+   509→        ("Ano Leitura", 12),
+   510→        ("Vencimento", 15),
+   511→        ("Nota Fiscal", 20),
+   512→        ("Modalidade Tarifária", 20),
+   513→        ("Subgrupo", 12),
+   514→        ("Valor Total (R$)", 18),
+   515→        ("Consumo Grupo B (kWh)", 22),
+   516→        ("Demanda Contratada Ponta (kW)", 28),
+   517→        ("Demanda Contratada Fora Ponta (kW)", 32),
+   518→        ("Demanda Medida Ponta (kW)", 25),
+   519→        ("Valor Demanda Medida Ponta (R$)", 30),
+   520→        ("Demanda Medida Fora Ponta (kW)", 28),
+   521→        ("Valor Demanda Medida Fora Ponta (R$)", 33),
+   522→        ("Consumo Ponta (kWh)", 20),
+   523→        ("Valor Consumo Ponta (R$)", 23),
+   524→        ("Consumo Fora Ponta (kWh)", 24),
+   525→        ("Valor Consumo Fora Ponta (R$)", 27),
+   526→        ("Demanda Todos os Períodos (kW)", 30),
+   527→        ("Demanda Não Consumida Ponta (kW)", 30),
+   528→        ("Valor Demanda Não Consumida Ponta (R$)", 35),
+   529→        ("Demanda Não Consumida Fora Ponta (kW)", 32),
+   530→        ("Valor Demanda Não Consumida Fora Ponta (R$)", 37),
+   531→        ("Ultrapassagem Ponta (kW)", 24),
+   532→        ("Valor Ultrapassagem Ponta (R$)", 28),
+   533→        ("Ultrapassagem Fora Ponta (kW)", 26),
+   534→        ("Valor Ultrapassagem Fora Ponta (R$)", 30),
+   535→        ("Reativa Excedente Ponta (kVArh)", 30),
+   536→        ("Valor Reativa Excedente Ponta (R$)", 33),
+   537→        ("Reativa Excedente Fora Ponta (kVArh)", 32),
+   538→        ("Valor Reativa Excedente Fora Ponta (R$)", 36),
+   539→        ("GDI oUC (kWh)", 16),
+   540→        ("Valor GDI oUC (R$)", 20),
+   541→        ("GDI mUC (kWh)", 16),
+   542→        ("Valor GDI mUC (R$)", 20),
+   543→        ("CIP (R$)", 12),
+   544→        ("Outros Encargos (R$)", 20),
+   545→        ("PIS (R$)", 12),
+   546→        ("COFINS (R$)", 14),
+   547→        ("ICMS (R$)", 12),
+   548→    ]
+   549→
+   550→    # === Styles ===
+   551→    header_font = Font(name='Calibri', bold=True, color='FFFFFF', size=10)
+   552→    header_fill = PatternFill(start_color='2F5496', end_color='2F5496', fill_type='solid')
+   553→    header_align = Alignment(horizontal='center', vertical='center', wrap_text=True)
+   554→    data_font = Font(name='Calibri', size=10)
+   555→    data_align = Alignment(horizontal='left', vertical='center')
+   556→    num_align = Alignment(horizontal='right', vertical='center')
+   557→    thin_border = Border(
+   558→        left=Side(style='thin'),
+   559→        right=Side(style='thin'),
+   560→        top=Side(style='thin'),
+   561→        bottom=Side(style='thin')
+   562→    )
+   563→    highlight_fill = PatternFill(start_color='E2EFDA', end_color='E2EFDA', fill_type='solid')
+   564→    manual_fill = PatternFill(start_color='FFF2CC', end_color='FFF2CC', fill_type='solid')
+   565→
+   566→    # === Write headers ===
+   567→    for col_idx, (col_name, col_width) in enumerate(columns, 1):
+   568→        cell = ws.cell(row=1, column=col_idx, value=col_name)
+   569→        cell.font = header_font
+   570→        cell.fill = header_fill
+   571→        cell.alignment = header_align
+   572→        cell.border = thin_border
+   573→        ws.column_dimensions[get_column_letter(col_idx)].width = col_width
+   574→
+   575→    # === Write data ===
+   576→    money_fields = [
+   577→        "Valor Total (R$)", "Valor Demanda Medida Ponta (R$)", "Valor Demanda Medida Fora Ponta (R$)",
+   578→        "Valor Consumo Ponta (R$)", "Valor Consumo Fora Ponta (R$)",
+   579→        "Valor Demanda Não Consumida Ponta (R$)", "Valor Demanda Não Consumida Fora Ponta (R$)",
+   580→        "Valor Ultrapassagem Ponta (R$)", "Valor Ultrapassagem Fora Ponta (R$)",
+   581→        "Valor Reativa Excedente Ponta (R$)", "Valor Reativa Excedente Fora Ponta (R$)",
+   582→        "Valor GDI oUC (R$)", "Valor GDI mUC (R$)",
+   583→        "CIP (R$)", "Outros Encargos (R$)", "PIS (R$)", "COFINS (R$)", "ICMS (R$)",
+   584→    ]
+   585→
+   586→    qty_fields = [
+   587→        "Consumo Grupo B (kWh)", "Demanda Contratada Ponta (kW)", "Demanda Contratada Fora Ponta (kW)",
+   588→        "Demanda Medida Ponta (kW)", "Demanda Medida Fora Ponta (kW)",
+   589→        "Consumo Ponta (kWh)", "Consumo Fora Ponta (kWh)",
+   590→        "Demanda Todos os Períodos (kW)",
+   591→        "Demanda Não Consumida Ponta (kW)", "Demanda Não Consumida Fora Ponta (kW)",
+   592→        "Ultrapassagem Ponta (kW)", "Ultrapassagem Fora Ponta (kW)",
+   593→        "Reativa Excedente Ponta (kVArh)", "Reativa Excedente Fora Ponta (kVArh)",
+   594→        "GDI oUC (kWh)", "GDI mUC (kWh)",
+   595→    ]
+   596→
+   597→    for row_idx, fatura in enumerate(all_data, 2):
+   598→        for col_idx, (col_name, _) in enumerate(columns, 1):
+   599→            val = fatura.get(col_name)
+   600→            cell = ws.cell(row=row_idx, column=col_idx)
+   601→            cell.font = data_font
+   602→            cell.border = thin_border
+   603→
+   604→            if col_name in ("Gerência", "LOCINS"):
+   605→                # Manual fill columns - leave blank with yellow
+   606→                cell.fill = manual_fill
+   607→                cell.alignment = data_align
+   608→            elif col_name in money_fields:
+   609→                if val is not None:
+   610→                    cell.value = val
+   611→                    cell.number_format = '#,##0.00'
+   612→                cell.alignment = num_align
+   613→            elif col_name in qty_fields:
+   614→                if val is not None:
+   615→                    cell.value = val
+   616→                    cell.number_format = '#,##0.00'
+   617→                cell.alignment = num_align
+   618→            else:
+   619→                cell.value = val
+   620→                cell.alignment = data_align
+   621→
+   622→    # === Freeze panes ===
+   623→    ws.freeze_panes = 'C2'
+   624→
+   625→    # === Auto-filter ===
+   626→    ws.auto_filter.ref = f"A1:{get_column_letter(len(columns))}{len(all_data)+1}"
+   627→
+   628→    # === Row height for header ===
+   629→    ws.row_dimensions[1].height = 40
+   630→
+   631→    wb.save(OUTPUT_FILE)
+   632→    print(f"Excel saved: {OUTPUT_FILE}")
+   633→    return OUTPUT_FILE
+   634→
+   635→
+   636→def main():
+   637→    all_data = []
+   638→    for pdf_file in PDF_FILES:
+   639→        pdf_path = os.path.join(UPLOAD_DIR, pdf_file)
+   640→        if not os.path.exists(pdf_path):
+   641→            print(f"WARNING: {pdf_path} not found, skipping.")
+   642→            continue
+   643→
+   644→        print(f"Processing: {pdf_file}")
+   645→        text = extract_text_from_pdf(pdf_path)
+   646→        data = extract_fatura_data(text, pdf_file)
+   647→        all_data.append(data)
+   648→
+   649→        # Print summary
+   650→        print(f"  UC: {data.get('UC')}")
+   651→        print(f"  Cidade: {data.get('Cidade')}")
+   652→        print(f"  Modalidade: {data.get('Modalidade Tarifária')}")
+   653→        print(f"  Subgrupo: {data.get('Subgrupo')}")
+   654→        print(f"  Vencimento: {data.get('Vencimento')}")
+   655→        print(f"  Valor Total: {data.get('Valor Total (R$)')}")
+   656→        print(f"  Nota Fiscal: {data.get('Nota Fiscal')}")
+   657→        print()
+   658→
+   659→    output = create_excel(all_data)
+   660→    print(f"\nDone! {len(all_data)} faturas processadas.")
+   661→    print(f"Arquivo: {output}")
+   662→
+   663→
+   664→if __name__ == "__main__":
+   665→    main()
+   666→
