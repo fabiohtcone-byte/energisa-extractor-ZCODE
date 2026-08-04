@@ -25,6 +25,7 @@ import {
   Zap,
   BarChart3,
   FileSpreadsheet,
+  Bug,
 } from 'lucide-react';
 import { FIELD_LABELS, FIELD_CATEGORIES, type EnergisaInvoiceData } from '@/lib/energisa-extractor';
 
@@ -37,6 +38,7 @@ interface ExtractionResult {
     extractionRate: number;
     pageCount: number;
   };
+  rawText?: string;
 }
 
 export default function Home() {
@@ -44,6 +46,7 @@ export default function Home() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [activeTab, setActiveTab] = useState('upload');
+  const [debugMode, setDebugMode] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const processFiles = useCallback(async (files: FileList | File[]) => {
@@ -61,6 +64,8 @@ export default function Home() {
         const formData = new FormData();
         formData.append('file', file);
 
+        if (debugMode) formData.append('debug', 'true');
+
         const response = await fetch('/api/extract-pdf', {
           method: 'POST',
           body: formData,
@@ -77,6 +82,7 @@ export default function Home() {
           fileName: file.name,
           data: result.data,
           stats: result.stats,
+          rawText: result.rawText,
         });
 
         toast.success(`${file.name}: ${result.stats.extractedCount}/${result.stats.totalFields} campos extraídos (${result.stats.extractionRate}%)`);
@@ -263,6 +269,18 @@ export default function Home() {
                           : 'ou clique para selecionar os arquivos'}
                       </p>
                     </div>
+                    {/* Debug toggle */}
+                    <label className="flex items-center gap-2 mt-4 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={debugMode}
+                        onChange={(e) => setDebugMode(e.target.checked)}
+                        disabled={isProcessing}
+                        className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                      />
+                      <Bug className="h-4 w-4 text-slate-500" />
+                      <span className="text-xs text-slate-500">Modo Debug (mostra texto bruto do PDF)</span>
+                    </label>
                   </div>
                 </div>
 
@@ -342,6 +360,7 @@ export default function Home() {
             ) : (
               <div className="space-y-4">
                 {results.map((result, idx) => (
+                  <>
                   <Card key={`${result.fileName}-${idx}`}>
                     <CardHeader className="pb-3">
                       <div className="flex items-center justify-between flex-wrap gap-2">
@@ -482,6 +501,24 @@ export default function Home() {
                       </div>
                     </CardContent>
                   </Card>
+
+                  {/* Debug: Raw Text */}
+                  {result.rawText && (
+                    <Card className="mt-2 border-amber-200 bg-amber-50/50">
+                      <CardHeader className="py-2 px-4">
+                        <CardTitle className="text-sm flex items-center gap-2 text-amber-800">
+                          <Bug className="h-4 w-4" />
+                          Texto Bruto Extraído do PDF
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="px-4 pb-3">
+                        <pre className="text-[10px] leading-tight text-slate-700 bg-white border border-amber-200 rounded p-3 overflow-auto max-h-80 font-mono whitespace-pre-wrap break-all">
+                          {result.rawText}
+                        </pre>
+                      </CardContent>
+                    </Card>
+                  )}
+                  </>
                 ))}
 
                 {/* Export bar */}

@@ -5,6 +5,7 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
+    const debugMode = formData.get('debug') === 'true';
 
     if (!file) {
       return NextResponse.json({ error: 'Nenhum arquivo enviado.' }, { status: 400 });
@@ -37,7 +38,7 @@ export async function POST(request: NextRequest) {
     const totalFields = allValues.length;
     const extractionRate = Math.round((extractedCount / totalFields) * 100);
 
-    return NextResponse.json({
+    const response: Record<string, unknown> = {
       success: true,
       data: extracted,
       stats: {
@@ -47,7 +48,14 @@ export async function POST(request: NextRequest) {
         pageCount: pdfData.numpages,
       },
       rawTextLength: text.length,
-    });
+    };
+
+    // Include raw text in debug mode
+    if (debugMode) {
+      response.rawText = text;
+    }
+
+    return NextResponse.json(response);
   } catch (error) {
     console.error('Erro ao processar PDF:', error);
     return NextResponse.json(
