@@ -1,50 +1,44 @@
-// ============================================================================// ENERGISA Invoice Data Extractor - Extrai ~40+ campos de faturas de energia
-// ============================================================================
+    const chaveIdx2 = findLineIndex(lines, /chave de acesso/i);
+    const demandCandidates: string[] = [];
+    if (chaveIdx2 >= 0) {
+      for (let i = chaveIdx2 + 1; i < Math.min(chaveIdx2 + 6, lines.length); i++) {
+        const m = lines[i].match(/^(d[d.]+,[d]{2})$/);
+        if (m) demandCandidates.push(m[1]);
+      }
+    }
+
+    if (demandCandidates.length >= 2) {
+      DemandaMedidaPonta = demandCandidates[0];
+      DemandaMedidaForaPonta = demandCandidates[1];
+    } else if (demandCandidates.length === 1) {
+      DemandaMedidaPonta = demandCandidates[0];
+    }===============================}
 
 export interface EnergisaInvoiceData {
-  // Identificação
   UC: string;
   Cidade: string;
   Tipo: string;
   Mercado: string;
   Concessionaria: string;
-
-  // Datas
   MesReferencia: string;
   AnoLeitura: string;
   Vencimento: string;
   NotaFiscal: string;
-
-  // Tarifa
   ModalidadeTarifaria: string;
   Subgrupo: string;
-
-  // Consumo (kWh)
   ConsumoPonta: string;
   ConsumoForaPonta: string;
   ConsumoTotal: string;
-
-  // Demanda Contratada (kW)
   DemandaContratadaPonta: string;
   DemandaContratadaForaPonta: string;
-
-  // Demanda Medida (kW)
   DemandaMedidaPonta: string;
   DemandaMedidaForaPonta: string;
-
-  // Demanda Faturada (kW)
   DemandaFaturadaPonta: string;
   DemandaFaturadaForaPonta: string;
-
-  // Ultrapassagem de Demanda (kW)
   UltrapassagemPonta: string;
   UltrapassagemForaPonta: string;
-
-  // Energia Reativa Excedente (kWh)
   ReativaExcedentePonta: string;
   ReativaExcedenteForaPonta: string;
-
-  // Valores (R$)
   ValorConsumoPonta: string;
   ValorConsumoForaPonta: string;
   ValorDemandaPonta: string;
@@ -53,320 +47,459 @@ export interface EnergisaInvoiceData {
   ValorUltrapassagemForaPonta: string;
   ValorReativaExcedentePonta: string;
   ValorReativaExcedenteForaPonta: string;
-
-  // Tributos e Encargos
   PIS: string;
   COFINS: string;
   ICMS: string;
-
-  // Outros
   GDI: string;
   CIP: string;
   EnergiaReativaTotal: string;
-
-  // Valor Total
   ValorTotal: string;
 }
 
-// Padrão de campos vazios
 const EMPTY = '';
 
-function cleanText(text: string): string {
-  return text
-    .replace(/[\r\n]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+function match(text: string, pattern: RegExp): string {
+  const m = text.match(pattern);
+  return m && m[1] ? m[1].trim() : EMPTY;
 }
 
-function extractWithRegex(text: string, patterns: RegExp[]): string {
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
-    if (match && match[1]) {
-      return match[1].trim();
+function findLineIndex(lines: string[], pattern: RegExp): number {
+  return lines.findIndex(l => pattern.test(l));
+}
+
+export function extractEnergisaData(rawText: string): EnergisaInvoiceData {
+  const lines = rawText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  const flat = lines.join(' ');
+
+  // === CONCESSIONÁRIA (line like "ENERGISA MATO GROSSO DO SUL - DISTR. DE ENERGIA S.A.") ===
+  const Concessionaria = (() => {
+    for (const line of lines) {
+      if (line.includes('ENERGISA') && (line.includes('DISTR') || line.includes('S.A') || line.includes('S/A'))) {
+        return line.trim();
+      }
+    }
+    return EMPTY;
+  })();
+
+  // === TIPO ===
+  const Tipo = (() => {
+    for (const line of lines) {
+      if (/SERVI[Çc]O\s+P[ÚU]BLICO/i.test(line)) return 'SERVIÇO PÚBLICO';
+      if (/PODER\s+P[ÚU]BLICO/i.test(line)) return 'PODER PÚBLICO';
+      if (/RESIDENCIAL/i.test(line)) return 'RESIDENCIAL';
+      if (/COMERCIAL/i.test(line)) return 'COMERCIAL';
+      if (/INDUSTRIAL/i.test(line)) return 'INDUSTRIAL';
+    }
+    return EMPTY;
+  })();
+
+  // === MERCADO (RURAL, CENTRO, etc. - line between Insc. Est. and client name) ===
+  let Mercado = EMPTY;
+  const inscIdx = findLineIndex(lines, /Insc\.\s*Est/i);
+  if (inscIdx >= 0) {
+    for (let i = inscIdx + 1; i < Math.min(inscIdx + 5, lines.length); i++) {
+      const l = lines[i];
+      if (/^(RURAL|URBANO|CENTRO|VILA\s|ZONA)/i.test(l) && l.length < 30) {
+        Mercado = l.toUpperCase();
+        break;
+      }
     }
   }
-  return EMPTY;
-}
 
-function extractNumber(text: string, patterns: RegExp[]): string {
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
-    if (match && match[1]) {
-      return match[1].trim();
+  // === CIDADE (pattern: "DOURADOS (AG: 10)") ===
+  const Cidade = match(flat, /([A-ZÀ-Ú][A-ZÀ-Úa-zà-ú]+)\s*\(AG:\s*\d+\)/);
+
+  // === CLASSIFICAÇÃO ===
+  const classifIdx = findLineIndex(lines, /Classifica[cç][aã]o:/i);
+  const classifText = classifIdx >= 0 ? lines[classifIdx] : '';
+
+  let ModalidadeTarifaria = EMPTY;
+  let Subgrupo = EMPTY;
+
+  if (classifText) {
+    if (/AZUL/i.test(classifText)) ModalidadeTarifaria = 'AZUL';
+    else if (/VERDE/i.test(classifText)) ModalidadeTarifaria = 'VERDE';
+    else if (/VERMELHA/i.test(classifText)) ModalidadeTarifaria = 'VERMELHA';
+    else if (/CONVENCIONAL/i.test(classifText)) ModalidadeTarifaria = 'CONVENCIONAL';
+
+    const sg = classifText.match(/\/\s*([AB]\d)\b/);
+    if (sg) Subgrupo = sg[1].toUpperCase();
+  }
+
+  // === SUMMARY LINE ("21/07/2026R$ 672.485,41Junho / 2026") ===
+  const summaryLine = lines.find(l => /\d{2}\/\d{2}\/\d{4}R\$/.test(l)) || '';
+  const Vencimento = match(summaryLine, /(\d{2}\/\d{2}\/\d{4})R\$/);
+  const ValorTotal = match(summaryLine, /R\$\s*([\d.]+,[\d]{2})/);
+  const MesReferencia = (() => {
+    const m = summaryLine.match(/(Janeiro|Fevereiro|Mar[cç]o|Abril|Maio|Junho|Julho|Agosto|Setembro|Outubro|Novembro|Dezembro)\s*\/\s*(\d{4})/i);
+    return m ? `${m[1]} / ${m[2]}` : EMPTY;
+  })();
+
+  // === UC (number like 1.443.786.051-67, near NOTA FISCAL) ===
+  let UC = EMPTY;
+  const nfIdx = findLineIndex(lines, /NOTA\s+FISCAL\s*N[º°]/i);
+  if (nfIdx >= 0) {
+    // Search in range around NOTA FISCAL for UC number
+    for (let i = Math.max(0, nfIdx - 3); i <= Math.min(nfIdx + 4, lines.length - 1); i++) {
+      const m = lines[i].match(/^(\d[\d.]+-\d+)$/);
+      if (m) { UC = m[1]; break; }
     }
   }
-  return EMPTY;
-}
+  // Fallback: search for standalone UC number pattern anywhere
+  if (!UC) {
+    for (const line of lines) {
+      const m = line.match(/^(\d{2,3}\.\d{3}\.\d{3}-\d{2})$/);
+      if (m) { UC = m[1]; break; }
+    }
+  }
 
-export function extractEnergisaData(pdfText: string): EnergisaInvoiceData {
-  const text = cleanText(pdfText);
+  // === NOTA FISCAL ===
+  const NotaFiscal = match(flat, /NOTA\s+FISCAL\s*N[º°]?\s*:?\s*([\d.]+)/i);
 
-  // === IDENTIFICAÇÃO ===
-  const UC = extractNumber(text, [
-    /(?:UC|Unidade Consumidora|N[º°]\s*Instala[cç][aã]o|Cod\.?\s*UC|C[óo]digo\s*UC)[\s:]*(\d[\d\s.]*)/i,
-    /UC\s*[:\s]*(\d{6,})/i,
-    /(?:Instala[cç][aã]o|N[º°])\s*[:\s]*(\d{6,})/i,
-  ]);
+  // === DATA EMISSÃO ===
+  const DataEmissao = match(flat, /DATA\s+DE\s+EMISS[ÃA]O:\s*(\d{2}\/\d{2}\/\d{4})/i);
 
-  const Cidade = extractWithRegex(text, [
-    /(?:Cidade|Localidade|Munic[ií]pio)[\s:]+([A-ZÀ-Ú][A-ZÀ-Úa-zà-ú\s]+?)(?:\s{2,}|\t|[A-Z]{2,3}\s*[\d|])/,
-    /(?:ENDERE[Çc]O|Endere[cç]o)[^A-Z]*?([A-ZÀ-Ú][A-ZÀ-Úa-zà-ú\s]+?)\s*[-–,]/,
-    /([A-Z][A-ZÀ-Úa-zà-ú]+\s*[\/\-]?\s*[A-Z][A-ZÀ-Úa-zà-ú]+)\s*[-–]\s*[A-Z]{2}/,
-  ]);
+  // === ANO LEITURA (from Leitura Atual date) ===
+  const AnoLeitura = match(flat, /Leitura\s+Atual:\s*\d{2}\/\d{2}\/(\d{4})/i);
 
-  const Tipo = extractWithRegex(text, [
-    /(?:Tipo|Classe|Tipo de Instala[cç][aã]o)[\s:]+([A-Za-zÀ-Ú\s\/]+?)(?:\s{2,}|\t|$)/i,
-    /CLASSE\s*[:\s]+([A-Za-zÀ-Ú\s]+?)(?:\s{2,}|\t|$)/i,
-    /TIPO\s*[:\s]+([A-Za-zÀ-Ú\s\/]+?)(?:\s{2,}|\t|\n)/i,
-  ]);
+  // === TRIBUTOS SECTION ===
+  // Structure: PIS value, COFINS value, Base calc, PIS rate, COFINS rate, ICMS rate
+  // Then ICMS section: ICMS base, ICMS value concatenated
+  const pisCofinsIdx = findLineIndex(lines, /PIS\/\s*COFINS/i);
+  let PIS = EMPTY;
+  let COFINS = EMPTY;
 
-  const Mercado = extractWithRegex(text, [
-    /(?:Mercado|Segmento|Tipo de Mercado)[\s:]+([A-Za-zÀ-Ú\s]+?)(?:\s{2,}|\t|$)/i,
-    /MERCADO\s*[:\s]+([A-ZÀ-Ú\s]+?)(?:\s{2,}|\t|$)/i,
-  ]);
+  if (pisCofinsIdx >= 0) {
+    // PIS value is typically 2-3 lines BEFORE "PIS/COFINS" label
+    // PIS and COFINS values are AFTER "PIS/" label
+    const afterPis = lines.slice(pisCofinsIdx + 1, Math.min(pisCofinsIdx + 6, lines.length));
+    const numLines = afterPis.filter(l => /^[\d.]+,[\d]{2}$/.test(l.trim()));
+    if (numLines.length >= 2) {
+      PIS = numLines[0].trim();
+      COFINS = numLines[1].trim();
+    } else if (numLines.length === 1) {
+      PIS = numLines[0].trim();
+    }
+  }
 
-  const Concessionaria = extractWithRegex(text, [
-    /(?:ENERGISA\s+[A-ZÀ-Ú]+|CONCESSION[ÁA]RIA)[\s:]*([A-ZÀ-Ú][A-ZÀ-Úa-zà-ú\s.]+?)(?:\s{2,}|CNPJ|\d{2}\.\d{3})/i,
-    /ENERGISA\s+([A-ZÀ-Ú]+(?:\s+[A-ZÀ-Ú]+)*)/,
-  ]);
+  // ICMS: Find line containing "ICMS (R$)" and extract concatenated values
+  let ICMS = EMPTY;
+  const icmsRLineIdx = findLineIndex(lines, /ICMS\s*\(R\$\)/i);
+  if (icmsRLineIdx >= 0 && icmsRLineIdx + 1 < lines.length) {
+    const nextLine = lines[icmsRLineIdx + 1];
+    const nums = nextLine.match(/([\d.]+,[\d]{2})/g);
+    if (nums && nums.length >= 2) {
+      // First number = ICMS value, second = ICMS base
+      ICMS = nums[0];
+    } else if (nums && nums.length === 1) {
+      ICMS = nums[0];
+    }
+  }
 
-  // === DATAS ===
-  const MesReferencia = extractWithRegex(text, [
-    /(?:M[eê]s\s*(?:de\s*)?Refer[eê]ncia|REF)[\s:]+([A-Za-zÀ-Ú\s\/\d]+)/i,
-    /(?:PER[iÍ]ODO|Compet[eê]ncia)[\s:]+([A-Za-zÀ-Ú\s\/\d]+)/i,
-    /([A-Z][a-z]+\s*\/\s*\d{4})/,
-  ]);
+  // === CIP ===
+  let CIP = EMPTY;
+  const cipIdx = findLineIndex(lines, /CIP\s*MUNICIPAL/i);
+  if (cipIdx >= 0) {
+    for (let i = cipIdx; i < Math.min(cipIdx + 10, lines.length); i++) {
+      const m = lines[i].match(/([\d.]+,[\d]{2})/);
+      if (m) { CIP = m[1]; break; }
+    }
+  }
 
-  const AnoLeitura = extractNumber(text, [
-    /Ano\s*(?:de\s*)?Leitura[\s:]*(\d{4})/i,
-    /Leitura[\s:]+\d{2}\/\d{2}\/(\d{4})/i,
-  ]);
+  // === GDI ===
+  let GDI = EMPTY;
+  const gdiIdx = findLineIndex(lines, /GDI/i);
+  if (gdiIdx >= 0) {
+    for (let i = gdiIdx; i < Math.min(gdiIdx + 5, lines.length); i++) {
+      const m = lines[i].match(/-?([\d.]+,[\d]{2})/);
+      if (m) { GDI = m[1]; break; }
+    }
+  }
 
-  const Vencimento = extractWithRegex(text, [
-    /(?:Vencimento|VENC|Data\s*Vencimento)[\s:]+(\d{2}\s*\/\s*\d{2}\s*\/\s*\d{4})/i,
-    /(?:VENC|Vencimento)[\s:]+(\d{2}\/\d{2}\/\d{2,4})/i,
-  ]);
-
-  const NotaFiscal = extractNumber(text, [
-    /(?:Nota\s*(?:Fiscal)?|N[º°]?\s*Nota\s*Fiscal|NF\s*[Nn]°?)[\s:]+(\d[\d\s.]*)/i,
-    /NOTA\s+FISCAL[\s:]+(\d+)/i,
-    /NF[e\s]*[Nnº°]*[\s:]*(\d{6,})/i,
-  ]);
-
-  // === TARIFA ===
-  const ModalidadeTarifaria = extractWithRegex(text, [
-    /(?:Modalidade\s*Tarif[áa]ria|Modalidade)[\s:]+([A-Za-zÀ-Ú\s\d\/\-]+?)(?:\s{2,}|\t|$)/i,
-    /MODALIDADE[\s:]+([A-ZÀ-Ú\s\d\/\-]+?)(?:\s{2,}|\t|$)/i,
-    /(?:Azul|Verde|Vermelha|Branca)/i,
-  ]);
-
-  const Subgrupo = extractWithRegex(text, [
-    /(?:Subgrupo|Sub-grupo|GRUPO)[\s:]+([A-Za-z]\d?|\d[A-Za-z]?|[AB]\d|[AB]\s\d)/i,
-    /SUBGRUPO[\s:]+([A-Za-z]\d?)/i,
-    /(?:Classe|Subclasse)[\s:]+([A-Z][a-z]?\d?)/i,
-  ]);
+  // === DEMANDA CONTRATADA ("Demanda ponta - kW" / "Demanda fora ponta - kW" then value on next lines) ===
+  let DemandaContratadaPonta = EMPTY;
+  let DemandaContratadaForaPonta = EMPTY;
+  const demPontaIdx = findLineIndex(lines, /Demanda\s+ponta\s*[-–]?\s*kW/i);
+  const demFPIdx = findLineIndex(lines, /Demanda\s+fora\s+ponta\s*[-–]?\s*kW/i);
+  
+  if (demPontaIdx >= 0 && demPontaIdx + 2 < lines.length) {
+    const m = lines[demPontaIdx + 2].match(/^(\d+)$/);
+    if (m) DemandaContratadaPonta = m[1];
+  }
+  if (demFPIdx >= 0 && demFPIdx + 2 < lines.length) {
+    const m = lines[demFPIdx + 2].match(/^(\d+)$/);
+    if (m) DemandaContratadaForaPonta = m[1];
+  }
 
   // === CONSUMO (kWh) ===
-  const ConsumoPonta = extractNumber(text, [
-    /(?:Consumo|Energia\s*(?:El[eé]trica)?|Consumo\s*Ponta)[\s:]*\d*\s*(?:Ponta|P\b)[^\d]*(\d[\d.,]*)/i,
-    /PONTA[^\d]*?(\d[\d.,]+)\s*kWh/i,
-    /Consumo\s*[^\d]*Ponta[\s:]*[^\d]*(\d[\d.,]+)/i,
-  ]);
+  // Ponta: from "KWH75.009,90" lines near Ponta meter section
+  // Fora Ponta: large number between "chave de acesso" and meter section
+  let ConsumoPonta = EMPTY;
+  let ConsumoForaPonta = EMPTY;
+  let ConsumoTotal = EMPTY;
 
-  const ConsumoForaPonta = extractNumber(text, [
-    /(?:Consumo|Energia)[^\d]*?(?:Fora\s*Ponta|F[Pp]\b|FORA\s*PONTA)[^\d]*(\d[\d.,]*)/i,
-    /FORA\s*PONTA[^\d]*?(\d[\d.,]+)\s*kWh/i,
-    /Consumo[^\d]*Fora[^\d]*Ponta[\s:]*[^\d]*(\d[\d.,]+)/i,
-  ]);
+  // Find KWH lines with numbers
+  const kwhLines = lines.map((l, i) => ({ line: l, idx: i }))
+    .filter(o => /^KWH[\d.,]+$/.test(o.line));
 
-  const ConsumoTotal = extractNumber(text, [
-    /(?:Consumo\s*Total|TOTAL\s*CONSUMO|Total\s*de\s*Energia)[^\d]*(\d[\d.,]+)/i,
-    /TOTAL[^\d]*?(\d[\d.,]+)\s*kWh/i,
-  ]);
+  // Find Ponta meter section (meter ID like 00000Z71944Ponta)
+  const pontaMeterIdx = findLineIndex(lines, /\d{5}Z\d+Ponta$/);
+  const foraPontaMeterIdx = findLineIndex(lines, /\d{5}Z\d+Fora\s*Ponta$/);
 
-  // === DEMANDA CONTRATADA (kW) ===
-  const DemandaContratadaPonta = extractNumber(text, [
-    /(?:Demanda\s*Contratada|CONTRATADA)[^\d]*(?:Ponta|P\b)[^\d]*(\d[\d.,]+)/i,
-    /Dem\s*Contratada[^\d]*Ponta[^\d]*(\d[\d.,]+)/i,
-    /CONTRAT[\sA]*\s*PONTA[^\d]*(\d[\d.,]+)/i,
-  ]);
+  // Find "chave de acesso" line
+  const chaveIdx = findLineIndex(lines, /chave de acesso/i);
 
-  const DemandaContratadaForaPonta = extractNumber(text, [
-    /(?:Demanda\s*Contratada|CONTRATADA)[^\d]*(?:Fora\s*Ponta|FP|F\b)[^\d]*(\d[\d.,]+)/i,
-    /Dem\s*Contratada[^\d]*Fora[^\d]*Ponta[^\d]*(\d[\d.,]+)/i,
-    /CONTRAT[\sA]*\s*FORA[^\d]*(\d[\d.,]+)/i,
-  ]);
+  if (kwhLines.length > 0) {
+    // Azul tariff: has Ponta/FP
+    // Find KWH lines after Ponta meter label
+    const pontaKwh = kwhLines.find(o => o.idx > pontaMeterIdx - 5 && o.idx < pontaMeterIdx + 20);
+    if (pontaKwh) {
+      const m = pontaKwh.line.match(/^KWH([\d.,]+)$/);
+      if (m) ConsumoPonta = m[1];
+    }
+  }
 
-  // === DEMANDA MEDIDA (kW) ===
-  const DemandaMedidaPonta = extractNumber(text, [
-    /(?:Demanda\s*Medida|MEDIDA|Medida)[^\d]*(?:Ponta|P\b)[^\d]*(\d[\d.,]+)/i,
-    /MEDIDA\s*PONTA[^\d]*(\d[\d.,]+)/i,
-  ]);
+  // Fora Ponta: large number between "chave de acesso" and meter section
+  if (chaveIdx >= 0) {
+    for (let i = chaveIdx + 1; i < Math.min(chaveIdx + 5, lines.length); i++) {
+      const m = lines[i].match(/^([\d.]+,[\d]{2})$/);
+      if (m) {
+        const val = parseFloat(m[1].replace('.', '').replace(',', '.'));
+        // Fora Ponta consumption is typically > 1000 kWh
+        if (val > 1000) {
+          ConsumoForaPonta = m[1];
+          break;
+        }
+      }
+    }
+  }
 
-  const DemandaMedidaForaPonta = extractNumber(text, [
-    /(?:Demanda\s*Medida|MEDIDA|Medida)[^\d]*(?:Fora\s*Ponta|FP|F\b)[^\d]*(\d[\d.,]+)/i,
-    /MEDIDA\s*FORA[^\d]*(\d[\d.,]+)/i,
-  ]);
+  // Convencional (B3): single consumption
+  const isAzul = ModalidadeTarifaria === 'AZUL';
+  if (!isAzul) {
+    // Find consumption from "CONSUMO FATURADO" section
+    const consFatIdx = findLineIndex(lines, /CONSUMO\s+FATURADO/i);
+    if (consFatIdx >= 0) {
+      for (let i = consFatIdx + 1; i < Math.min(consFatIdx + 5, lines.length); i++) {
+        const m = lines[i].match(/^(\d[\d.]+,[\d]{2})$/);
+        if (m) { ConsumoTotal = m[1]; break; }
+      }
+    }
+    // Fallback: first KWH value
+    if (!ConsumoTotal && kwhLines.length > 0) {
+      const m = kwhLines[0].line.match(/^KWH([\d.,]+)$/);
+      if (m) ConsumoTotal = m[1];
+    }
+  }
 
-  // === DEMANDA FATURADA (kW) ===
-  const DemandaFaturadaPonta = extractNumber(text, [
-    /(?:Demanda\s*Faturada|FATURADA|Faturada)[^\d]*(?:Ponta|P\b)[^\d]*(\d[\d.,]+)/i,
-    /FATURADA\s*PONTA[^\d]*(\d[\d.,]+)/i,
-  ]);
+  // === DEMANDA MEDIDA (from items data) ===
+  // Find item labels and extract values from subsequent data lines
+  let DemandaMedidaPonta = EMPTY;
+  let DemandaMedidaForaPonta = EMPTY;
+  let DemandaFaturadaPonta = EMPTY;
+  let DemandaFaturadaForaPonta = EMPTY;
 
-  const DemandaFaturadaForaPonta = extractNumber(text, [
-    /(?:Demanda\s*Faturada|FATURADA|Faturada)[^\d]*(?:Fora\s*Ponta|FP|F\b)[^\d]*(\d[\d.,]+)/i,
-    /FATURADA\s*FORA[^\d]*(\d[\d.,]+)/i,
-  ]);
+  const itemLabels: { type: string; period: string; lineIdx: number }[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    if (/Consumo\s+em\s+kWh\s*[-–]?\s*Fora\s*Ponta/i.test(l)) {
+      itemLabels.push({ type: 'consumo', period: 'fp', lineIdx: i });
+    } else if (/Consumo\s+em\s+kWh\s*[-–]?\s*Ponta/i.test(l) && !/Fora/i.test(l)) {
+      itemLabels.push({ type: 'consumo', period: 'p', lineIdx: i });
+    } else if (/Demanda\s+.*?Medida.*?Fora\s*Ponta|Demanda\s+.*?Medida.*?\s+FP/i.test(l)) {
+      itemLabels.push({ type: 'demanda_medida', period: 'fp', lineIdx: i });
+    } else if (/Demanda\s+.*?Medida.*?\s+Ponta/i.test(l)) {
+      itemLabels.push({ type: 'demanda_medida', period: 'p', lineIdx: i });
+    } else if (/Ultrap.*?Fora\s*Ponta|Ultrap.*?F\s*Ponta/i.test(l)) {
+      itemLabels.push({ type: 'ultrapassagem', period: 'fp', lineIdx: i });
+    } else if (/Ultrap.*?Ponta/i.test(l)) {
+      itemLabels.push({ type: 'ultrapassagem', period: 'p', lineIdx: i });
+    } else if (/Reativa\s+Exced.*?Fora\s*Ponta|Reativa\s+Exced.*?Fponta/i.test(l)) {
+      itemLabels.push({ type: 'reativa', period: 'fp', lineIdx: i });
+    } else if (/Reativa\s+Exced/i.test(l)) {
+      itemLabels.push({ type: 'reativa', period: 'p', lineIdx: i });
+    }
+  }
 
-  // === ULTRAPASSAGEM DE DEMANDA (kW) ===
-  const UltrapassagemPonta = extractNumber(text, [
-    /(?:Ultrapassagem|ULTRAPASSAGEM|Ultrapass)[^\d]*(?:Ponta|P\b)[^\d]*(\d[\d.,]+)/i,
-    /ULTRA\s*PONTA[^\d]*(\d[\d.,]+)/i,
-  ]);
+  // Extract values from data lines after item labels
+  // The data region starts after the last item label and has number lines
+  if (itemLabels.length > 0) {
+    const lastLabelIdx = itemLabels[itemLabels.length - 1].lineIdx;
+    const dataLines = lines.slice(lastLabelIdx + 1, Math.min(lastLabelIdx + 35, lines.length))
+      .filter(l => /^[\d.,]+$/.test(l));
 
-  const UltrapassagemForaPonta = extractNumber(text, [
-    /(?:Ultrapassagem|ULTRAPASSAGEM|Ultrapass)[^\d]*(?:Fora\s*Ponta|FP|F\b)[^\d]*(\d[\d.,]+)/i,
-    /ULTRA\s*FORA[^\d]*(\d[\d.,]+)/i,
-  ]);
+    // Data line groups: tariff, quantity, unit_price, value (repeated for each item)
+    // For demand/ultrapassagem, the quantity (kW) is what we need
+    // Demand values typically range from 1 to 5000 kW
+    
+    const demMedP = itemLabels.find(l => l.type === 'demanda_medida' && l.period === 'p');
+    const demMedFP = itemLabels.find(l => l.type === 'demanda_medida' && l.period === 'fp');
 
-  // === ENERGIA REATIVA EXCEDENTE (kWh) ===
-  const ReativaExcedentePonta = extractNumber(text, [
-    /(?:Reativa\s*Excedente|REATIVA\s*EXCEDENTE|Reat\.*\s*Exc)[^\d]*(?:Ponta|P\b)[^\d]*(\d[\d.,]+)/i,
-    /REAT\.*\s*EXC\.*\s*PONTA[^\d]*(\d[\d.,]+)/i,
-  ]);
+    if (demMedP) {
+      // Demand Ponta: look in the data lines for a number in 1-5000 range
+      for (const dl of dataLines) {
+        const nums = dl.match(/([\d.]+,[\d]{2})/g);
+        if (nums) {
+          for (const n of nums) {
+            const v = parseFloat(n.replace('.', '').replace(',', '.'));
+            if (v >= 1 && v <= 5000) { DemandaMedidaPonta = n; break; }
+          }
+          if (DemandaMedidaPonta) break;
+        }
+      }
+    }
+    if (demMedFP) {
+      let startOffset = 0;
+      if (DemandaMedidaPonta) {
+        // Skip the line we already used for Ponta
+        for (let i = 0; i < dataLines.length; i++) {
+          if (dataLines[i].includes(DemandaMedidaPonta)) { startOffset = i + 1; break; }
+        }
+      }
+      for (let i = startOffset; i < dataLines.length; i++) {
+        const nums = dataLines[i].match(/([\d.]+,[\d]{2})/g);
+        if (nums) {
+          for (const n of nums) {
+            const v = parseFloat(n.replace('.', '').replace(',', '.'));
+            if (v >= 1 && v <= 5000 && n !== DemandaMedidaPonta) { DemandaMedidaForaPonta = n; break; }
+          }
+          if (DemandaMedidaForaPonta) break;
+        }
+      }
+    }
 
-  const ReativaExcedenteForaPonta = extractNumber(text, [
-    /(?:Reativa\s*Excedente|REATIVA\s*EXCEDENTE|Reat\.*\s*Exc)[^\d]*(?:Fora\s*Ponta|FP|F\b)[^\d]*(\d[\d.,]+)/i,
-    /REAT\.*\s*EXC\.*\s*FORA[^\d]*(\d[\d.,]+)/i,
-  ]);
+    DemandaFaturadaPonta = DemandaMedidaPonta;
+    DemandaFaturadaForaPonta = DemandaMedidaForaPonta;
+  }
 
-  // === VALORES (R$) ===
-  const ValorConsumoPonta = extractNumber(text, [
-    /(?:Valor|Vlr)[^\d]*Consumo[^\d]*Ponta[^\d]*(\d[\d.,]+[.,]\d{2})/i,
-    /(?:Energia|ENERGIA)[^\d]*Ponta[^R$]*R\$?\s*(\d[\d.,]+[.,]\d{2})/i,
-    /PONTA[^R$\d]*R\$\s*(\d[\d.,]+[.,]\d{2})/i,
-  ]);
+  // === ULTRAPASSAGEM ===
+  let UltrapassagemPonta = EMPTY;
+  let UltrapassagemForaPonta = EMPTY;
+  const ultraP = itemLabels.find(l => l.type === 'ultrapassagem' && l.period === 'p');
+  const ultraFP = itemLabels.find(l => l.type === 'ultrapassagem' && l.period === 'fp');
 
-  const ValorConsumoForaPonta = extractNumber(text, [
-    /(?:Valor|Vlr)[^\d]*Consumo[^\d]*(?:Fora\s*Ponta|FP)[^\d]*(\d[\d.,]+[.,]\d{2})/i,
-    /(?:Energia|ENERGIA)[^\d]*(?:Fora\s*Ponta|FP)[^R$]*R\$?\s*(\d[\d.,]+[.,]\d{2})/i,
-    /FORA\s*PONTA[^R$\d]*R\$\s*(\d[\d.,]+[.,]\d{2})/i,
-  ]);
+  if (ultraP || ultraFP) {
+    const lastLabelIdx = itemLabels[itemLabels.length - 1].lineIdx;
+    const dataLines = lines.slice(lastLabelIdx + 1, Math.min(lastLabelIdx + 35, lines.length))
+      .filter(l => /^[\d.,]+$/.test(l));
 
-  const ValorDemandaPonta = extractNumber(text, [
-    /(?:Valor|Vlr)[^\d]*(?:Demanda|DEMANDA)[^\d]*Ponta[^\d]*(\d[\d.,]+[.,]\d{2})/i,
-    /DEMANDA[^R$]*PONTA[^R$\d]*R\$\s*(\d[\d.,]+[.,]\d{2})/i,
-  ]);
+    if (ultraP) {
+      for (const dl of dataLines) {
+        const nums = dl.match(/([\d.]+,[\d]{2})/g);
+        if (nums) {
+          for (const n of nums) {
+            const v = parseFloat(n.replace('.', '').replace(',', '.'));
+            if (v > 0 && v <= 5000 && v !== parseFloat(DemandaMedidaPonta.replace('.', '').replace(',', '.'))) {
+              UltrapassagemPonta = n; break;
+            }
+          }
+          if (UltrapassagemPonta) break;
+        }
+      }
+    }
+    if (ultraFP) {
+      for (const dl of dataLines) {
+        const nums = dl.match(/([\d.]+,[\d]{2})/g);
+        if (nums) {
+          for (const n of nums) {
+            const v = parseFloat(n.replace('.', '').replace(',', '.'));
+            if (v > 0 && v <= 5000 && n !== UltrapassagemPonta && n !== DemandaMedidaForaPonta && n !== DemandaMedidaPonta) {
+              UltrapassagemForaPonta = n; break;
+            }
+          }
+          if (UltrapassagemForaPonta) break;
+        }
+      }
+    }
+  }
 
-  const ValorDemandaForaPonta = extractNumber(text, [
-    /(?:Valor|Vlr)[^\d]*(?:Demanda|DEMANDA)[^\d]*(?:Fora\s*Ponta|FP)[^\d]*(\d[\d.,]+[.,]\d{2})/i,
-    /DEMANDA[^R$]*FORA[^R$\d]*R\$\s*(\d[\d.,]+[.,]\d{2})/i,
-  ]);
+  // === REATIVA EXCEDENTE ===
+  let ReativaExcedentePonta = EMPTY;
+  let ReativaExcedenteForaPonta = EMPTY;
+  let EnergiaReativaTotal = EMPTY;
+  const reativaP = itemLabels.find(l => l.type === 'reativa' && l.period === 'p');
+  const reativaFP = itemLabels.find(l => l.type === 'reativa' && l.period === 'fp');
 
-  const ValorUltrapassagemPonta = extractNumber(text, [
-    /(?:Valor|Vlr)[^\d]*(?:Ultrapassagem|ULTRA)[^\d]*Ponta[^\d]*(\d[\d.,]+[.,]\d{2})/i,
-    /ULTRAPASS[^R$]*PONTA[^R$\d]*R\$\s*(\d[\d.,]+[.,]\d{2})/i,
-  ]);
+  if (reativaP || reativaFP) {
+    const lastLabelIdx = itemLabels[itemLabels.length - 1].lineIdx;
+    const dataLines = lines.slice(lastLabelIdx + 1, Math.min(lastLabelIdx + 35, lines.length))
+      .filter(l => /^[\d.,]+$/.test(l));
 
-  const ValorUltrapassagemForaPonta = extractNumber(text, [
-    /(?:Valor|Vlr)[^\d]*(?:Ultrapassagem|ULTRA)[^\d]*(?:Fora\s*Ponta|FP)[^\d]*(\d[\d.,]+[.,]\d{2})/i,
-    /ULTRAPASS[^R$]*FORA[^R$\d]*R\$\s*(\d[\d.,]+[.,]\d{2})/i,
-  ]);
+    if (reativaP) {
+      for (const dl of dataLines) {
+        const nums = dl.match(/([\d.]+,[\d]{2})/g);
+        if (nums) { ReativaExcedentePonta = nums[0]; break; }
+      }
+    }
+    if (reativaFP) {
+      for (const dl of dataLines) {
+        const nums = dl.match(/([\d.]+,[\d]{2})/g);
+        if (nums && nums[0] !== ReativaExcedentePonta) { ReativaExcedenteForaPonta = nums[0]; break; }
+      }
+    }
+    if (!ReativaExcedentePonta && !ReativaExcedenteForaPonta) {
+      const reativaItem = itemLabels.find(l => l.type === 'reativa');
+      if (reativaItem) {
+        for (const dl of dataLines) {
+          const nums = dl.match(/([\d.]+,[\d]{2})/g);
+          if (nums) { EnergiaReativaTotal = nums[0]; break; }
+        }
+      }
+    }
+  }
 
-  const ValorReativaExcedentePonta = extractNumber(text, [
-    /(?:Valor|Vlr)[^\d]*(?:Reativa\s*Exc|REATIVA\s*EXC)[^\d]*Ponta[^\d]*(\d[\d.,]+[.,]\d{2})/i,
-    /REATIVA[^R$]*PONTA[^R$\d]*R\$\s*(\d[\d.,]+[.,]\d{2})/i,
-  ]);
+  // === VALORES R$ ===
+  // The item values (R$) appear as a group of numbers after the data rows
+  // Pattern: ~6 values that sum to the PIS/COFINS base
+  let ValorConsumoPonta = EMPTY;
+  let ValorConsumoForaPonta = EMPTY;
+  let ValorDemandaPonta = EMPTY;
+  let ValorDemandaForaPonta = EMPTY;
+  let ValorUltrapassagemPonta = EMPTY;
+  let ValorUltrapassagemForaPonta = EMPTY;
+  let ValorReativaExcedentePonta = EMPTY;
+  let ValorReativaExcedenteForaPonta = EMPTY;
 
-  const ValorReativaExcedenteForaPonta = extractNumber(text, [
-    /(?:Valor|Vlr)[^\d]*(?:Reativa\s*Exc|REATIVA\s*EXC)[^\d]*(?:Fora\s*Ponta|FP)[^\d]*(\d[\d.,]+[.,]\d{2})/i,
-    /REATIVA[^R$]*FORA[^R$\d]*R\$\s*(\d[\d.,]+[.,]\d{2})/i,
-  ]);
+  if (itemLabels.length > 0) {
+    const lastLabelIdx = itemLabels[itemLabels.length - 1].lineIdx;
+    const region = lines.slice(lastLabelIdx + 10, Math.min(lastLabelIdx + 28, lines.length));
+    const valorLines = region.filter(l => /^\d[\d.]+,[\d]{2}$/.test(l.trim()));
 
-  // === TRIBUTOS E ENCARGOS ===
-  const PIS = extractNumber(text, [
-    /PIS[^\d]*(\d[\d.,]+[.,]\d{2})/i,
-    /PIS\s*[=:]?\s*R?\$?\s*(\d[\d.,]+[.,]\d{2})/i,
-  ]);
-
-  const COFINS = extractNumber(text, [
-    /COFINS[^\d]*(\d[\d.,]+[.,]\d{2})/i,
-    /COFINS\s*[=:]?\s*R?\$?\s*(\d[\d.,]+[.,]\d{2})/i,
-  ]);
-
-  const ICMS = extractNumber(text, [
-    /ICMS[^\d]*(\d[\d.,]+[.,]\d{2})/i,
-    /ICMS\s*[=:]?\s*R?\$?\s*(\d[\d.,]+[.,]\d{2})/i,
-  ]);
-
-  // === OUTROS ===
-  const GDI = extractNumber(text, [
-    /GDI[^\d]*(\d[\d.,]+[.,]\d{2})/i,
-    /GDI\s*[=:]?\s*R?\$?\s*(\d[\d.,]+[.,]\d{2})/i,
-  ]);
-
-  const CIP = extractNumber(text, [
-    /CIP[^\d]*(\d[\d.,]+[.,]\d{2})/i,
-    /CIP\s*[=:]?\s*R?\$?\s*(\d[\d.,]+[.,]\d{2})/i,
-  ]);
-
-  const EnergiaReativaTotal = extractNumber(text, [
-    /(?:Energia\s*Reativa\s*Total|TOTAL\s*REATIVA|Reativa\s*Total)[^\d]*(\d[\d.,]+)/i,
-    /REATIVA\s*TOTAL[^\d]*(\d[\d.,]+)/i,
-  ]);
-
-  // === VALOR TOTAL ===
-  const ValorTotal = extractNumber(text, [
-    /(?:TOTAL(?:\s*A\s*PAGAR)?|Valor\s*Total|TOTAL\s*GERAL)[^\d]*R?\$?\s*(\d[\d.,]+[.,]\d{2})/i,
-    /TOTAL[^\d]*R\$\s*(\d[\d.,]+[.,]\d{2})/i,
-    /VALOR\s*TOTAL[^\d]*R?\$?\s*(\d[\d.,]+[.,]\d{2})/i,
-  ]);
+    if (valorLines.length >= 6 && isAzul) {
+      // Order: ConsumoFP, AdicBAmarela, DemandaFP, DemandaP, Reativa, ConsumoP
+      ValorConsumoForaPonta = valorLines[0];
+      ValorConsumoPonta = valorLines[5];
+      if (valorLines.length >= 4) {
+        ValorDemandaForaPonta = valorLines[2];
+        ValorDemandaPonta = valorLines[3];
+      }
+      if (valorLines.length >= 6) {
+        ValorReativaExcedentePonta = valorLines[4];
+      }
+    } else if (valorLines.length >= 2) {
+      ValorConsumoForaPonta = valorLines[0];
+    }
+  }
 
   return {
-    UC,
-    Cidade,
-    Tipo,
-    Mercado,
-    Concessionaria,
-    MesReferencia,
-    AnoLeitura,
-    Vencimento,
-    NotaFiscal,
-    ModalidadeTarifaria,
-    Subgrupo,
-    ConsumoPonta,
-    ConsumoForaPonta,
-    ConsumoTotal,
-    DemandaContratadaPonta,
-    DemandaContratadaForaPonta,
-    DemandaMedidaPonta,
-    DemandaMedidaForaPonta,
-    DemandaFaturadaPonta,
-    DemandaFaturadaForaPonta,
-    UltrapassagemPonta,
-    UltrapassagemForaPonta,
-    ReativaExcedentePonta,
-    ReativaExcedenteForaPonta,
-    ValorConsumoPonta,
-    ValorConsumoForaPonta,
-    ValorDemandaPonta,
-    ValorDemandaForaPonta,
-    ValorUltrapassagemPonta,
-    ValorUltrapassagemForaPonta,
-    ValorReativaExcedentePonta,
-    ValorReativaExcedenteForaPonta,
-    PIS,
-    COFINS,
-    ICMS,
-    GDI,
-    CIP,
-    EnergiaReativaTotal,
-    ValorTotal,
+    UC, Cidade, Tipo, Mercado, Concessionaria,
+    MesReferencia, AnoLeitura, Vencimento, NotaFiscal,
+    ModalidadeTarifaria, Subgrupo,
+    ConsumoPonta, ConsumoForaPonta, ConsumoTotal,
+    DemandaContratadaPonta, DemandaContratadaForaPonta,
+    DemandaMedidaPonta, DemandaMedidaForaPonta,
+    DemandaFaturadaPonta, DemandaFaturadaForaPonta,
+    UltrapassagemPonta, UltrapassagemForaPonta,
+    ReativaExcedentePonta, ReativaExcedenteForaPonta,
+    ValorConsumoPonta, ValorConsumoForaPonta,
+    ValorDemandaPonta, ValorDemandaForaPonta,
+    ValorUltrapassagemPonta, ValorUltrapassagemForaPonta,
+    ValorReativaExcedentePonta, ValorReativaExcedenteForaPonta,
+    PIS, COFINS, ICMS, GDI, CIP,
+    EnergiaReativaTotal, ValorTotal,
   };
 }
 
-// Mapeamento de chaves para labels amigáveis
 export const FIELD_LABELS: Record<keyof EnergisaInvoiceData, string> = {
   UC: 'UC (Unidade Consumidora)',
   Cidade: 'Cidade',
@@ -409,66 +542,20 @@ export const FIELD_LABELS: Record<keyof EnergisaInvoiceData, string> = {
   ValorTotal: 'Valor Total (R$)',
 };
 
-// Categorias para agrupamento na UI
 export const FIELD_CATEGORIES: { category: string; fields: (keyof EnergisaInvoiceData)[] }[] = [
-  {
-    category: 'Identificação',
-    fields: ['UC', 'Cidade', 'Tipo', 'Mercado', 'Concessionaria'],
-  },
-  {
-    category: 'Datas e Documentos',
-    fields: ['MesReferencia', 'AnoLeitura', 'Vencimento', 'NotaFiscal'],
-  },
-  {
-    category: 'Tarifa',
-    fields: ['ModalidadeTarifaria', 'Subgrupo'],
-  },
-  {
-    category: 'Consumo (kWh)',
-    fields: ['ConsumoPonta', 'ConsumoForaPonta', 'ConsumoTotal'],
-  },
-  {
-    category: 'Demanda Contratada (kW)',
-    fields: ['DemandaContratadaPonta', 'DemandaContratadaForaPonta'],
-  },
-  {
-    category: 'Demanda Medida (kW)',
-    fields: ['DemandaMedidaPonta', 'DemandaMedidaForaPonta'],
-  },
-  {
-    category: 'Demanda Faturada (kW)',
-    fields: ['DemandaFaturadaPonta', 'DemandaFaturadaForaPonta'],
-  },
-  {
-    category: 'Ultrapassagem (kW)',
-    fields: ['UltrapassagemPonta', 'UltrapassagemForaPonta'],
-  },
-  {
-    category: 'Reativa Excedente (kWh)',
-    fields: ['ReativaExcedentePonta', 'ReativaExcedenteForaPonta', 'EnergiaReativaTotal'],
-  },
-  {
-    category: 'Valores - Consumo (R$)',
-    fields: ['ValorConsumoPonta', 'ValorConsumoForaPonta'],
-  },
-  {
-    category: 'Valores - Demanda (R$)',
-    fields: ['ValorDemandaPonta', 'ValorDemandaForaPonta'],
-  },
-  {
-    category: 'Valores - Ultrapassagem (R$)',
-    fields: ['ValorUltrapassagemPonta', 'ValorUltrapassagemForaPonta'],
-  },
-  {
-    category: 'Valores - Reativa Excedente (R$)',
-    fields: ['ValorReativaExcedentePonta', 'ValorReativaExcedenteForaPonta'],
-  },
-  {
-    category: 'Tributos e Encargos (R$)',
-    fields: ['PIS', 'COFINS', 'ICMS', 'GDI', 'CIP'],
-  },
-  {
-    category: 'Total',
-    fields: ['ValorTotal'],
-  },
+  { category: 'Identificação', fields: ['UC', 'Cidade', 'Tipo', 'Mercado', 'Concessionaria'] },
+  { category: 'Datas e Documentos', fields: ['MesReferencia', 'AnoLeitura', 'Vencimento', 'NotaFiscal'] },
+  { category: 'Tarifa', fields: ['ModalidadeTarifaria', 'Subgrupo'] },
+  { category: 'Consumo (kWh)', fields: ['ConsumoPonta', 'ConsumoForaPonta', 'ConsumoTotal'] },
+  { category: 'Demanda Contratada (kW)', fields: ['DemandaContratadaPonta', 'DemandaContratadaForaPonta'] },
+  { category: 'Demanda Medida (kW)', fields: ['DemandaMedidaPonta', 'DemandaMedidaForaPonta'] },
+  { category: 'Demanda Faturada (kW)', fields: ['DemandaFaturadaPonta', 'DemandaFaturadaForaPonta'] },
+  { category: 'Ultrapassagem (kW)', fields: ['UltrapassagemPonta', 'UltrapassagemForaPonta'] },
+  { category: 'Reativa Excedente (kWh)', fields: ['ReativaExcedentePonta', 'ReativaExcedenteForaPonta', 'EnergiaReativaTotal'] },
+  { category: 'Valores - Consumo (R$)', fields: ['ValorConsumoPonta', 'ValorConsumoForaPonta'] },
+  { category: 'Valores - Demanda (R$)', fields: ['ValorDemandaPonta', 'ValorDemandaForaPonta'] },
+  { category: 'Valores - Ultrapassagem (R$)', fields: ['ValorUltrapassagemPonta', 'ValorUltrapassagemForaPonta'] },
+  { category: 'Valores - Reativa Excedente (R$)', fields: ['ValorReativaExcedentePonta', 'ValorReativaExcedenteForaPonta'] },
+  { category: 'Tributos e Encargos (R$)', fields: ['PIS', 'COFINS', 'ICMS', 'GDI', 'CIP'] },
+  { category: 'Total', fields: ['ValorTotal'] },
 ];

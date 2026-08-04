@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { extractEnergisaData, FIELD_LABELS, FIELD_CATEGORIES, type EnergisaInvoiceData } from '@/lib/energisa-extractor';
+import { extractEnergisaData, FIELD_LABELS, FIELD_CATEGORIES } from '@/lib/energisa-extractor';
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,9 +17,10 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // Dynamic import of pdf-parse (Node.js only)
-    const pdfParse = (await import('pdf-parse')).default;
-    const pdfData = await pdfParse(buffer);
+    // Load pdf-parse v1.1.1 - access the PDF function directly to skip debug mode
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const pdfModule = require('pdf-parse/lib/pdf-parse.js');
+    const pdfData = await pdfModule(buffer);
     const text = pdfData.text;
 
     if (!text || text.trim().length === 0) {
@@ -31,7 +32,6 @@ export async function POST(request: NextRequest) {
 
     const extracted = extractEnergisaData(text);
 
-    // Calculate statistics
     const allValues = Object.values(extracted);
     const extractedCount = allValues.filter((v) => v !== '').length;
     const totalFields = allValues.length;
