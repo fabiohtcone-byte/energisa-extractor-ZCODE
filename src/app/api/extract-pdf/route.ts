@@ -17,15 +17,23 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // Load pdf-parse v1.1.1 - access the PDF function directly to skip debug mode
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const pdfModule = require('pdf-parse/lib/pdf-parse.js');
-    const pdfData = await pdfModule(buffer);
+    // Dynamic import to avoid bundling issues in production
+    let pdfData: { text: string; numpages: number };
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const pdfModule = require('pdf-parse');
+      pdfData = await pdfModule(buffer);
+    } catch {
+      // Fallback to direct path
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const pdfModule2 = require('pdf-parse/lib/pdf-parse.js');
+      pdfData = await pdfModule2(buffer);
+    }
     const text = pdfData.text;
 
     if (!text || text.trim().length === 0) {
       return NextResponse.json(
-        { error: 'Não foi possível extrair texto do PDF. O arquivo pode ser escaneado/imagem.' },
+        { error: 'NÃ£o foi possÃ­vel extrair texto do PDF. O arquivo pode ser escaneado/imagem.' },
         { status: 422 }
       );
     }

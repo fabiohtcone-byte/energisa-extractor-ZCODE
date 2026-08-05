@@ -42,20 +42,10 @@ export interface EnergisaInvoiceData {
 
 const EMPTY = '';
 
-function matchAny(text: string, patterns: RegExp[]): string {
-  for (const p of patterns) {
-    const m = text.match(p);
-    if (m && m[1] && m[1].trim()) return m[1].trim();
-  }
-  return EMPTY;
-}
+// ===================== HELPERS =====================
 
 function findLine(lines: string[], pattern: RegExp): number {
   return lines.findIndex(l => pattern.test(l));
-}
-
-function windowLines(lines: string[], idx: number, before: number, after: number): string[] {
-  return lines.slice(Math.max(0, idx - before), Math.min(lines.length, idx + after + 1));
 }
 
 function findAllMoney(text: string): string[] {
@@ -64,24 +54,33 @@ function findAllMoney(text: string): string[] {
   return matches.map(m => m.match(/([\d.]+,\d{2})/)?.[1] || '').filter(Boolean);
 }
 
-function findAllNumbers(text: string): string[] {
-  return text.match(/([\d.]+,\d{2})/g) || [];
+function findNumNearLine(lines: string[], startIdx: number, direction: 1 | -1, maxDist: number, mustBeOnlyNum: boolean): string {
+  for (let i = startIdx + direction; i >= 0 && i < lines.length; i += direction) {
+    if (Math.abs(i - startIdx) > maxDist) break;
+    const line = lines[i];
+    if (mustBeOnlyNum) {
+      const m = line.match(/^(\d[\d.]+,\d{2})$/);
+      if (m) return m[1];
+    } else {
+      const m = line.match(/([\d.]+,\d{2})/);
+      if (m && !/^[A-Za-z]/.test(line)) return m[1];
+    }
+  }
+  return EMPTY;
 }
 
-// ===================== MAIN =====================
+// ===================== MAIN EXTRACTOR =====================
 
 export function extractEnergisaData(rawText: string): EnergisaInvoiceData {
   const lines = rawText.split(/[\r\n]+/).map(l => l.trim()).filter(l => l.length > 0);
   const flat = lines.join(' ');
 
   // ===== CONCESSIONÁRIA =====
+  // Full company name on its own line near the top
   const Concessionaria = (() => {
-    for (const line of lines.slice(0, 25)) {
-      if (/^ENERGISA/i.test(line) && line.length > 10) {
-        let name = line;
-        const dateCut = name.search(/\d{2}\s*\/\s*\d{2}/);
-        if (dateCut > 15) name = name.substring(0, dateCut).trim();
-        return name.replace(/\s+/g, ' ');
+    for (const line of lines.slice(0, 20)) {
+      if (/^ENERGISA/i.test(line) && line.length > 15 && !/\d{2}\s*\/\s*\d{2}/.test(line)) {
+        return line.replace(/\s+/g, ' ');
       }
     }
     return EMPTY;
@@ -100,48 +99,51 @@ export function extractEnergisaData(rawText: string): EnergisaInvoiceData {
   })();
 
   // ===== MERCADO =====
+  // Look for classification line: "SERVIÇO PÚBLICO / ÁGUA, ESGOTO E SANEAMENTO"
   const Mercado = (() => {
-    const patterns = [
-      /Mercado\s*[:\-]?\s*([A-ZÀ-Ú][A-ZÀ-Úa-zà-ú\s]{2,20})/i,
-      /Classe\s*[:\-]?\s*([A-ZÀ-Ú][A-ZÀ-Úa-zà-ú\s]{2,25})/i,
-    ];
-    const m = matchAny(flat, patterns);
-    if (m && m.length < 30) return m.toUpperCase().trim();
+    const m = flat.match(/SERVI[ÇC]O\s+P[ÚU]BLICO\s*\/\s*([A-ZÀ-Ú][A-ZÀ-Úa-zà-ú,\s]{3,40}?)(?:\s*TENSÃO|\s*\d|\s*$)/i);
+    if (m) {
+      const val = m[1].trim().replace(/\s+/g, ' ');
+      if (val.length < 50) return val.toUpperCase();
+    }
     return EMPTY;
   })();
 
   // ===== CIDADE =====
+  // Pattern: "DOURADOS (AG: 10)"
   const Cidade = (() => {
-    const skip = new Set(['SA', 'S/A', 'LTDA', 'ME', 'EPP', 'SANESUL', 'ENERGISA', 'DISTRIBUIDORA']);
     for (const line of lines.slice(0, 60)) {
-      const m = line.match(/([A-ZÀ-Ú]{3,25})\s*\(\s*AG\s*:\s*\d+\s*\)/);
-      if (m && !skip.has(m[1].toUpperCase())) return m[1].toUpperCase();
+      const m = line.match(/([A-ZÀ-Ú]{4,25})\s*\(\s*AG\s*:\s*\d+\s*\)/);
+      if (m) {
+        const name = m[1].toUpperCase();
+        // Skip company names
+        const skip = ['SANESUL', 'ENERGISA', 'DISTRIBUIDORA', 'SA'];
+        if (!skip.includes(name)) return name;
+      }
     }
     return EMPTY;
   })();
 
-  // ===== UC — dotted format X.XXX.XXX-XX, search ALL lines =====
+  // ===== UC =====
+  // Pattern: dotted format X.XXX.XXX-XX on its own line or with "KWH" prefix
   const UC = (() => {
-    const labelPatterns = [
-      /UC\s*[:\-]?\s*(\d[\d.]*-?\d*)/i,
-      /Unidade\s+Consumidora\s*[:\-]?\s*(\d[\d.]*-?\d*)/i,
-      /Instala[cç][aã]o\s*[:\-]?\s*(\d[\d.]*-?\d*)/i,
-    ];
-    const fromLabel = matchAny(flat, labelPatterns);
-    if (fromLabel && /\d.*\.\d.*\.\d/.test(fromLabel)) return fromLabel;
+    // Strategy 1: line with only UC (e.g., "3.562.051-59")
     for (const line of lines) {
-      const m = line.match(/^(\d{1,3}\.\d{3}\.\d{3}-\d{2})$/);
+      const m = line.match(/^(\d{1}\.\d{3}\.\d{3}-\d{2})$/);
       if (m) return m[1];
     }
+    // Strategy 2: UC embedded in short line
     for (const line of lines) {
-      const m = line.match(/(\d{1,3}\.\d{3}\.\d{3}-\d{2})/);
-      if (m && line.length < 25) return m[1];
+      const m = line.match(/(\d{1}\.\d{3}\.\d{3}-\d{2})/);
+      if (m && line.length < 30 && !/CNPJ|CPF|CEP/i.test(line)) return m[1];
     }
-    const broad = flat.match(/(\d{1,3}\.\d{3}\.\d{3}-\d{2})/);
+    // Strategy 3: broad search
+    const broad = flat.match(/(\d{1}\.\d{3}\.\d{3}-\d{2})/);
     return broad ? broad[1] : EMPTY;
   })();
 
   // ===== MÊS REFERÊNCIA =====
+  // Pattern: "Junho / 2026" or "JUNHO / 2026"
   const MesReferencia = (() => {
     const meses = 'Janeiro|Fevereiro|Mar[çc]o|Abril|Maio|Junho|Julho|Agosto|Setembro|Outubro|Novembro|Dezembro';
     const numToMonth: Record<string, string> = {
@@ -149,18 +151,14 @@ export function extractEnergisaData(rawText: string): EnergisaInvoiceData {
       '05': 'Maio', '06': 'Junho', '07': 'Julho', '08': 'Agosto',
       '09': 'Setembro', '10': 'Outubro', '11': 'Novembro', '12': 'Dezembro',
     };
-    const namePatterns = [
-      new RegExp(`(${meses})\\s*[\\/\\-]\\s*(\\d{4})`, 'i'),
-      new RegExp(`(${meses})\\s+de\\s*(\\d{4})`, 'i'),
-    ];
-    for (const p of namePatterns) {
-      const m = flat.match(p);
-      if (m && m[1] && m[2]) {
-        const month = m[1].charAt(0).toUpperCase() + m[1].slice(1).toLowerCase();
-        return `${month} / ${m[2]}`;
-      }
+    // Named month pattern
+    const nameMatch = flat.match(new RegExp(`(${meses})\\s*[\\/\\-]\\s*(\\d{4})`, 'i'));
+    if (nameMatch) {
+      const month = nameMatch[1].charAt(0).toUpperCase() + nameMatch[1].slice(1).toLowerCase();
+      return `${month} / ${nameMatch[2]}`;
     }
-    const numMatch = flat.match(/(?:Ref[\.:]?\s*)?(\d{2})\s*[\\/\\-]\s*(\d{4})/);
+    // Numeric month pattern (e.g., "06/2026")
+    const numMatch = flat.match(/(\d{2})\s*[\\/]\s*(\d{4})/);
     if (numMatch && numToMonth[numMatch[1]]) {
       return `${numToMonth[numMatch[1]]} / ${numMatch[2]}`;
     }
@@ -179,54 +177,66 @@ export function extractEnergisaData(rawText: string): EnergisaInvoiceData {
   })();
 
   // ===== VENCIMENTO =====
+  // ENERGISA PDFs often concatenate "VENCIMENTO" with other labels like "MATRÍCULA"
+  // The date may appear BEFORE or AFTER the label
   const Vencimento = (() => {
-    // Strategy 1: find VENCIMENTO line, check nearby lines for date
+    // Strategy 1: find line containing VENCIMENTO (even concatenated), check nearby for date
     const venIdx = findLine(lines, /VENCIMENTO/i);
     if (venIdx >= 0) {
-      // Same line
-      const m1 = lines[venIdx].match(/(\d{2})[\/](\d{2})[\/](\d{4})/);
-      if (m1) return `${m1[1]}/${m1[2]}/${m1[3]}`;
-      // Next lines
-      for (let i = venIdx + 1; i < Math.min(venIdx + 3, lines.length); i++) {
-        const m2 = lines[i].match(/^(\d{2}\/\d{2}\/\d{4})$/);
-        if (m2) return m2[1];
+      // Check lines BEFORE the label (ENERGISA often puts date before)
+      for (let i = venIdx - 1; i >= Math.max(0, venIdx - 5); i--) {
+        const m = lines[i].match(/(\d{2}\/\d{2}\/\d{4})/);
+        if (m) return m[1];
       }
-      // Previous lines (ENERGISA often puts date before VENCIMENTO label)
-      for (let i = venIdx - 1; i >= Math.max(0, venIdx - 4); i--) {
-        const m3 = lines[i].match(/^(\d{2}\/\d{2}\/\d{4})$/);
-        if (m3) return m3[1];
+      // Check lines AFTER the label
+      for (let i = venIdx + 1; i < Math.min(venIdx + 3, lines.length); i++) {
+        const m = lines[i].match(/(\d{2}\/\d{2}\/\d{4})/);
+        if (m) return m[1];
+      }
+      // Check same line
+      const sameLine = lines[venIdx].match(/(\d{2}\/\d{2}\/\d{4})/);
+      if (sameLine) return sameLine[1];
+    }
+    // Strategy 2: "TOTAL A PAGAR" area - date often nearby
+    const totalIdx = findLine(lines, /TOTAL\s+A\s+PAGAR/i);
+    if (totalIdx >= 0) {
+      for (let i = totalIdx - 3; i <= Math.min(totalIdx + 3, lines.length - 1); i++) {
+        if (i < 0) continue;
+        const m = lines[i].match(/(\d{2}\/\d{2}\/\d{4})/);
+        if (m) return m[1];
       }
     }
-    // Strategy 2: date before R$ in summary line
-    const m4 = flat.match(/(\d{2}\/\d{2}\/\d{4})\s*R\$/);
-    if (m4) return m4[1];
     return EMPTY;
   })();
 
   // ===== NOTA FISCAL =====
   const NotaFiscal = (() => {
-    const m = flat.match(/NOTA\s+FISCAL\s*N[º°]?\s*[:\-]?\s*([\d.]+)/i);
+    const m = flat.match(/NOTA\s+FISCAL\s*N[º°]?\s*[:\-]?\s*(\d[\d.]*)/i);
     return m ? m[1] : EMPTY;
   })();
 
   // ===== MODALIDADE TARIFÁRIA =====
   const ModalidadeTarifaria = (() => {
+    // In the classification line: "MTC-CONVENCIONAL BAIXA TENSÃO / B3"
     if (/CONVENCIONAL/i.test(flat)) return 'CONVENCIONAL';
     if (/AZUL/i.test(flat) && /HOR[ÁA]RIO/i.test(flat)) return 'HORÁRIO AZUL';
     if (/AZUL/i.test(flat)) return 'AZUL';
     if (/VERDE/i.test(flat) && /HOR[ÁA]RIO/i.test(flat)) return 'HORÁRIO VERDE';
     if (/VERDE/i.test(flat)) return 'VERDE';
-    if (/VERMELHA/i.test(flat)) return 'VERMELHA';
     return EMPTY;
   })();
 
   // ===== SUBGRUPO =====
+  // Pattern: "/ B3" in classification line
   const Subgrupo = (() => {
+    const m = flat.match(/\/(\s*[AB]\d?\s*)(?:\s|\/|$)/);
+    if (m) return m[1].trim().toUpperCase();
+    // Fallback: search in classification area
     const classIdx = findLine(lines, /Classifica[çc][aã]o/i);
     if (classIdx >= 0) {
       const region = lines.slice(classIdx, Math.min(classIdx + 3, lines.length)).join(' ');
-      const m = region.match(/\b(A[1-4]|B[1-4]|AS|BS)\b/);
-      if (m) return m[1].toUpperCase();
+      const m2 = region.match(/\b([AB][1-4]|AS|BS)\b/);
+      if (m2) return m2[1].toUpperCase();
     }
     return EMPTY;
   })();
@@ -241,45 +251,34 @@ export function extractEnergisaData(rawText: string): EnergisaInvoiceData {
   let ValorConsumoForaPonta = EMPTY;
 
   if (isSplitTariff) {
-    const pontaIdx = findLine(lines, /Consumo\s+em\s+kWh.*?Ponta(?!.*Fora)/i);
-    const fpIdx = findLine(lines, /Consumo\s+em\s+kWh.*?Fora\s*Ponta/i);
-    if (pontaIdx >= 0) {
-      for (let i = pontaIdx + 1; i < Math.min(pontaIdx + 8, lines.length); i++) {
-        const m = lines[i].match(/([\d.]+,\d{2})/);
-        if (m) { ConsumoPonta = m[1]; break; }
-      }
-    }
-    if (fpIdx >= 0) {
-      for (let i = fpIdx + 1; i < Math.min(fpIdx + 8, lines.length); i++) {
-        const m = lines[i].match(/([\d.]+,\d{2})/);
-        if (m) { ConsumoForaPonta = m[1]; break; }
-      }
-    }
-    ValorConsumoPonta = findItemRValue(lines, /Consumo\s+em\s+kWh.*?Ponta(?!.*Fora)/i);
-    ValorConsumoForaPonta = findItemRValue(lines, /Consumo\s+em\s+kWh.*?Fora\s*Ponta/i);
+    const pontaIdx = findLine(lines, /Consumo\s+em\s+kWh.*Ponta(?!.*Fora)/i);
+    const fpIdx = findLine(lines, /Consumo\s+em\s+kWh.*Fora\s*Ponta/i);
+    if (pontaIdx >= 0) ConsumoPonta = findNumNearLine(lines, pontaIdx, 1, 8, false);
+    if (fpIdx >= 0) ConsumoForaPonta = findNumNearLine(lines, fpIdx, 1, 8, false);
+    ValorConsumoPonta = findRValueNearLine(lines, flat, /Consumo\s+em\s+kWh.*Ponta(?!.*Fora)/i);
+    ValorConsumoForaPonta = findRValueNearLine(lines, flat, /Consumo\s+em\s+kWh.*Fora\s*Ponta/i);
   } else {
-    // Convencional: KWH prefix line first (e.g., "KWH1.044,00")
+    // Convencional: look for "KWH1.044,00" or "KWH 1.044,00"
     for (const line of lines) {
-      const km = line.match(/^KWH([\d.,]+)$/i);
+      const km = line.match(/^KWH\s*([\d.,]+)$/i);
       if (km) { ConsumoTotal = km[1]; break; }
     }
-    if (!ConsumoTotal) {
-      for (const line of lines) {
-        const km = line.match(/^KWH\s*\w*([\d.]+,\d{2})/i);
-        if (km) { ConsumoTotal = km[1]; break; }
-      }
-    }
+    // Fallback: "CONSUMO FATURADO" area
     if (!ConsumoTotal) {
       const consIdx = findLine(lines, /CONSUMO\s+FATURADO/i);
       if (consIdx >= 0) {
-        for (let i = consIdx + 1; i < Math.min(consIdx + 8, lines.length); i++) {
-          if (/[A-Za-z]{3,}/.test(lines[i])) continue;
-          const m = lines[i].match(/([\d.]+,\d{2})/);
+        // Look for numbers near CONSUMO FATURADO, but skip the month reference line
+        for (let i = consIdx + 1; i < Math.min(consIdx + 15, lines.length); i++) {
+          const line = lines[i];
+          if (/^(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)/i.test(line)) continue;
+          if (/[A-Za-z]{4,}/.test(line)) continue;
+          const m = line.match(/^([\d.]+,\d{2})$/);
           if (m) { ConsumoTotal = m[1]; break; }
         }
       }
     }
-    ValorConsumoForaPonta = findItemRValue(lines, /Consumo\s+em\s+kWh(?!.*Ponta)/i);
+    // R$ value for consumo (Convencional)
+    ValorConsumoForaPonta = findRValueNearLine(lines, flat, /Consumo\s+em\s+kWh(?!.*Ponta)/i);
   }
 
   // ===== DEMANDA (only split tariffs) =====
@@ -292,14 +291,14 @@ export function extractEnergisaData(rawText: string): EnergisaInvoiceData {
   let ValorDemandaPonta = EMPTY;
   let ValorDemandaForaPonta = EMPTY;
   if (isSplitTariff) {
-    DemandaContratadaPonta = findItemQty(lines, /Demanda\s+Contrat[ae]da.*?Ponta(?![^\n]*Fora)/i);
-    DemandaContratadaForaPonta = findItemQty(lines, /Demanda\s+Contrat[ae]da.*?Fora\s*Ponta/i);
-    DemandaMedidaPonta = findItemQty(lines, /Demanda\s+Medida.*?Ponta(?![^\n]*Fora)/i);
-    DemandaMedidaForaPonta = findItemQty(lines, /Demanda\s+Medida.*?Fora\s*Ponta/i);
-    DemandaFaturadaPonta = findItemQty(lines, /Demanda\s+Fatur[ae]da.*?Ponta(?![^\n]*Fora)/i) || DemandaMedidaPonta;
-    DemandaFaturadaForaPonta = findItemQty(lines, /Demanda\s+Fatur[ae]da.*?Fora\s*Ponta/i) || DemandaMedidaForaPonta;
-    ValorDemandaPonta = findItemRValue(lines, /Demanda\s+(?:Medida|Fatur[ae]da).*?Ponta(?![^\n]*Fora)/i);
-    ValorDemandaForaPonta = findItemRValue(lines, /Demanda\s+(?:Medida|Fatur[ae]da).*?Fora\s*Ponta/i);
+    DemandaContratadaPonta = findQtyNearLine(lines, /Demanda\s+Contrat[ae]da.*Ponta(?![^\n]*Fora)/i);
+    DemandaContratadaForaPonta = findQtyNearLine(lines, /Demanda\s+Contrat[ae]da.*Fora\s*Ponta/i);
+    DemandaMedidaPonta = findQtyNearLine(lines, /Demanda\s+Medida.*Ponta(?![^\n]*Fora)/i);
+    DemandaMedidaForaPonta = findQtyNearLine(lines, /Demanda\s+Medida.*Fora\s*Ponta/i);
+    DemandaFaturadaPonta = findQtyNearLine(lines, /Demanda\s+Fatur[ae]da.*Ponta(?![^\n]*Fora)/i) || DemandaMedidaPonta;
+    DemandaFaturadaForaPonta = findQtyNearLine(lines, /Demanda\s+Fatur[ae]da.*Fora\s*Ponta/i) || DemandaMedidaForaPonta;
+    ValorDemandaPonta = findRValueNearLine(lines, flat, /Demanda\s+(?:Medida|Fatur[ae]da).*Ponta(?![^\n]*Fora)/i);
+    ValorDemandaForaPonta = findRValueNearLine(lines, flat, /Demanda\s+(?:Medida|Fatur[ae]da).*Fora\s*Ponta/i);
   }
 
   // ===== ULTRAPASSAGEM (only split tariffs) =====
@@ -308,10 +307,10 @@ export function extractEnergisaData(rawText: string): EnergisaInvoiceData {
   let ValorUltrapassagemPonta = EMPTY;
   let ValorUltrapassagemForaPonta = EMPTY;
   if (isSplitTariff) {
-    UltrapassagemPonta = findItemQty(lines, /Ultrapassagem.*?Ponta(?![^\n]*Fora)/i);
-    UltrapassagemForaPonta = findItemQty(lines, /Ultrapassagem.*?Fora\s*Ponta/i);
-    ValorUltrapassagemPonta = findItemRValue(lines, /Ultrapassagem.*?Ponta(?![^\n]*Fora)/i);
-    ValorUltrapassagemForaPonta = findItemRValue(lines, /Ultrapassagem.*?Fora\s*Ponta/i);
+    UltrapassagemPonta = findQtyNearLine(lines, /Ultrapassagem.*Ponta(?![^\n]*Fora)/i);
+    UltrapassagemForaPonta = findQtyNearLine(lines, /Ultrapassagem.*Fora\s*Ponta/i);
+    ValorUltrapassagemPonta = findRValueNearLine(lines, flat, /Ultrapassagem.*Ponta(?![^\n]*Fora)/i);
+    ValorUltrapassagemForaPonta = findRValueNearLine(lines, flat, /Ultrapassagem.*Fora\s*Ponta/i);
   }
 
   // ===== REATIVA EXCEDENTE =====
@@ -321,71 +320,94 @@ export function extractEnergisaData(rawText: string): EnergisaInvoiceData {
   let ValorReativaExcedentePonta = EMPTY;
   let ValorReativaExcedenteForaPonta = EMPTY;
   if (isSplitTariff) {
-    ReativaExcedentePonta = findItemQty(lines, /Reactiv?a\s+Excedente.*?Ponta(?![^\n]*Fora)/i);
-    ReativaExcedenteForaPonta = findItemQty(lines, /Reactiv?a\s+Excedente.*?Fora\s*Ponta/i);
-    ValorReativaExcedentePonta = findItemRValue(lines, /Reactiv?a\s+Excedente.*?Ponta(?![^\n]*Fora)/i);
-    ValorReativaExcedenteForaPonta = findItemRValue(lines, /Reactiv?a\s+Excedente.*?Fora\s*Ponta/i);
+    ReativaExcedentePonta = findQtyNearLine(lines, /Reactiv?a\s+Excedente.*Ponta(?![^\n]*Fora)/i);
+    ReativaExcedenteForaPonta = findQtyNearLine(lines, /Reactiv?a\s+Excedente.*Fora\s*Ponta/i);
+    ValorReativaExcedentePonta = findRValueNearLine(lines, flat, /Reactiv?a\s+Excedente.*Ponta(?![^\n]*Fora)/i);
+    ValorReativaExcedenteForaPonta = findRValueNearLine(lines, flat, /Reactiv?a\s+Excedente.*Fora\s*Ponta/i);
   } else {
-    EnergiaReativaTotal = findItemQty(lines, /Reactiv?a\s+Excedente/i);
+    EnergiaReativaTotal = findQtyNearLine(lines, /Reactiv?a\s+Excedente/i);
   }
 
   // ===== TRIBUTOS: PIS, COFINS, ICMS =====
-  // ENERGISA layout: "PIS/" on line N, "COFINS (R$)" on line N+1,
-  // then values: PIS on N+2, COFINS on N+3, ICMS on N+4
+  // ENERGISA format (from real PDF):
+  // Line N: "PIS/"  Line N+1: "COFINS (R$)"  Line N+2: "18,47 85,09 236,20"
+  // Or on the same flat section: "PIS/COFINS (R$) 18,47 85,09 236,20"
   let PIS = EMPTY;
   let COFINS = EMPTY;
   let ICMS = EMPTY;
 
   (() => {
-    // Find "PIS/" line (label split across 2 lines in ENERGISA PDFs)
-    const pisLineIdx = findLine(lines, /^PIS\s*\/\s*$/i);
-    const startIdx = pisLineIdx >= 0 ? pisLineIdx : findLine(lines, /PIS\/\s*COFINS/i);
-    if (startIdx >= 0) {
+    // Strategy 1: Find "PIS/" line (the label is split)
+    const pisIdx = findLine(lines, /^PIS\s*\/\s*$/i);
+    if (pisIdx >= 0) {
+      // Next line might be "COFINS (R$)" or values
+      // Check next few lines for the 3 consecutive numbers
       const nums: string[] = [];
-      for (let i = startIdx + 1; i < Math.min(startIdx + 10, lines.length) && nums.length < 4; i++) {
-        const m = lines[i].match(/^(\d[\d.]+,\d{2})$/);
-        if (m) nums.push(m[1]);
+      for (let i = pisIdx + 1; i < Math.min(pisIdx + 10, lines.length) && nums.length < 3; i++) {
+        const lineNums = lines[i].match(/(\d[\d.]*,\d{2})/g);
+        if (lineNums) {
+          for (const n of lineNums) {
+            nums.push(n);
+            if (nums.length >= 3) break;
+          }
+        }
       }
-      if (nums.length >= 1) PIS = nums[0];
-      if (nums.length >= 2) COFINS = nums[1];
-      if (nums.length >= 3) ICMS = nums[2];
+      if (nums.length >= 3) {
+        PIS = nums[0]; COFINS = nums[1]; ICMS = nums[2];
+      }
     }
-    // Fallback: flat text "PIS/ COFINS (R$) X,XX Y,YY Z,ZZ"
-    if (!PIS || !COFINS || !ICMS) {
-      const flatMatch = flat.match(/PIS\s*\/\s*COFINS[^\d]*([\d.]+,\d{2})[^\d]*([\d.]+,\d{2})[^\d]*([\d.]+,\d{2})/i);
+    // Strategy 2: "PIS/COFINS" on same line
+    if (!PIS && !COFINS) {
+      const combinedIdx = findLine(lines, /PIS\/\s*COFINS/i);
+      if (combinedIdx >= 0) {
+        const nums: string[] = [];
+        for (let i = combinedIdx + 1; i < Math.min(combinedIdx + 6, lines.length) && nums.length < 3; i++) {
+          const m = lines[i].match(/^(\d[\d.]*,\d{2})$/);
+          if (m) nums.push(m[1]);
+        }
+        if (nums.length >= 3) {
+          PIS = nums[0]; COFINS = nums[1]; ICMS = nums[2];
+        }
+      }
+    }
+    // Strategy 3: flat text search
+    if (!PIS || !COFINS) {
+      const flatMatch = flat.match(/PIS\s*\/\s*COFINS[^\d]*?(\d[\d.]*,\d{2})[^\d]*?(\d[\d.]*,\d{2})/i);
       if (flatMatch) {
         if (!PIS) PIS = flatMatch[1];
         if (!COFINS) COFINS = flatMatch[2];
-        if (!ICMS) ICMS = flatMatch[3];
       }
     }
-    if (!PIS) PIS = findTributo(lines, flat, /\bPIS\b(?!\/)/i);
-    if (!COFINS) COFINS = findTributo(lines, flat, /\bCOFINS\b/i);
-    if (!ICMS) ICMS = findTributo(lines, flat, /\bICMS\b(?!\s*%)/i);
+    // Strategy 4: Individual fallback
+    if (!PIS) PIS = findTributoValue(lines, flat, /\bPIS\b(?!\/)/i);
+    if (!COFINS) COFINS = findTributoValue(lines, flat, /\bCOFINS\b/i);
+    if (!ICMS) ICMS = findTributoValue(lines, flat, /\bICMS\b(?!\s*%)/i);
   })();
 
   // ===== GDI =====
-  const GDI = findTributo(lines, flat, /\bGDI\b/i);
+  const GDI = findTributoValue(lines, flat, /\bGDI\b/i);
 
   // ===== CIP =====
   const CIP = (() => {
     const cipIdx = findLine(lines, /CIP\s*MUNICIPAL/i);
     if (cipIdx >= 0) {
-      for (let i = cipIdx; i < Math.min(cipIdx + 5, lines.length); i++) {
-        const m = lines[i].match(/([\d.]+,\d{2})/);
-        if (m) return m[1];
-      }
+      // Look on same line and nearby for R$ value
+      const region = lines.slice(Math.max(0, cipIdx - 1), Math.min(cipIdx + 5, lines.length)).join(' ');
+      const money = findAllMoney(region);
+      if (money.length > 0) return money[money.length - 1];
     }
-    return findTributo(lines, flat, /\bCIP\b/i);
+    return findTributoValue(lines, flat, /\bCIP\b/i);
   })();
 
   // ===== VALOR TOTAL =====
   const ValorTotal = (() => {
-    // Strategy 1: find "TOTAL A PAGAR" line, check same and next lines for R$ value
-    const totalIdx = findLine(lines, /^TOTAL\s+A\s+PAGAR/i);
+    // Strategy 1: "TOTAL A PAGAR" with R$ on same or next line
+    const totalIdx = findLine(lines, /TOTAL\s+A\s+PAGAR/i);
     if (totalIdx >= 0) {
+      // Check same line
       const m1 = lines[totalIdx].match(/R\$\s*([\d.]+,\d{2})/);
       if (m1) return m1[1];
+      // Check next lines
       for (let i = totalIdx + 1; i < Math.min(totalIdx + 3, lines.length); i++) {
         const m2 = lines[i].match(/R\$\s*([\d.]+,\d{2})/);
         if (m2) return m2[1];
@@ -393,19 +415,15 @@ export function extractEnergisaData(rawText: string): EnergisaInvoiceData {
         if (m3) return m3[1];
       }
     }
-    // Strategy 2: flat text patterns
-    const patterns = [
-      /TOTAL\s*A\s+PAGAR[^\d]*R\$\s*([\d.]+,\d{2})/i,
-      /TOTAL[^\d]*?R\$\s*([\d.]+,\d{2})/i,
-      /Valor\s+Total\s*[:\-]?\s*R\$\s*([\d.]+,\d{2})/i,
-    ];
-    const m = matchAny(flat, patterns);
-    if (m) return m;
-    // Fallback: largest R$ value
-    const all = findAllMoney(flat);
-    if (all.length > 0) {
-      all.sort((a, b) => parseFloat(b.replace('.', '').replace(',', '.')) - parseFloat(a.replace('.', '').replace(',', '.')));
-      return all[0];
+    // Strategy 2: flat search
+    const flatMatch = flat.match(/TOTAL\s*A\s+PAGAR[^\d]*?R\$\s*([\d.]+,\d{2})/i);
+    if (flatMatch) return flatMatch[1];
+    // Strategy 3: "R$ X.XXX,XX" near end of document
+    const lastMoney = findAllMoney(flat);
+    if (lastMoney.length > 0) {
+      // The total is typically one of the largest values
+      lastMoney.sort((a, b) => parseFloat(b.replace('.', '').replace(',', '.')) - parseFloat(a.replace('.', '').replace(',', '.')));
+      return lastMoney[0];
     }
     return EMPTY;
   })();
@@ -431,30 +449,28 @@ export function extractEnergisaData(rawText: string): EnergisaInvoiceData {
 
 // ===================== ITEM HELPERS =====================
 
-function findItemQty(lines: string[], labelPattern: RegExp): string {
+function findQtyNearLine(lines: string[], labelPattern: RegExp): string {
   const idx = findLine(lines, labelPattern);
   if (idx < 0) return EMPTY;
   for (let i = idx + 1; i < Math.min(idx + 10, lines.length); i++) {
     const line = lines[i];
-    if (/[A-Za-z]{3,}/.test(line) && !/kWh|kW|R\$|tarifa/i.test(line)) continue;
+    if (/[A-Za-z]{4,}/.test(line) && !/kWh|kW|R\$|tarifa/i.test(line)) continue;
     const m = line.match(/([\d.]+,\d{2})/);
     if (m) return m[1];
   }
   return EMPTY;
 }
 
-function findItemRValue(lines: string[], labelPattern: RegExp): string {
+function findRValueNearLine(lines: string[], flat: string, labelPattern: RegExp): string {
   const idx = findLine(lines, labelPattern);
   if (idx < 0) return EMPTY;
-  const region = windowLines(lines, idx, 0, 12).join(' ');
+  const region = lines.slice(idx, Math.min(idx + 12, lines.length)).join(' ');
   const moneyVals = findAllMoney(region);
   if (moneyVals.length > 0) return moneyVals[moneyVals.length - 1];
-  const nums = findAllNumbers(region);
-  if (nums.length > 0) return nums[nums.length - 1];
   return EMPTY;
 }
 
-function findTributo(lines: string[], flat: string, labelPattern: RegExp): string {
+function findTributoValue(lines: string[], flat: string, labelPattern: RegExp): string {
   const idx = findLine(lines, labelPattern);
   if (idx >= 0) {
     for (let i = idx + 1; i < Math.min(idx + 6, lines.length); i++) {
