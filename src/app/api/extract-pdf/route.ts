@@ -5,7 +5,6 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
-    const debugMode = formData.get('debug') === 'true';
 
     if (!file) {
       return NextResponse.json({ error: 'Nenhum arquivo enviado.' }, { status: 400 });
@@ -50,10 +49,8 @@ export async function POST(request: NextRequest) {
       rawTextLength: text.length,
     };
 
-    // Include raw text in debug mode
-    if (debugMode) {
-      response.rawText = text;
-    }
+    // Always include raw text for debugging
+    response.rawText = text;
 
     return NextResponse.json(response);
   } catch (error) {
