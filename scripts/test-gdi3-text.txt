@@ -1,0 +1,155 @@
+DANF3E - DOCUMENTO AUXILIAR DA NOTA FISCAL DE ENERGIA ELÉTRICA ELETRÔNICA
+Av. Gury Marques, 8000
+Campo Grande/MS - CEP 79072-900
+CNPJ 15.413.826/0001-50    Insc. Est. 28.105.553-0
+ENERGISA MATO GROSSO DO SUL - DISTR. DE ENERGIA S.A.
+06/07/202605/05/20263105/06/2026
+Insc. Est.: 281XXXXXX
+QUEBRA COCO
+EMPRESA DE SANEAMENTO DE MATO GROSSO
+DO SUL S.A. - SANESUL
+QUEBRA COCO (AG: 53)
+AVE MATO GROSSO DO SUL, S/N - 08.217.03.287000 QBC 005-1187 - 79173000
+CNPJ/CPF/RANI: 0X.XXX.XXX/XXX1-20
+SANESUL
+ANASTACIO MS (AG: 53)
+9993000001DOM.  ENT.:
+DOMICÍLIO DE ENTREGA
+DOM.  BANC.:
+Itens da Fatura
+Quant.
+com tributos
+Preço unit (R$)
+Valor (R$)Unit (R$)
+Tarifa
+Base de 
+Cálc.(R$)
+Valor
+(R$)
+LIGAÇÃO: TRIFASICO
+Classificação: MTC-CONVENCIONAL BAIXA TENSÃO / B3  SERVIÇO 
+PÚBLICO / ÁGUA, ESGOTO E SANEAMENTO 
+TENSÃO NOMINAL EM VOLTS     DISP:Lim. Min.:202 Lim. Max.:  23
+Unid.
+Alíquota
+(%)
+PIS/
+COFINS (R$)
+1,79
+8,16
+379,62
+1,6019
+7,3786
+17,00
+TOTAL:379,62
+(R$)
+ICMS
+ICMS
+% Alíq.
+2.233,08
+Base Calc.
+ICMS (R$)
+9,95490,11
+Energia Atv Injetada GDI oUC 6/2026 mPT
+Adic. B. Amarela
+Energia Atv Injetada GDI mUC 10/2025 mPT
+Energia Atv Injetada GDI mUC 9/2025 mPT
+Consumo em kWh
+1,083930-820,54
+2,51
+1,083930-412,98
+1,083930-509,45
+2.230,571,3059400,986600
+0,986600
+0,986600
+0,986600
+0,00
+0,43
+0,00
+0,00
+379,19
+0,00
+2,51
+0,00
+0,00
+2.230,57
+-73,68
+0,20
+-37,08
+-45,75
+166,26
+chave de acesso:
+757,00
+470,00
+381,00
+Importante: seu número de identificação será atualizado. A partir   de 01/04/2026, o número da sua unidade consumidora será alterado,   conforme determinação da ANEEL. A mudança é automática e não   afeta o seu consumo 
+nem o fornecimento de energia.                                 
+00000U80022Ponta
+Energia ativa em kWh
+117082132719619
+Art. 41, Inciso III, alínea c, item 3 do RICMS/MS - 1998
+21/07/2026R$ 490,11Junho / 2026
+131.752.051-07
+NOTA FISCAL Nº: 016.664.516 - Série: 002 
+DATA DE EMISSÃO:09/06/2026
+5026 0615 4138 2600 0150 6600 2016 6645 1610 2442 
+6573
+Consulte pela Chave de Acesso em:
+https://www.dfe.ms.gov.br/nf3e/consulta
+KWH
+KWH
+KWH
+KWH1.708,00
+0
+17
+0
+0
+17
+SANESUL
+R. DR. ZERBINI 421 - CEP:79040040 -   CHÁCARA CACHOEIRA
+Tributo
+ICMS
+COFINS
+PIS
+31
+JUN/26  
+33
+MAI/26  
+28
+ABR/26  
+30
+MAR/26  
+29
+FEV/26  
+32
+JAN/26  
+30
+DEZ/25  
+32
+NOV/25  
+29
+OUT/25  
+31
+SET/25  
+32
+AGO/25  
+30
+JUL/25  
+29
+JUN/25  
+CONSUMO FATURADO
+Nº DIAS 
+FAT
+Consumo kWh
+110,50
+2.233,08
+110,50
+NOTA FISCAL/CONTA DE ENERGIA ELÉTRICA
+TOTAL A PAGAR
+R$ 490,11
+Nº FATURA
+16664516
+21/07/2026
+VENCIMENTOMATRÍCULA
+220546-2026-6-6
+FATURAMENTO AGRUPADO

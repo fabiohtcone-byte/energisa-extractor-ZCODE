@@ -26,6 +26,11 @@ __export(energisa_extractor_exports, {
 });
 module.exports = __toCommonJS(energisa_extractor_exports);
 var EMPTY = "";
+function parseBR(s) {
+  const neg = s.startsWith("-");
+  const clean = neg ? s.slice(1) : s;
+  return parseFloat(clean.replace(".", "").replace(",", ".")) * (neg ? -1 : 1);
+}
 function findLine(lines, pattern) {
   return lines.findIndex((l) => pattern.test(l));
 }
@@ -90,14 +95,14 @@ function extractEnergisaData(rawText) {
   })();
   const UC = (() => {
     for (const line of lines) {
-      const m = line.match(/^(\d{1,2}\.\d{3}\.\d{3}-\d{2})$/);
+      const m = line.match(/^(\d{1,3}\.\d{3}\.\d{3}-\d{2})$/);
       if (m) return m[1];
     }
     for (const line of lines) {
-      const m = line.match(/(\d{1,2}\.\d{3}\.\d{3}-\d{2})/);
-      if (m && line.length < 35 && !/CNPJ|CPF|CEP/i.test(line)) return m[1];
+      const m = line.match(/(\d{1,3}\.\d{3}\.\d{3}-\d{2})/);
+      if (m && line.length < 40 && !/CNPJ|CPF|CEP/i.test(line)) return m[1];
     }
-    const broad = flat.match(/(\d{1,2}\.\d{3}\.\d{3}-\d{2})/);
+    const broad = flat.match(/(\d{1,3}\.\d{3}\.\d{3}-\d{2})/);
     return broad ? broad[1] : EMPTY;
   })();
   const MesReferencia = (() => {
@@ -317,50 +322,75 @@ function extractEnergisaData(rawText) {
     mUC_Qtd: EnergiaAtvInjetadaGDImUC_Qtd,
     mUC_Valor: EnergiaAtvInjetadaGDImUC_Valor
   } = (() => {
-    const oUCIdx = findLine(lines, /Energia\s*Atv\s*Injetada\s*GDI\s*oUC/i);
-    const mUCIdx = findLine(lines, /Energia\s*Atv\s*Injetada\s*GDI\s*mUC/i);
-    if (oUCIdx < 0 && mUCIdx < 0) return { oUC_Qtd: EMPTY, oUC_Valor: EMPTY, mUC_Qtd: EMPTY, mUC_Valor: EMPTY };
-    const gdiStart = Math.min(oUCIdx >= 0 ? oUCIdx : 999, mUCIdx >= 0 ? mUCIdx : 999);
+    let nOUC = 0;
+    let nMUC = 0;
+    let firstGDI = -1;
+    for (let i = 0; i < lines.length; i++) {
+      if (/Energia\s*Atv\s*Injetada\s*GDI\s*oUC/i.test(lines[i])) {
+        nOUC++;
+        if (firstGDI < 0) firstGDI = i;
+      } else if (/Energia\s*Atv\s*Injetada\s*GDI\s*mUC/i.test(lines[i])) {
+        nMUC++;
+        if (firstGDI < 0) firstGDI = i;
+      }
+    }
+    if (nOUC === 0 && nMUC === 0) return { oUC_Qtd: EMPTY, oUC_Valor: EMPTY, mUC_Qtd: EMPTY, mUC_Valor: EMPTY };
     const chaveIdx = (() => {
-      for (let i = gdiStart; i < Math.min(gdiStart + 35, lines.length); i++) {
+      for (let i = firstGDI; i < Math.min(firstGDI + 40, lines.length); i++) {
         if (/^chave de acesso:\s*$/i.test(lines[i])) return i;
       }
       return -1;
     })();
-    let sectionEnd = Math.min(gdiStart + 40, lines.length);
-    for (let i = gdiStart; i < Math.min(gdiStart + 50, lines.length); i++) {
-      if (/^(Declara[cç]|EMITIDO EM|NOTA FISCAL N)/i.test(lines[i])) {
+    let sectionEnd = Math.min(firstGDI + 45, lines.length);
+    for (let i = firstGDI; i < Math.min(firstGDI + 55, lines.length); i++) {
+      if (/^(Declara[cç]|EMITIDO EM|NOTA FISCAL N|Importante:)/i.test(lines[i])) {
         sectionEnd = i;
         break;
       }
     }
-    const qtds = [];
+    const allQtds = [];
     if (chaveIdx >= 0) {
-      for (let i = chaveIdx + 1; i < Math.min(chaveIdx + 6, sectionEnd); i++) {
+      for (let i = chaveIdx + 1; i < Math.min(chaveIdx + 10, sectionEnd); i++) {
         const m = lines[i].match(/^(\d[\d.]*,\d{2})$/);
-        if (m) qtds.push(m[1]);
+        if (m) allQtds.push(parseBR(m[1]));
       }
     }
-    if (qtds.length === 0) {
-      for (let i = gdiStart; i < sectionEnd; i++) {
+    if (allQtds.length === 0) {
+      for (let i = firstGDI; i < sectionEnd; i++) {
         const m = lines[i].match(/^(\d[\d.]+,\d{2})$/);
-        if (m && parseFloat(m[1].replace(".", "").replace(",", ".")) >= 100) {
-          qtds.push(m[1]);
-        }
-        if (qtds.length >= 2) break;
+        if (m && parseBR(m[1]) >= 100) allQtds.push(parseBR(m[1]));
+        if (allQtds.length >= nOUC + nMUC) break;
       }
     }
-    const rVals = [];
-    const searchEnd = chaveIdx >= 0 ? chaveIdx : sectionEnd;
-    for (let i = gdiStart; i < searchEnd; i++) {
+    const allRVals = [];
+    const rSearchEnd = chaveIdx >= 0 ? chaveIdx : sectionEnd;
+    for (let i = firstGDI; i < rSearchEnd; i++) {
       const m = lines[i].match(/^(-\d[\d.]*,\d{2})$/);
-      if (m) rVals.push(m[1]);
+      if (m) allRVals.push(parseBR(m[1]));
     }
+    const oUCQtds = allQtds.splice(0, nOUC);
+    const oUCRVals = allRVals.splice(0, nOUC);
+    const mUCQtds = allQtds;
+    const mUCRVals = allRVals;
+    const fmt = (n) => n.toFixed(2).replace(".", ",");
+    const fmtInt = (n) => {
+      const abs = Math.abs(n);
+      const intPart = Math.floor(abs).toString();
+      const decPart = Math.round((abs - Math.floor(abs)) * 100).toString().padStart(2, "0");
+      let formatted = "";
+      for (let i = intPart.length - 1, c = 0; i >= 0; i--, c++) {
+        if (c > 0 && c % 3 === 0) formatted = "." + formatted;
+        formatted = intPart[i] + formatted;
+      }
+      return (n < 0 ? "-" : "") + formatted + "," + decPart;
+    };
+    const sumQtd = (arr) => arr.length > 0 ? fmtInt(arr.reduce((a, b) => a + b, 0)) : EMPTY;
+    const sumR = (arr) => arr.length > 0 ? fmtInt(arr.reduce((a, b) => a + b, 0)) : EMPTY;
     return {
-      oUC_Qtd: qtds[0] || EMPTY,
-      oUC_Valor: rVals[0] || EMPTY,
-      mUC_Qtd: qtds[1] || EMPTY,
-      mUC_Valor: rVals[1] || EMPTY
+      oUC_Qtd: sumQtd(oUCQtds),
+      oUC_Valor: sumR(oUCRVals),
+      mUC_Qtd: sumQtd(mUCQtds),
+      mUC_Valor: sumR(mUCRVals)
     };
   })();
   const CIP = (() => {
