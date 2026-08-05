@@ -117,14 +117,11 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    // ===== Static: _next/static/* =====
-    if (p.startsWith('/_next/static/')) {
-      return serveFile(res, path.join(__dirname, '.next', p), true);
-    }
-
-    // ===== Static: fonts/media =====
-    if (p.startsWith('/_next/static/media/')) {
-      return serveFile(res, path.join(__dirname, '.next', p), true);
+    // ===== Static: _next/* (chunks, css, fonts) =====
+    // URL /_next/static/chunks/X.js -> file .next/static/chunks/X.js
+    if (p.startsWith('/_next/')) {
+      const filePath = path.join(__dirname, '.next', p.replace('/_next', ''));
+      return serveFile(res, filePath, true);
     }
 
     // ===== Page: / =====
@@ -152,6 +149,9 @@ const server = http.createServer(async (req, res) => {
 
 server.on('error', err => console.error('Server error:', err.message));
 
+process.stdin.resume();
+process.stdin.on('end', () => {});
+
 server.listen(3000, '0.0.0.0', () => {
-  console.log('> Server ready on http://localhost:3000 (single process, no Next.js runtime)');
+  console.log('> Server ready on http://localhost:3000');
 });

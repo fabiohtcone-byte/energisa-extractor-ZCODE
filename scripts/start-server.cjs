@@ -6,19 +6,25 @@ const dir = path.resolve(__dirname, '..');
 const log = path.join(dir, 'server.log');
 
 function start() {
-  try { fs.appendFileSync(log, `\n--- ${new Date().toISOString()} ---\n`); } catch {}
-  const child = spawn('node', ['server.cjs'], {
+  const ts = new Date().toISOString();
+  try { fs.appendFileSync(log, `\n--- ${ts} ---\n`); } catch {}
+
+  const child = spawn('npx', ['next', 'dev', '-p', '3000'], {
     cwd: dir,
-    env: { ...process.env },
-    stdio: ['pipe', 'pipe', 'pipe']
+    env: { ...process.env, NODE_OPTIONS: '--max-old-space-size=1024' },
+    stdio: ['pipe', 'pipe', 'pipe'],
   });
+
+  child.stdin.on('error', () => {});
   const ls = fs.createWriteStream(log, { flags: 'a' });
   child.stdout.on('data', d => { process.stdout.write(d); ls.write(d); });
   child.stderr.on('data', d => { process.stderr.write(d); ls.write(d); });
-  child.on('exit', (code) => {
-    ls.write(`Exited (${code}). Restarting 3s...\n`);
-    setTimeout(start, 3000);
+  child.on('exit', (code, signal) => {
+    ls.write(`Exited (${code}/${signal}). Restart 5s...\n`);
+    setTimeout(start, 5000);
   });
+
+  console.log(`[${ts}] Started pid ${child.pid}`);
 }
 
 start();
