@@ -1,29 +1,29 @@
 const { spawn } = require('child_process');
-const path = require('path');
 const fs = require('fs');
+const path = require('path');
 
 const dir = path.resolve(__dirname, '..');
-const log = path.join(dir, 'server.log');
+const logFile = path.join(dir, 'server.log');
 
 function start() {
   const ts = new Date().toISOString();
-  try { fs.appendFileSync(log, `\n--- ${ts} ---\n`); } catch {}
+  try { fs.appendFileSync(logFile, `\n--- ${ts} ---\n`); } catch {}
 
-  const child = spawn('node', ['server.cjs'], {
+  const child = spawn('node', ['--max-old-space-size=512', 'server.cjs'], {
     cwd: dir,
-    stdio: ['ignore', 'pipe', 'pipe'],
-    detached: false,
+    stdio: ['ignore', fs.openSync(logFile, 'a'), fs.openSync(logFile, 'a')],
+    detached: true,
   });
 
-  const ls = fs.createWriteStream(log, { flags: 'a' });
-  child.stdout.on('data', d => { process.stdout.write(d); ls.write(d); });
-  child.stderr.on('data', d => { process.stderr.write(d); ls.write(d); });
-  child.on('exit', (code, signal) => {
-    ls.write(`Exited (${code}/${signal}). Restart 3s...\n`);
-    setTimeout(start, 3000);
-  });
-
+  child.unref();
+  fs.writeFileSync(path.join(dir, 'server.pid'), String(child.pid));
   console.log(`[${ts}] Started pid ${child.pid}`);
 }
 
-start();
+// Check if port 3000 is in use, kill existing
+try {
+  const { execSync } = require('child_process');
+  try { execSync('fuser -k 3000/tcp 2>/dev/null', { timeout: 3000 }); } catch {}
+} catch {}
+
+setTimeout(start, 1000);

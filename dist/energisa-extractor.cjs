@@ -311,59 +311,57 @@ function extractEnergisaData(rawText) {
     if (!ICMS) ICMS = findTributoValue(lines, flat, /\bICMS\b(?!\s*%)/i);
   })();
   const GDI = findTributoValue(lines, flat, /\bGDI\b/i);
-  const EnergiaAtvInjetadaGDIoUC_Qtd = (() => {
-    const idx = findLine(lines, /Energia\s*Atv\s*Injetada\s*GDI\s*oUC/i);
-    if (idx >= 0) {
-      return findQtyNearLine(lines, /Energia\s*Atv\s*Injetada\s*GDI\s*oUC/i);
-    }
-    const altIdx = findLine(lines, /Injetada.*oUC/i);
-    if (altIdx >= 0) {
-      for (let i = altIdx + 1; i < Math.min(altIdx + 8, lines.length); i++) {
-        const m = lines[i].match(/^(\d[\d.]*,\d{2})$/);
-        if (m) return m[1];
+  const {
+    oUC_Qtd: EnergiaAtvInjetadaGDIoUC_Qtd,
+    oUC_Valor: EnergiaAtvInjetadaGDIoUC_Valor,
+    mUC_Qtd: EnergiaAtvInjetadaGDImUC_Qtd,
+    mUC_Valor: EnergiaAtvInjetadaGDImUC_Valor
+  } = (() => {
+    const oUCIdx = findLine(lines, /Energia\s*Atv\s*Injetada\s*GDI\s*oUC/i);
+    const mUCIdx = findLine(lines, /Energia\s*Atv\s*Injetada\s*GDI\s*mUC/i);
+    if (oUCIdx < 0 && mUCIdx < 0) return { oUC_Qtd: EMPTY, oUC_Valor: EMPTY, mUC_Qtd: EMPTY, mUC_Valor: EMPTY };
+    const gdiStart = Math.min(oUCIdx >= 0 ? oUCIdx : 999, mUCIdx >= 0 ? mUCIdx : 999);
+    const chaveIdx = (() => {
+      for (let i = gdiStart; i < Math.min(gdiStart + 35, lines.length); i++) {
+        if (/^chave de acesso:\s*$/i.test(lines[i])) return i;
+      }
+      return -1;
+    })();
+    let sectionEnd = Math.min(gdiStart + 40, lines.length);
+    for (let i = gdiStart; i < Math.min(gdiStart + 50, lines.length); i++) {
+      if (/^(Declara[cç]|EMITIDO EM|NOTA FISCAL N)/i.test(lines[i])) {
+        sectionEnd = i;
+        break;
       }
     }
-    return EMPTY;
-  })();
-  const EnergiaAtvInjetadaGDIoUC_Valor = (() => {
-    const idx = findLine(lines, /Energia\s*Atv\s*Injetada\s*GDI\s*oUC/i);
-    if (idx >= 0) {
-      return findRValueNearLine(lines, flat, /Energia\s*Atv\s*Injetada\s*GDI\s*oUC/i);
-    }
-    const altIdx = findLine(lines, /Injetada.*oUC/i);
-    if (altIdx >= 0) {
-      const region = lines.slice(altIdx, Math.min(altIdx + 10, lines.length)).join(" ");
-      const money = findAllMoney(region);
-      if (money.length > 0) return money[money.length - 1];
-    }
-    return EMPTY;
-  })();
-  const EnergiaAtvInjetadaGDImUC_Qtd = (() => {
-    const idx = findLine(lines, /Energia\s*Atv\s*Injetada\s*GDI\s*mUC/i);
-    if (idx >= 0) {
-      return findQtyNearLine(lines, /Energia\s*Atv\s*Injetada\s*GDI\s*mUC/i);
-    }
-    const altIdx = findLine(lines, /Injetada.*mUC/i);
-    if (altIdx >= 0) {
-      for (let i = altIdx + 1; i < Math.min(altIdx + 8, lines.length); i++) {
+    const qtds = [];
+    if (chaveIdx >= 0) {
+      for (let i = chaveIdx + 1; i < Math.min(chaveIdx + 6, sectionEnd); i++) {
         const m = lines[i].match(/^(\d[\d.]*,\d{2})$/);
-        if (m) return m[1];
+        if (m) qtds.push(m[1]);
       }
     }
-    return EMPTY;
-  })();
-  const EnergiaAtvInjetadaGDImUC_Valor = (() => {
-    const idx = findLine(lines, /Energia\s*Atv\s*Injetada\s*GDI\s*mUC/i);
-    if (idx >= 0) {
-      return findRValueNearLine(lines, flat, /Energia\s*Atv\s*Injetada\s*GDI\s*mUC/i);
+    if (qtds.length === 0) {
+      for (let i = gdiStart; i < sectionEnd; i++) {
+        const m = lines[i].match(/^(\d[\d.]+,\d{2})$/);
+        if (m && parseFloat(m[1].replace(".", "").replace(",", ".")) >= 100) {
+          qtds.push(m[1]);
+        }
+        if (qtds.length >= 2) break;
+      }
     }
-    const altIdx = findLine(lines, /Injetada.*mUC/i);
-    if (altIdx >= 0) {
-      const region = lines.slice(altIdx, Math.min(altIdx + 10, lines.length)).join(" ");
-      const money = findAllMoney(region);
-      if (money.length > 0) return money[money.length - 1];
+    const rVals = [];
+    const searchEnd = chaveIdx >= 0 ? chaveIdx : sectionEnd;
+    for (let i = gdiStart; i < searchEnd; i++) {
+      const m = lines[i].match(/^(-\d[\d.]*,\d{2})$/);
+      if (m) rVals.push(m[1]);
     }
-    return EMPTY;
+    return {
+      oUC_Qtd: qtds[0] || EMPTY,
+      oUC_Valor: rVals[0] || EMPTY,
+      mUC_Qtd: qtds[1] || EMPTY,
+      mUC_Valor: rVals[1] || EMPTY
+    };
   })();
   const CIP = (() => {
     const cipIdx = findLine(lines, /CIP\s*MUNICIPAL/i);

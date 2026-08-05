@@ -1,0 +1,236 @@
+DANF3E - DOCUMENTO AUXILIAR DA NOTA FISCAL DE ENERGIA ELÉTRICA ELETRÔNICA
+Av. Gury Marques, 8000
+Campo Grande/MS - CEP 79072-900
+CNPJ 15.413.826/0001-50    Insc. Est. 28.105.553-0
+ENERGISA MATO GROSSO DO SUL - DISTR. DE ENERGIA S.A.
+27/07/202627/05/20263026/06/2026
+Insc. Est.: 281XXXXXX
+CENTRO
+EMPRESA DE SANEAMENTO DE MATO GROSSO
+DO SUL S.A.SANESUL
+FIGUEIRAO (AG: 86)
+RUA GILSON PEREIRA DE FARIA, 1 - 15.086.05.441010 FIG BOOSTER 2336 - 
+79428000
+CNPJ/CPF/RANI: 0X.XXX.XXX/XXX1-20
+SANESUL
+ANASTACIO MS (AG: 86)
+9993000001DOM.  ENT.:
+DOMICÍLIO DE ENTREGA
+DOM.  BANC.:
+Itens da Fatura
+Quant.
+com tributos
+Preço unit (R$)
+Valor (R$)Unit (R$)
+Tarifa
+Base de 
+Cálc.(R$)
+Valor
+(R$)
+LIGAÇÃO: TRIFASICO
+Classificação: MTC-CONVENCIONAL BAIXA TENSÃO / B3  SERVIÇO 
+PÚBLICO / ÁGUA, ESGOTO E SANEAMENTO 
+TENSÃO NOMINAL EM VOLTS     DISP:Lim. Min.:202 Lim. Max.:  23
+Unid.
+Alíquota
+(%)
+PIS/
+COFINS (R$)
+1,77
+8,15
+375,17
+1,6019
+7,3786
+17,00
+TOTAL:375,17
+(R$)
+ICMS
+ICMS
+% Alíq.
+2.206,94
+Base Calc.
+ICMS (R$)
+9,92485,65
+Energia Atv Injetada GDI oUC 6/2026 mPT
+Adic. B. Amarela
+Energia Atv Injetada GDI mUC 12/2025 mPT
+Consumo em kWh
+1,083930-1.230,27
+2,49
+1,083930-491,02
+2.204,451,3059400,986600
+0,986600
+0,986600
+0,00
+0,43
+0,00
+374,74
+0,00
+2,49
+0,00
+2.204,45
+-110,49
+0,19
+-44,09
+164,31
+chave de acesso:
+1.135,00
+453,00
+Declaração de Quitação Anual de Débitos:   Conforme previsto na Lei 12.007 de 29 de julho de 2009,   informamos a quitação dos débitos referentes aos faturamentos   regulares de energia elétrica desta unidade consumidora   
+vencidos no ano de 2025 e nos anos anteriores.   Esta declaração substitui, para a comprovação   do cumprimento das obrigações do consumidor, as quitacões   dos faturamentos mensais dos débitos do ano a que se refere   e 
+dos anos anteriores.   Importante: seu número de identificação será atualizado. A partir   de 01/04/2026, o número da sua unidade consumidora será alterado,   conforme determinação da ANEEL. A mudança é automática e não  
+afeta o seu consumo nem o fornecimento de energia.      
+00073041101Ponta
+Energia ativa em kWh
+11688172858171170
+Art. 41, Inciso III, alínea c, item 3 do RICMS/MS - 1998
+EMITIDO EM CONTINGÊNCIA Pendente de Autorização
+21/07/2026R$ 485,65Junho / 2026
+43.210.051-68
+NOTA FISCAL Nº: 017.177.301 - Série: 002 
+DATA DE EMISSÃO:29/06/2026
+5026 0615 4138 2600 0150 6600 2017 1773 0120 9217 
+1364
+Consulte pela Chave de Acesso em:
+https://www.dfe.ms.gov.br/nf3e/consulta
+KWH
+KWH
+KWH1.688,00
+EMITIDO EM CONTINGÊNCIA Pendente de Autorização
+0
+17
+0
+17
+SANESUL
+R. DR. ZERBINI 421 - CEP:79040040 -   CHÁCARA CACHOEIRA
+Tributo
+ICMS
+COFINS
+PIS
+30
+JUN/26  
+29
+MAI/26  
+32
+ABR/26  
+29
+MAR/26  
+30
+FEV/26  
+32
+JAN/26  
+30
+DEZ/25  
+30
+NOV/25  
+31
+OUT/25  
+32
+SET/25  
+31
+AGO/25  
+35
+JUL/25  
+31
+JUN/25  
+CONSUMO FATURADO
+Nº DIAS 
+FAT
+Consumo kWh
+110,47
+2.206,94
+110,47
+NOTA FISCAL/CONTA DE ENERGIA ELÉTRICA
+TOTAL A PAGAR
+R$ 485,65
+Nº FATURA
+17177301
+21/07/2026
+VENCIMENTOMATRÍCULA
+3188966-2026-6-0
+FATURAMENTO AGRUPADO                                                                    
+CADASTRE SUA FATURA EM DÉBITO AUTOMÁTICO UTILIZANDO O CÓDIGO: 0003188966-0
+Esta NOTA FISCAL/CONTA DE ENERGIA fica disponível para pagamento a partir de 02/07/2026
+Data de Apresentação:02/07/2026
+4,001,00
+2,19
+FIC
+DMIC
+DICRI
+Referência:
+04/2026
+Conjunto:
+Tensão Contratada:
+Limite Adequado:
+12832
+202 a  23
+10,002,19DIC
+KWHPonta1.688,00172.858,001.688,001,00171.170,00
+0,000,00
+0,000,00
+*FATURAMENTO PELA MÉDIA/MÍNIMO
+ICMS Sobre Desconto Tarifa Decreto 7.891/2013
+UC de compensação de energia classificada como GD_I, conforme Lei 14.300/22
+Saldo Acumulado: 14.100 A expirar no próximo ciclo: 0
+- -Violência contra a mulher é crime. Não se cale. Denuncie. Ligue 180.
+- Doe sangue! Instituto Sangue Bom pela vida.
+- -Violência contra a mulher é crime. Não se cale. Denuncie. Ligue 180.
+- Doe sangue! Instituto Sangue Bom pela vida.
+8,06
+0,00
+1,33
+4,38
+79,29
+100,00
+6,94
+39,13
+0,00
+6,46
+21,26
+385,09
+485,65
+Encargo de Uso do Sistema de Distribuição 
+(Ref 04/2026): R$ 34,82
+Outros serviços
+Compra de energia
+Serviço de transmissão
+Encargos setoriais
+Impostos diretos e encargos
+Total
+33,71Serviço de distribuição 
+26/06/2026
+Leitura Atual:
+27/05/2026
+Leitura Anterior:Dias:
+30
+7,00
+13,00
+* K: Const Med* KWTG: Dem Tusdg
+3.248,00
+3.565,00
+2.615,00
+1.811,00
+1.729,00
+1.734,00
+1.612,00
+1.608,00
+1.832,00
+3.362,00
+2.870,00
+1.676,00
+1.688,00
+AGO/25  
+SET/25  
+OUT/25  
+NOV/25  
+DEZ/25  
+JAN/26  
+FEV/26  
+MAR/26  
+ABR/26  
+MAI/26  
+JUL/25  
+JUN/25  
+JUN/26  
+Roteiro: 017 - 0086 - 010 - 3290
+Medidor: 00073041101

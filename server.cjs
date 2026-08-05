@@ -80,8 +80,16 @@ const server = http.createServer(async (req, res) => {
       const parts = parseMultipart(body, bm[1]);
       const fp = parts.find(x => x.name === 'file' && x.body.length > 0);
       if (!fp) { res.writeHead(400, {'Content-Type':'application/json'}); res.end('{"error":"no file"}'); return; }
-      const pdfParse = require('pdf-parse');
-      const pd = await pdfParse(fp.body);
+      let pd;
+      try {
+        const pdfParse = require('pdf-parse');
+        pd = await pdfParse(fp.body);
+      } catch (e) {
+        console.error('PDF parse error:', e.message);
+        res.writeHead(500, {'Content-Type':'application/json'});
+        res.end(JSON.stringify({error:'PDF parse failed: ' + e.message}));
+        return;
+      }
       const text = pd.text;
       if (!text || !text.trim()) { res.writeHead(422, {'Content-Type':'application/json'}); res.end('{"error":"no text"}'); return; }
       const ext = extractEnergisaData(text);
@@ -151,7 +159,8 @@ server.on('error', err => console.error('Server error:', err.message));
 
 // Keep process alive
 process.on('SIGTERM', () => { console.log('SIGTERM received, shutting down...'); process.exit(0); });
-process.on('uncaughtException', (err) => { console.error('Uncaught exception:', err.message); });
+process.on('uncaughtException', (err) => { console.error('Uncaught exception:', err.message, err.stack); });
+process.on('unhandledRejection', (reason) => { console.error('Unhandled rejection:', reason); });
 
 server.listen(3000, '0.0.0.0', () => {
   console.log('> Server ready on http://localhost:3000');

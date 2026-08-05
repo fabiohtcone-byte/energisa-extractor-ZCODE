@@ -391,65 +391,70 @@ export function extractEnergisaData(rawText: string): EnergisaInvoiceData {
   // ===== GDI =====
   const GDI = findTributoValue(lines, flat, /\bGDI\b/i);
 
-  // ===== ENERGIA ATIVA INJETADA GDI oUC =====
-  const EnergiaAtvInjetadaGDIoUC_Qtd = (() => {
-    const idx = findLine(lines, /Energia\s*Atv\s*Injetada\s*GDI\s*oUC/i);
-    if (idx >= 0) {
-      return findQtyNearLine(lines, /Energia\s*Atv\s*Injetada\s*GDI\s*oUC/i);
+  // ===== ENERGIA ATIVA INJETADA GDI oUC / mUC =====
+  // ENERGISA GDI tabular layout: quantities appear as standalone numbers
+  // after "chave de acesso:", R$ values are negative numbers before it.
+  const {
+    oUC_Qtd: EnergiaAtvInjetadaGDIoUC_Qtd,
+    oUC_Valor: EnergiaAtvInjetadaGDIoUC_Valor,
+    mUC_Qtd: EnergiaAtvInjetadaGDImUC_Qtd,
+    mUC_Valor: EnergiaAtvInjetadaGDImUC_Valor,
+  } = (() => {
+    const oUCIdx = findLine(lines, /Energia\s*Atv\s*Injetada\s*GDI\s*oUC/i);
+    const mUCIdx = findLine(lines, /Energia\s*Atv\s*Injetada\s*GDI\s*mUC/i);
+    if (oUCIdx < 0 && mUCIdx < 0) return { oUC_Qtd: EMPTY, oUC_Valor: EMPTY, mUC_Qtd: EMPTY, mUC_Valor: EMPTY };
+
+    const gdiStart = Math.min(oUCIdx >= 0 ? oUCIdx : 999, mUCIdx >= 0 ? mUCIdx : 999);
+
+    // Find "chave de acesso:" as section anchor (quantities appear right after it)
+    const chaveIdx = (() => {
+      for (let i = gdiStart; i < Math.min(gdiStart + 35, lines.length); i++) {
+        if (/^chave de acesso:\s*$/i.test(lines[i])) return i;
+      }
+      return -1;
+    })();
+
+    // Find section end boundary (Declaração, NOTA FISCAL, etc.)
+    let sectionEnd = Math.min(gdiStart + 40, lines.length);
+    for (let i = gdiStart; i < Math.min(gdiStart + 50, lines.length); i++) {
+      if (/^(Declara[cç]|EMITIDO EM|NOTA FISCAL N)/i.test(lines[i])) { sectionEnd = i; break; }
     }
-    // Alt pattern: "Injetada oUC" or "GDI oUC" alone
-    const altIdx = findLine(lines, /Injetada.*oUC/i);
-    if (altIdx >= 0) {
-      for (let i = altIdx + 1; i < Math.min(altIdx + 8, lines.length); i++) {
+
+    // --- Quantities (kWh) ---
+    // Primary: standalone numbers right after "chave de acesso:"
+    // The first number is oUC qty, the second is mUC qty
+    const qtds: string[] = [];
+    if (chaveIdx >= 0) {
+      for (let i = chaveIdx + 1; i < Math.min(chaveIdx + 6, sectionEnd); i++) {
         const m = lines[i].match(/^(\d[\d.]*,\d{2})$/);
-        if (m) return m[1];
+        if (m) qtds.push(m[1]);
       }
     }
-    return EMPTY;
-  })();
-
-  const EnergiaAtvInjetadaGDIoUC_Valor = (() => {
-    const idx = findLine(lines, /Energia\s*Atv\s*Injetada\s*GDI\s*oUC/i);
-    if (idx >= 0) {
-      return findRValueNearLine(lines, flat, /Energia\s*Atv\s*Injetada\s*GDI\s*oUC/i);
-    }
-    const altIdx = findLine(lines, /Injetada.*oUC/i);
-    if (altIdx >= 0) {
-      const region = lines.slice(altIdx, Math.min(altIdx + 10, lines.length)).join(' ');
-      const money = findAllMoney(region);
-      if (money.length > 0) return money[money.length - 1];
-    }
-    return EMPTY;
-  })();
-
-  // ===== ENERGIA ATIVA INJETADA GDI mUC =====
-  const EnergiaAtvInjetadaGDImUC_Qtd = (() => {
-    const idx = findLine(lines, /Energia\s*Atv\s*Injetada\s*GDI\s*mUC/i);
-    if (idx >= 0) {
-      return findQtyNearLine(lines, /Energia\s*Atv\s*Injetada\s*GDI\s*mUC/i);
-    }
-    const altIdx = findLine(lines, /Injetada.*mUC/i);
-    if (altIdx >= 0) {
-      for (let i = altIdx + 1; i < Math.min(altIdx + 8, lines.length); i++) {
-        const m = lines[i].match(/^(\d[\d.]*,\d{2})$/);
-        if (m) return m[1];
+    // Fallback: look for large standalone numbers in the whole GDI section
+    if (qtds.length === 0) {
+      for (let i = gdiStart; i < sectionEnd; i++) {
+        const m = lines[i].match(/^(\d[\d.]+,\d{2})$/);
+        if (m && parseFloat(m[1].replace('.', '').replace(',', '.')) >= 100) {
+          qtds.push(m[1]);
+        }
+        if (qtds.length >= 2) break;
       }
     }
-    return EMPTY;
-  })();
 
-  const EnergiaAtvInjetadaGDImUC_Valor = (() => {
-    const idx = findLine(lines, /Energia\s*Atv\s*Injetada\s*GDI\s*mUC/i);
-    if (idx >= 0) {
-      return findRValueNearLine(lines, flat, /Energia\s*Atv\s*Injetada\s*GDI\s*mUC/i);
+    // --- R$ Values (negative = credits for energy injection) ---
+    const rVals: string[] = [];
+    const searchEnd = chaveIdx >= 0 ? chaveIdx : sectionEnd;
+    for (let i = gdiStart; i < searchEnd; i++) {
+      const m = lines[i].match(/^(-\d[\d.]*,\d{2})$/);
+      if (m) rVals.push(m[1]);
     }
-    const altIdx = findLine(lines, /Injetada.*mUC/i);
-    if (altIdx >= 0) {
-      const region = lines.slice(altIdx, Math.min(altIdx + 10, lines.length)).join(' ');
-      const money = findAllMoney(region);
-      if (money.length > 0) return money[money.length - 1];
-    }
-    return EMPTY;
+
+    return {
+      oUC_Qtd: qtds[0] || EMPTY,
+      oUC_Valor: rVals[0] || EMPTY,
+      mUC_Qtd: qtds[1] || EMPTY,
+      mUC_Valor: rVals[1] || EMPTY,
+    };
   })();
 
   // ===== CIP =====
