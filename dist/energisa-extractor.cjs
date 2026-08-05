@@ -16,6 +16,8 @@ var __copyProps = (to, from, except, desc) => {
   return to;
 };
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+
+// src/lib/energisa-extractor.ts
 var energisa_extractor_exports = {};
 __export(energisa_extractor_exports, {
   FIELD_CATEGORIES: () => FIELD_CATEGORIES,
@@ -23,7 +25,7 @@ __export(energisa_extractor_exports, {
   extractEnergisaData: () => extractEnergisaData
 });
 module.exports = __toCommonJS(energisa_extractor_exports);
-const EMPTY = "";
+var EMPTY = "";
 function findLine(lines, pattern) {
   return lines.findIndex((l) => pattern.test(l));
 }
@@ -309,6 +311,60 @@ function extractEnergisaData(rawText) {
     if (!ICMS) ICMS = findTributoValue(lines, flat, /\bICMS\b(?!\s*%)/i);
   })();
   const GDI = findTributoValue(lines, flat, /\bGDI\b/i);
+  const EnergiaAtvInjetadaGDIoUC_Qtd = (() => {
+    const idx = findLine(lines, /Energia\s*Atv\s*Injetada\s*GDI\s*oUC/i);
+    if (idx >= 0) {
+      return findQtyNearLine(lines, /Energia\s*Atv\s*Injetada\s*GDI\s*oUC/i);
+    }
+    const altIdx = findLine(lines, /Injetada.*oUC/i);
+    if (altIdx >= 0) {
+      for (let i = altIdx + 1; i < Math.min(altIdx + 8, lines.length); i++) {
+        const m = lines[i].match(/^(\d[\d.]*,\d{2})$/);
+        if (m) return m[1];
+      }
+    }
+    return EMPTY;
+  })();
+  const EnergiaAtvInjetadaGDIoUC_Valor = (() => {
+    const idx = findLine(lines, /Energia\s*Atv\s*Injetada\s*GDI\s*oUC/i);
+    if (idx >= 0) {
+      return findRValueNearLine(lines, flat, /Energia\s*Atv\s*Injetada\s*GDI\s*oUC/i);
+    }
+    const altIdx = findLine(lines, /Injetada.*oUC/i);
+    if (altIdx >= 0) {
+      const region = lines.slice(altIdx, Math.min(altIdx + 10, lines.length)).join(" ");
+      const money = findAllMoney(region);
+      if (money.length > 0) return money[money.length - 1];
+    }
+    return EMPTY;
+  })();
+  const EnergiaAtvInjetadaGDImUC_Qtd = (() => {
+    const idx = findLine(lines, /Energia\s*Atv\s*Injetada\s*GDI\s*mUC/i);
+    if (idx >= 0) {
+      return findQtyNearLine(lines, /Energia\s*Atv\s*Injetada\s*GDI\s*mUC/i);
+    }
+    const altIdx = findLine(lines, /Injetada.*mUC/i);
+    if (altIdx >= 0) {
+      for (let i = altIdx + 1; i < Math.min(altIdx + 8, lines.length); i++) {
+        const m = lines[i].match(/^(\d[\d.]*,\d{2})$/);
+        if (m) return m[1];
+      }
+    }
+    return EMPTY;
+  })();
+  const EnergiaAtvInjetadaGDImUC_Valor = (() => {
+    const idx = findLine(lines, /Energia\s*Atv\s*Injetada\s*GDI\s*mUC/i);
+    if (idx >= 0) {
+      return findRValueNearLine(lines, flat, /Energia\s*Atv\s*Injetada\s*GDI\s*mUC/i);
+    }
+    const altIdx = findLine(lines, /Injetada.*mUC/i);
+    if (altIdx >= 0) {
+      const region = lines.slice(altIdx, Math.min(altIdx + 10, lines.length)).join(" ");
+      const money = findAllMoney(region);
+      if (money.length > 0) return money[money.length - 1];
+    }
+    return EMPTY;
+  })();
   const CIP = (() => {
     const cipIdx = findLine(lines, /CIP\s*MUNICIPAL/i);
     if (cipIdx >= 0) {
@@ -378,6 +434,10 @@ function extractEnergisaData(rawText) {
     GDI,
     CIP,
     EnergiaReativaTotal,
+    EnergiaAtvInjetadaGDIoUC_Qtd,
+    EnergiaAtvInjetadaGDIoUC_Valor,
+    EnergiaAtvInjetadaGDImUC_Qtd,
+    EnergiaAtvInjetadaGDImUC_Valor,
     ValorTotal
   };
 }
@@ -411,7 +471,7 @@ function findTributoValue(lines, flat, labelPattern) {
   const flatMatch = flat.match(new RegExp(labelPattern.source + "[^\\d]*?([\\d.]+,\\d{2})", "i"));
   return flatMatch ? flatMatch[1] : EMPTY;
 }
-const FIELD_LABELS = {
+var FIELD_LABELS = {
   UC: "UC (Unidade Consumidora)",
   Cidade: "Cidade",
   Tipo: "Tipo",
@@ -450,9 +510,13 @@ const FIELD_LABELS = {
   GDI: "GDI (R$)",
   CIP: "CIP (R$)",
   EnergiaReativaTotal: "Energia Reativa Total (kWh)",
+  EnergiaAtvInjetadaGDIoUC_Qtd: "Energia Atv Injetada GDI oUC (kWh)",
+  EnergiaAtvInjetadaGDIoUC_Valor: "Energia Atv Injetada GDI oUC (R$)",
+  EnergiaAtvInjetadaGDImUC_Qtd: "Energia Atv Injetada GDI mUC (kWh)",
+  EnergiaAtvInjetadaGDImUC_Valor: "Energia Atv Injetada GDI mUC (R$)",
   ValorTotal: "Valor Total (R$)"
 };
-const FIELD_CATEGORIES = [
+var FIELD_CATEGORIES = [
   { category: "Identifica\xE7\xE3o", fields: ["UC", "Cidade", "Tipo", "Mercado", "Concessionaria"] },
   { category: "Datas e Documentos", fields: ["MesReferencia", "AnoLeitura", "Vencimento", "NotaFiscal"] },
   { category: "Tarifa", fields: ["ModalidadeTarifaria", "Subgrupo"] },
@@ -467,6 +531,8 @@ const FIELD_CATEGORIES = [
   { category: "Valores - Ultrapassagem (R$)", fields: ["ValorUltrapassagemPonta", "ValorUltrapassagemForaPonta"] },
   { category: "Valores - Reativa Excedente (R$)", fields: ["ValorReativaExcedentePonta", "ValorReativaExcedenteForaPonta"] },
   { category: "Tributos e Encargos (R$)", fields: ["PIS", "COFINS", "ICMS", "GDI", "CIP"] },
+  { category: "Energia Injetada GDI oUC", fields: ["EnergiaAtvInjetadaGDIoUC_Qtd", "EnergiaAtvInjetadaGDIoUC_Valor"] },
+  { category: "Energia Injetada GDI mUC", fields: ["EnergiaAtvInjetadaGDImUC_Qtd", "EnergiaAtvInjetadaGDImUC_Valor"] },
   { category: "Total", fields: ["ValorTotal"] }
 ];
 // Annotate the CommonJS export names for ESM import in node:
