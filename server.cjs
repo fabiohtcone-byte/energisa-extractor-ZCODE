@@ -149,8 +149,9 @@ const server = http.createServer(async (req, res) => {
 
 server.on('error', err => console.error('Server error:', err.message));
 
-process.stdin.resume();
-process.stdin.on('end', () => {});
+// Keep process alive
+process.on('SIGTERM', () => { console.log('SIGTERM received, shutting down...'); process.exit(0); });
+process.on('uncaughtException', (err) => { console.error('Uncaught exception:', err.message); });
 
 server.listen(3000, '0.0.0.0', () => {
   console.log('> Server ready on http://localhost:3000');
