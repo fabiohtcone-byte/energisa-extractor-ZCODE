@@ -131,18 +131,18 @@ export function extractEnergisaData(rawText: string): EnergisaInvoiceData {
   // ===== UC =====
   // Pattern: dotted format X.XXX.XXX-XX on its own line or with "KWH" prefix
   const UC = (() => {
-    // Strategy 1: line with only UC (e.g., "3.562.051-59")
+    // Strategy 1: line with only UC (e.g., "3.562.051-59" or "43.210.051-68")
     for (const line of lines) {
-      const m = line.match(/^(\d{1}\.\d{3}\.\d{3}-\d{2})$/);
+      const m = line.match(/^(\d{1,2}\.\d{3}\.\d{3}-\d{2})$/);
       if (m) return m[1];
     }
     // Strategy 2: UC embedded in short line
     for (const line of lines) {
-      const m = line.match(/(\d{1}\.\d{3}\.\d{3}-\d{2})/);
-      if (m && line.length < 30 && !/CNPJ|CPF|CEP/i.test(line)) return m[1];
+      const m = line.match(/(\d{1,2}\.\d{3}\.\d{3}-\d{2})/);
+      if (m && line.length < 35 && !/CNPJ|CPF|CEP/i.test(line)) return m[1];
     }
     // Strategy 3: broad search
-    const broad = flat.match(/(\d{1}\.\d{3}\.\d{3}-\d{2})/);
+    const broad = flat.match(/(\d{1,2}\.\d{3}\.\d{3}-\d{2})/);
     return broad ? broad[1] : EMPTY;
   })();
 

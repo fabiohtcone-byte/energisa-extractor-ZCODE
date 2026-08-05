@@ -90,14 +90,14 @@ function extractEnergisaData(rawText) {
   })();
   const UC = (() => {
     for (const line of lines) {
-      const m = line.match(/^(\d{1}\.\d{3}\.\d{3}-\d{2})$/);
+      const m = line.match(/^(\d{1,2}\.\d{3}\.\d{3}-\d{2})$/);
       if (m) return m[1];
     }
     for (const line of lines) {
-      const m = line.match(/(\d{1}\.\d{3}\.\d{3}-\d{2})/);
-      if (m && line.length < 30 && !/CNPJ|CPF|CEP/i.test(line)) return m[1];
+      const m = line.match(/(\d{1,2}\.\d{3}\.\d{3}-\d{2})/);
+      if (m && line.length < 35 && !/CNPJ|CPF|CEP/i.test(line)) return m[1];
     }
-    const broad = flat.match(/(\d{1}\.\d{3}\.\d{3}-\d{2})/);
+    const broad = flat.match(/(\d{1,2}\.\d{3}\.\d{3}-\d{2})/);
     return broad ? broad[1] : EMPTY;
   })();
   const MesReferencia = (() => {
