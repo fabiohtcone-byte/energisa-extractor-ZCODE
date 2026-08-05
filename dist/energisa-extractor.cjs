@@ -1,0 +1,477 @@
+"use strict";
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+var energisa_extractor_exports = {};
+__export(energisa_extractor_exports, {
+  FIELD_CATEGORIES: () => FIELD_CATEGORIES,
+  FIELD_LABELS: () => FIELD_LABELS,
+  extractEnergisaData: () => extractEnergisaData
+});
+module.exports = __toCommonJS(energisa_extractor_exports);
+const EMPTY = "";
+function findLine(lines, pattern) {
+  return lines.findIndex((l) => pattern.test(l));
+}
+function findAllMoney(text) {
+  const matches = text.match(/R\$\s*([\d.]+,\d{2})/g);
+  if (!matches) return [];
+  return matches.map((m) => m.match(/([\d.]+,\d{2})/)?.[1] || "").filter(Boolean);
+}
+function findNumNearLine(lines, startIdx, direction, maxDist, mustBeOnlyNum) {
+  for (let i = startIdx + direction; i >= 0 && i < lines.length; i += direction) {
+    if (Math.abs(i - startIdx) > maxDist) break;
+    const line = lines[i];
+    if (mustBeOnlyNum) {
+      const m = line.match(/^(\d[\d.]+,\d{2})$/);
+      if (m) return m[1];
+    } else {
+      const m = line.match(/([\d.]+,\d{2})/);
+      if (m && !/^[A-Za-z]/.test(line)) return m[1];
+    }
+  }
+  return EMPTY;
+}
+function extractEnergisaData(rawText) {
+  const lines = rawText.split(/[\r\n]+/).map((l) => l.trim()).filter((l) => l.length > 0);
+  const flat = lines.join(" ");
+  const Concessionaria = (() => {
+    for (const line of lines.slice(0, 20)) {
+      if (/^ENERGISA/i.test(line) && line.length > 15 && !/\d{2}\s*\/\s*\d{2}/.test(line)) {
+        return line.replace(/\s+/g, " ");
+      }
+    }
+    return EMPTY;
+  })();
+  const Tipo = (() => {
+    const u = flat.toUpperCase();
+    if (/SERVI[ÇC]O\s+P[ÚU]BLICO/.test(u)) return "SERVI\xC7O P\xDABLICO";
+    if (/PODER\s+P[ÚU]BLICO/.test(u)) return "PODER P\xDABLICO";
+    if (/RESIDENCIAL/.test(u)) return "RESIDENCIAL";
+    if (/COMERCIAL/.test(u)) return "COMERCIAL";
+    if (/INDUSTRIAL/.test(u)) return "INDUSTRIAL";
+    if (/RURAL/.test(u)) return "RURAL";
+    return EMPTY;
+  })();
+  const Mercado = (() => {
+    const m = flat.match(/SERVI[ÇC]O\s+P[ÚU]BLICO\s*\/\s*([A-ZÀ-Ú][A-ZÀ-Úa-zà-ú,\s]{3,40}?)(?:\s*TENSÃO|\s*\d|\s*$)/i);
+    if (m) {
+      const val = m[1].trim().replace(/\s+/g, " ");
+      if (val.length < 50) return val.toUpperCase();
+    }
+    return EMPTY;
+  })();
+  const Cidade = (() => {
+    for (const line of lines.slice(0, 60)) {
+      const m = line.match(/([A-ZÀ-Ú]{4,25})\s*\(\s*AG\s*:\s*\d+\s*\)/);
+      if (m) {
+        const name = m[1].toUpperCase();
+        const skip = ["SANESUL", "ENERGISA", "DISTRIBUIDORA", "SA"];
+        if (!skip.includes(name)) return name;
+      }
+    }
+    return EMPTY;
+  })();
+  const UC = (() => {
+    for (const line of lines) {
+      const m = line.match(/^(\d{1}\.\d{3}\.\d{3}-\d{2})$/);
+      if (m) return m[1];
+    }
+    for (const line of lines) {
+      const m = line.match(/(\d{1}\.\d{3}\.\d{3}-\d{2})/);
+      if (m && line.length < 30 && !/CNPJ|CPF|CEP/i.test(line)) return m[1];
+    }
+    const broad = flat.match(/(\d{1}\.\d{3}\.\d{3}-\d{2})/);
+    return broad ? broad[1] : EMPTY;
+  })();
+  const MesReferencia = (() => {
+    const meses = "Janeiro|Fevereiro|Mar[\xE7c]o|Abril|Maio|Junho|Julho|Agosto|Setembro|Outubro|Novembro|Dezembro";
+    const numToMonth = {
+      "01": "Janeiro",
+      "02": "Fevereiro",
+      "03": "Mar\xE7o",
+      "04": "Abril",
+      "05": "Maio",
+      "06": "Junho",
+      "07": "Julho",
+      "08": "Agosto",
+      "09": "Setembro",
+      "10": "Outubro",
+      "11": "Novembro",
+      "12": "Dezembro"
+    };
+    const nameMatch = flat.match(new RegExp(`(${meses})\\s*[\\/\\-]\\s*(\\d{4})`, "i"));
+    if (nameMatch) {
+      const month = nameMatch[1].charAt(0).toUpperCase() + nameMatch[1].slice(1).toLowerCase();
+      return `${month} / ${nameMatch[2]}`;
+    }
+    const numMatch = flat.match(/(\d{2})\s*[\\/]\s*(\d{4})/);
+    if (numMatch && numToMonth[numMatch[1]]) {
+      return `${numToMonth[numMatch[1]]} / ${numMatch[2]}`;
+    }
+    return EMPTY;
+  })();
+  const AnoLeitura = (() => {
+    const m = flat.match(/Leitura\s+Atual\s*:\s*\d{2}\s*\/\s*\d{2}\s*\/\s*(\d{4})/i);
+    if (m) return m[1];
+    if (MesReferencia) {
+      const ym = MesReferencia.match(/(\d{4})/);
+      if (ym) return ym[1];
+    }
+    return EMPTY;
+  })();
+  const Vencimento = (() => {
+    const venIdx = findLine(lines, /VENCIMENTO/i);
+    if (venIdx >= 0) {
+      for (let i = venIdx - 1; i >= Math.max(0, venIdx - 5); i--) {
+        const m = lines[i].match(/(\d{2}\/\d{2}\/\d{4})/);
+        if (m) return m[1];
+      }
+      for (let i = venIdx + 1; i < Math.min(venIdx + 3, lines.length); i++) {
+        const m = lines[i].match(/(\d{2}\/\d{2}\/\d{4})/);
+        if (m) return m[1];
+      }
+      const sameLine = lines[venIdx].match(/(\d{2}\/\d{2}\/\d{4})/);
+      if (sameLine) return sameLine[1];
+    }
+    const totalIdx = findLine(lines, /TOTAL\s+A\s+PAGAR/i);
+    if (totalIdx >= 0) {
+      for (let i = totalIdx - 3; i <= Math.min(totalIdx + 3, lines.length - 1); i++) {
+        if (i < 0) continue;
+        const m = lines[i].match(/(\d{2}\/\d{2}\/\d{4})/);
+        if (m) return m[1];
+      }
+    }
+    return EMPTY;
+  })();
+  const NotaFiscal = (() => {
+    const m = flat.match(/NOTA\s+FISCAL\s*N[º°]?\s*[:\-]?\s*(\d[\d.]*)/i);
+    return m ? m[1] : EMPTY;
+  })();
+  const ModalidadeTarifaria = (() => {
+    if (/CONVENCIONAL/i.test(flat)) return "CONVENCIONAL";
+    if (/AZUL/i.test(flat) && /HOR[ÁA]RIO/i.test(flat)) return "HOR\xC1RIO AZUL";
+    if (/AZUL/i.test(flat)) return "AZUL";
+    if (/VERDE/i.test(flat) && /HOR[ÁA]RIO/i.test(flat)) return "HOR\xC1RIO VERDE";
+    if (/VERDE/i.test(flat)) return "VERDE";
+    return EMPTY;
+  })();
+  const Subgrupo = (() => {
+    const m = flat.match(/\/(\s*[AB]\d?\s*)(?:\s|\/|$)/);
+    if (m) return m[1].trim().toUpperCase();
+    const classIdx = findLine(lines, /Classifica[çc][aã]o/i);
+    if (classIdx >= 0) {
+      const region = lines.slice(classIdx, Math.min(classIdx + 3, lines.length)).join(" ");
+      const m2 = region.match(/\b([AB][1-4]|AS|BS)\b/);
+      if (m2) return m2[1].toUpperCase();
+    }
+    return EMPTY;
+  })();
+  const isSplitTariff = /AZUL|VERDE/i.test(flat) && !/CONVENCIONAL/i.test(flat);
+  let ConsumoPonta = EMPTY;
+  let ConsumoForaPonta = EMPTY;
+  let ConsumoTotal = EMPTY;
+  let ValorConsumoPonta = EMPTY;
+  let ValorConsumoForaPonta = EMPTY;
+  if (isSplitTariff) {
+    const pontaIdx = findLine(lines, /Consumo\s+em\s+kWh.*Ponta(?!.*Fora)/i);
+    const fpIdx = findLine(lines, /Consumo\s+em\s+kWh.*Fora\s*Ponta/i);
+    if (pontaIdx >= 0) ConsumoPonta = findNumNearLine(lines, pontaIdx, 1, 8, false);
+    if (fpIdx >= 0) ConsumoForaPonta = findNumNearLine(lines, fpIdx, 1, 8, false);
+    ValorConsumoPonta = findRValueNearLine(lines, flat, /Consumo\s+em\s+kWh.*Ponta(?!.*Fora)/i);
+    ValorConsumoForaPonta = findRValueNearLine(lines, flat, /Consumo\s+em\s+kWh.*Fora\s*Ponta/i);
+  } else {
+    for (const line of lines) {
+      const km = line.match(/^KWH\s*([\d.,]+)$/i);
+      if (km) {
+        ConsumoTotal = km[1];
+        break;
+      }
+    }
+    if (!ConsumoTotal) {
+      const consIdx = findLine(lines, /CONSUMO\s+FATURADO/i);
+      if (consIdx >= 0) {
+        for (let i = consIdx + 1; i < Math.min(consIdx + 15, lines.length); i++) {
+          const line = lines[i];
+          if (/^(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)/i.test(line)) continue;
+          if (/[A-Za-z]{4,}/.test(line)) continue;
+          const m = line.match(/^([\d.]+,\d{2})$/);
+          if (m) {
+            ConsumoTotal = m[1];
+            break;
+          }
+        }
+      }
+    }
+    ValorConsumoForaPonta = findRValueNearLine(lines, flat, /Consumo\s+em\s+kWh(?!.*Ponta)/i);
+  }
+  let DemandaContratadaPonta = EMPTY;
+  let DemandaContratadaForaPonta = EMPTY;
+  let DemandaMedidaPonta = EMPTY;
+  let DemandaMedidaForaPonta = EMPTY;
+  let DemandaFaturadaPonta = EMPTY;
+  let DemandaFaturadaForaPonta = EMPTY;
+  let ValorDemandaPonta = EMPTY;
+  let ValorDemandaForaPonta = EMPTY;
+  if (isSplitTariff) {
+    DemandaContratadaPonta = findQtyNearLine(lines, /Demanda\s+Contrat[ae]da.*Ponta(?![^\n]*Fora)/i);
+    DemandaContratadaForaPonta = findQtyNearLine(lines, /Demanda\s+Contrat[ae]da.*Fora\s*Ponta/i);
+    DemandaMedidaPonta = findQtyNearLine(lines, /Demanda\s+Medida.*Ponta(?![^\n]*Fora)/i);
+    DemandaMedidaForaPonta = findQtyNearLine(lines, /Demanda\s+Medida.*Fora\s*Ponta/i);
+    DemandaFaturadaPonta = findQtyNearLine(lines, /Demanda\s+Fatur[ae]da.*Ponta(?![^\n]*Fora)/i) || DemandaMedidaPonta;
+    DemandaFaturadaForaPonta = findQtyNearLine(lines, /Demanda\s+Fatur[ae]da.*Fora\s*Ponta/i) || DemandaMedidaForaPonta;
+    ValorDemandaPonta = findRValueNearLine(lines, flat, /Demanda\s+(?:Medida|Fatur[ae]da).*Ponta(?![^\n]*Fora)/i);
+    ValorDemandaForaPonta = findRValueNearLine(lines, flat, /Demanda\s+(?:Medida|Fatur[ae]da).*Fora\s*Ponta/i);
+  }
+  let UltrapassagemPonta = EMPTY;
+  let UltrapassagemForaPonta = EMPTY;
+  let ValorUltrapassagemPonta = EMPTY;
+  let ValorUltrapassagemForaPonta = EMPTY;
+  if (isSplitTariff) {
+    UltrapassagemPonta = findQtyNearLine(lines, /Ultrapassagem.*Ponta(?![^\n]*Fora)/i);
+    UltrapassagemForaPonta = findQtyNearLine(lines, /Ultrapassagem.*Fora\s*Ponta/i);
+    ValorUltrapassagemPonta = findRValueNearLine(lines, flat, /Ultrapassagem.*Ponta(?![^\n]*Fora)/i);
+    ValorUltrapassagemForaPonta = findRValueNearLine(lines, flat, /Ultrapassagem.*Fora\s*Ponta/i);
+  }
+  let ReativaExcedentePonta = EMPTY;
+  let ReativaExcedenteForaPonta = EMPTY;
+  let EnergiaReativaTotal = EMPTY;
+  let ValorReativaExcedentePonta = EMPTY;
+  let ValorReativaExcedenteForaPonta = EMPTY;
+  if (isSplitTariff) {
+    ReativaExcedentePonta = findQtyNearLine(lines, /Reactiv?a\s+Excedente.*Ponta(?![^\n]*Fora)/i);
+    ReativaExcedenteForaPonta = findQtyNearLine(lines, /Reactiv?a\s+Excedente.*Fora\s*Ponta/i);
+    ValorReativaExcedentePonta = findRValueNearLine(lines, flat, /Reactiv?a\s+Excedente.*Ponta(?![^\n]*Fora)/i);
+    ValorReativaExcedenteForaPonta = findRValueNearLine(lines, flat, /Reactiv?a\s+Excedente.*Fora\s*Ponta/i);
+  } else {
+    EnergiaReativaTotal = findQtyNearLine(lines, /Reactiv?a\s+Excedente/i);
+  }
+  let PIS = EMPTY;
+  let COFINS = EMPTY;
+  let ICMS = EMPTY;
+  (() => {
+    const pisIdx = findLine(lines, /^PIS\s*\/\s*$/i);
+    if (pisIdx >= 0) {
+      const nums = [];
+      for (let i = pisIdx + 1; i < Math.min(pisIdx + 10, lines.length) && nums.length < 3; i++) {
+        const lineNums = lines[i].match(/(\d[\d.]*,\d{2})/g);
+        if (lineNums) {
+          for (const n of lineNums) {
+            nums.push(n);
+            if (nums.length >= 3) break;
+          }
+        }
+      }
+      if (nums.length >= 3) {
+        PIS = nums[0];
+        COFINS = nums[1];
+        ICMS = nums[2];
+      }
+    }
+    if (!PIS && !COFINS) {
+      const combinedIdx = findLine(lines, /PIS\/\s*COFINS/i);
+      if (combinedIdx >= 0) {
+        const nums = [];
+        for (let i = combinedIdx + 1; i < Math.min(combinedIdx + 6, lines.length) && nums.length < 3; i++) {
+          const m = lines[i].match(/^(\d[\d.]*,\d{2})$/);
+          if (m) nums.push(m[1]);
+        }
+        if (nums.length >= 3) {
+          PIS = nums[0];
+          COFINS = nums[1];
+          ICMS = nums[2];
+        }
+      }
+    }
+    if (!PIS || !COFINS) {
+      const flatMatch = flat.match(/PIS\s*\/\s*COFINS[^\d]*?(\d[\d.]*,\d{2})[^\d]*?(\d[\d.]*,\d{2})/i);
+      if (flatMatch) {
+        if (!PIS) PIS = flatMatch[1];
+        if (!COFINS) COFINS = flatMatch[2];
+      }
+    }
+    if (!PIS) PIS = findTributoValue(lines, flat, /\bPIS\b(?!\/)/i);
+    if (!COFINS) COFINS = findTributoValue(lines, flat, /\bCOFINS\b/i);
+    if (!ICMS) ICMS = findTributoValue(lines, flat, /\bICMS\b(?!\s*%)/i);
+  })();
+  const GDI = findTributoValue(lines, flat, /\bGDI\b/i);
+  const CIP = (() => {
+    const cipIdx = findLine(lines, /CIP\s*MUNICIPAL/i);
+    if (cipIdx >= 0) {
+      const region = lines.slice(Math.max(0, cipIdx - 1), Math.min(cipIdx + 5, lines.length)).join(" ");
+      const money = findAllMoney(region);
+      if (money.length > 0) return money[money.length - 1];
+    }
+    return findTributoValue(lines, flat, /\bCIP\b/i);
+  })();
+  const ValorTotal = (() => {
+    const totalIdx = findLine(lines, /TOTAL\s+A\s+PAGAR/i);
+    if (totalIdx >= 0) {
+      const m1 = lines[totalIdx].match(/R\$\s*([\d.]+,\d{2})/);
+      if (m1) return m1[1];
+      for (let i = totalIdx + 1; i < Math.min(totalIdx + 3, lines.length); i++) {
+        const m2 = lines[i].match(/R\$\s*([\d.]+,\d{2})/);
+        if (m2) return m2[1];
+        const m3 = lines[i].match(/^(\d[\d.]+,\d{2})$/);
+        if (m3) return m3[1];
+      }
+    }
+    const flatMatch = flat.match(/TOTAL\s*A\s+PAGAR[^\d]*?R\$\s*([\d.]+,\d{2})/i);
+    if (flatMatch) return flatMatch[1];
+    const lastMoney = findAllMoney(flat);
+    if (lastMoney.length > 0) {
+      lastMoney.sort((a, b) => parseFloat(b.replace(".", "").replace(",", ".")) - parseFloat(a.replace(".", "").replace(",", ".")));
+      return lastMoney[0];
+    }
+    return EMPTY;
+  })();
+  return {
+    UC,
+    Cidade,
+    Tipo,
+    Mercado,
+    Concessionaria,
+    MesReferencia,
+    AnoLeitura,
+    Vencimento,
+    NotaFiscal,
+    ModalidadeTarifaria,
+    Subgrupo,
+    ConsumoPonta,
+    ConsumoForaPonta,
+    ConsumoTotal,
+    DemandaContratadaPonta,
+    DemandaContratadaForaPonta,
+    DemandaMedidaPonta,
+    DemandaMedidaForaPonta,
+    DemandaFaturadaPonta,
+    DemandaFaturadaForaPonta,
+    UltrapassagemPonta,
+    UltrapassagemForaPonta,
+    ReativaExcedentePonta,
+    ReativaExcedenteForaPonta,
+    ValorConsumoPonta,
+    ValorConsumoForaPonta,
+    ValorDemandaPonta,
+    ValorDemandaForaPonta,
+    ValorUltrapassagemPonta,
+    ValorUltrapassagemForaPonta,
+    ValorReativaExcedentePonta,
+    ValorReativaExcedenteForaPonta,
+    PIS,
+    COFINS,
+    ICMS,
+    GDI,
+    CIP,
+    EnergiaReativaTotal,
+    ValorTotal
+  };
+}
+function findQtyNearLine(lines, labelPattern) {
+  const idx = findLine(lines, labelPattern);
+  if (idx < 0) return EMPTY;
+  for (let i = idx + 1; i < Math.min(idx + 10, lines.length); i++) {
+    const line = lines[i];
+    if (/[A-Za-z]{4,}/.test(line) && !/kWh|kW|R\$|tarifa/i.test(line)) continue;
+    const m = line.match(/([\d.]+,\d{2})/);
+    if (m) return m[1];
+  }
+  return EMPTY;
+}
+function findRValueNearLine(lines, flat, labelPattern) {
+  const idx = findLine(lines, labelPattern);
+  if (idx < 0) return EMPTY;
+  const region = lines.slice(idx, Math.min(idx + 12, lines.length)).join(" ");
+  const moneyVals = findAllMoney(region);
+  if (moneyVals.length > 0) return moneyVals[moneyVals.length - 1];
+  return EMPTY;
+}
+function findTributoValue(lines, flat, labelPattern) {
+  const idx = findLine(lines, labelPattern);
+  if (idx >= 0) {
+    for (let i = idx + 1; i < Math.min(idx + 6, lines.length); i++) {
+      const m = lines[i].match(/^(\d[\d.]+,\d{2})$/);
+      if (m) return m[1];
+    }
+  }
+  const flatMatch = flat.match(new RegExp(labelPattern.source + "[^\\d]*?([\\d.]+,\\d{2})", "i"));
+  return flatMatch ? flatMatch[1] : EMPTY;
+}
+const FIELD_LABELS = {
+  UC: "UC (Unidade Consumidora)",
+  Cidade: "Cidade",
+  Tipo: "Tipo",
+  Mercado: "Mercado",
+  Concessionaria: "Concession\xE1ria",
+  MesReferencia: "M\xEAs Refer\xEAncia",
+  AnoLeitura: "Ano Leitura",
+  Vencimento: "Vencimento",
+  NotaFiscal: "Nota Fiscal",
+  ModalidadeTarifaria: "Modalidade Tarif\xE1ria",
+  Subgrupo: "Subgrupo",
+  ConsumoPonta: "Consumo Ponta (kWh)",
+  ConsumoForaPonta: "Consumo Fora Ponta (kWh)",
+  ConsumoTotal: "Consumo Total (kWh)",
+  DemandaContratadaPonta: "Demanda Contratada Ponta (kW)",
+  DemandaContratadaForaPonta: "Demanda Contratada Fora Ponta (kW)",
+  DemandaMedidaPonta: "Demanda Medida Ponta (kW)",
+  DemandaMedidaForaPonta: "Demanda Medida Fora Ponta (kW)",
+  DemandaFaturadaPonta: "Demanda Faturada Ponta (kW)",
+  DemandaFaturadaForaPonta: "Demanda Faturada Fora Ponta (kW)",
+  UltrapassagemPonta: "Ultrapassagem Ponta (kW)",
+  UltrapassagemForaPonta: "Ultrapassagem Fora Ponta (kW)",
+  ReativaExcedentePonta: "Reativa Excedente Ponta (kWh)",
+  ReativaExcedenteForaPonta: "Reativa Excedente Fora Ponta (kWh)",
+  ValorConsumoPonta: "Valor Consumo Ponta (R$)",
+  ValorConsumoForaPonta: "Valor Consumo Fora Ponta (R$)",
+  ValorDemandaPonta: "Valor Demanda Ponta (R$)",
+  ValorDemandaForaPonta: "Valor Demanda Fora Ponta (R$)",
+  ValorUltrapassagemPonta: "Valor Ultrapassagem Ponta (R$)",
+  ValorUltrapassagemForaPonta: "Valor Ultrapassagem Fora Ponta (R$)",
+  ValorReativaExcedentePonta: "Valor Reativa Excedente Ponta (R$)",
+  ValorReativaExcedenteForaPonta: "Valor Reativa Excedente Fora Ponta (R$)",
+  PIS: "PIS (R$)",
+  COFINS: "COFINS (R$)",
+  ICMS: "ICMS (R$)",
+  GDI: "GDI (R$)",
+  CIP: "CIP (R$)",
+  EnergiaReativaTotal: "Energia Reativa Total (kWh)",
+  ValorTotal: "Valor Total (R$)"
+};
+const FIELD_CATEGORIES = [
+  { category: "Identifica\xE7\xE3o", fields: ["UC", "Cidade", "Tipo", "Mercado", "Concessionaria"] },
+  { category: "Datas e Documentos", fields: ["MesReferencia", "AnoLeitura", "Vencimento", "NotaFiscal"] },
+  { category: "Tarifa", fields: ["ModalidadeTarifaria", "Subgrupo"] },
+  { category: "Consumo (kWh)", fields: ["ConsumoPonta", "ConsumoForaPonta", "ConsumoTotal"] },
+  { category: "Demanda Contratada (kW)", fields: ["DemandaContratadaPonta", "DemandaContratadaForaPonta"] },
+  { category: "Demanda Medida (kW)", fields: ["DemandaMedidaPonta", "DemandaMedidaForaPonta"] },
+  { category: "Demanda Faturada (kW)", fields: ["DemandaFaturadaPonta", "DemandaFaturadaForaPonta"] },
+  { category: "Ultrapassagem (kW)", fields: ["UltrapassagemPonta", "UltrapassagemForaPonta"] },
+  { category: "Reativa Excedente (kWh)", fields: ["ReativaExcedentePonta", "ReativaExcedenteForaPonta", "EnergiaReativaTotal"] },
+  { category: "Valores - Consumo (R$)", fields: ["ValorConsumoPonta", "ValorConsumoForaPonta"] },
+  { category: "Valores - Demanda (R$)", fields: ["ValorDemandaPonta", "ValorDemandaForaPonta"] },
+  { category: "Valores - Ultrapassagem (R$)", fields: ["ValorUltrapassagemPonta", "ValorUltrapassagemForaPonta"] },
+  { category: "Valores - Reativa Excedente (R$)", fields: ["ValorReativaExcedentePonta", "ValorReativaExcedenteForaPonta"] },
+  { category: "Tributos e Encargos (R$)", fields: ["PIS", "COFINS", "ICMS", "GDI", "CIP"] },
+  { category: "Total", fields: ["ValorTotal"] }
+];
+// Annotate the CommonJS export names for ESM import in node:
+0 && (module.exports = {
+  FIELD_CATEGORIES,
+  FIELD_LABELS,
+  extractEnergisaData
+});

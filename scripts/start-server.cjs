@@ -2,42 +2,23 @@ const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
-const projectDir = path.resolve(__dirname, '..');
-const logFile = path.join(projectDir, 'server.log');
+const dir = path.resolve(__dirname, '..');
+const log = path.join(dir, 'server.log');
 
-function startServer() {
-  // Clear old log
-  try { fs.writeFileSync(logFile, ''); } catch {}
-  
-  console.log('Starting Next.js dev server with 1GB memory...');
-  const child = spawn('npx', ['next', 'dev', '-p', '3000'], {
-    cwd: projectDir,
-    stdio: ['pipe', 'pipe', 'pipe'],
-    env: {
-      ...process.env,
-      NODE_OPTIONS: '--max-old-space-size=1024'
-    }
+function start() {
+  try { fs.appendFileSync(log, `\n--- ${new Date().toISOString()} ---\n`); } catch {}
+  const child = spawn('node', ['server.cjs'], {
+    cwd: dir,
+    env: { ...process.env },
+    stdio: ['pipe', 'pipe', 'pipe']
   });
-
-  const logStream = fs.createWriteStream(logFile, { flags: 'a' });
-
-  child.stdout.on('data', (data) => {
-    process.stdout.write(data);
-    logStream.write(data);
+  const ls = fs.createWriteStream(log, { flags: 'a' });
+  child.stdout.on('data', d => { process.stdout.write(d); ls.write(d); });
+  child.stderr.on('data', d => { process.stderr.write(d); ls.write(d); });
+  child.on('exit', (code) => {
+    ls.write(`Exited (${code}). Restarting 3s...\n`);
+    setTimeout(start, 3000);
   });
-
-  child.stderr.on('data', (data) => {
-    process.stderr.write(data);
-    logStream.write(data);
-  });
-
-  child.on('exit', (code, signal) => {
-    console.log(`Server exited with code ${code}, signal ${signal}. Restarting in 5s...`);
-    logStream.write(`\n--- Server exited. Restarting in 5s ---\n`);
-    setTimeout(startServer, 5000);
-  });
-
-  return child;
 }
 
-startServer();
+start();
