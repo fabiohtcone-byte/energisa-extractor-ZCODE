@@ -336,21 +336,24 @@ function extractEnergisaData(rawText) {
     }
     if (nOUC === 0 && nMUC === 0) return { oUC_Qtd: EMPTY, oUC_Valor: EMPTY, mUC_Qtd: EMPTY, mUC_Valor: EMPTY };
     const chaveIdx = (() => {
-      for (let i = firstGDI; i < Math.min(firstGDI + 40, lines.length); i++) {
+      for (let i = firstGDI; i < Math.min(firstGDI + 100, lines.length); i++) {
         if (/^chave de acesso:\s*$/i.test(lines[i])) return i;
       }
       return -1;
     })();
-    let sectionEnd = Math.min(firstGDI + 45, lines.length);
-    for (let i = firstGDI; i < Math.min(firstGDI + 55, lines.length); i++) {
+    let sectionEnd = Math.min(firstGDI + 100, lines.length);
+    for (let i = firstGDI; i < Math.min(firstGDI + 120, lines.length); i++) {
       if (/^(Declara[cç]|EMITIDO EM|NOTA FISCAL N|Importante:)/i.test(lines[i])) {
         sectionEnd = i;
         break;
       }
     }
+    if (chaveIdx >= 0) {
+      sectionEnd = Math.min(Math.max(sectionEnd, chaveIdx + 20), lines.length);
+    }
     const allQtds = [];
     if (chaveIdx >= 0) {
-      for (let i = chaveIdx + 1; i < Math.min(chaveIdx + 10, sectionEnd); i++) {
+      for (let i = chaveIdx + 1; i < Math.min(chaveIdx + 20, sectionEnd); i++) {
         const m = lines[i].match(/^(\d[\d.]*,\d{2})$/);
         if (m) allQtds.push(parseBR(m[1]));
       }
