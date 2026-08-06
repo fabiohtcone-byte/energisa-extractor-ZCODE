@@ -1,3 +1,15 @@
+export interface TableItem {
+  label: string;
+  quantidade: string;
+  valor: string;
+  pisCofins: string;
+  baseCalcICMS: string;
+  aliquotaICMS: string;
+  icms: string;
+  tarifa: string;
+  precoUnit: string;
+}
+
 export interface EnergisaInvoiceData {
   UC: string;
   Cidade: string;
@@ -252,6 +264,25 @@ export function extractEnergisaData(rawText: string): EnergisaInvoiceData {
     return EMPTY;
   })();
 
+  const hasTableData = tableData && tableData.length > 0;
+  let tablePIS = EMPTY, tableCOFINS = EMPTY, tableICMS = EMPTY;
+  if (hasTableData) {
+    for (const item of tableData) {
+      if (/Consumo em kWh.*Ponta(?!.*Fora)/i.test(item.label) && !tableConsumoPonta) { tableConsumoPonta = item.quantidade; tableValorConsumoPonta = item.valor; }
+      else if (/Consumo em kWh.*Fora\s*Ponta/i.test(item.label) && !tableConsumoFP) { tableConsumoFP = item.quantidade; tableValorConsumoFP = item.valor; }
+      else if (/Demanda.*Medida.*Ponta(?!.*Fora)/i.test(item.label) && !tableDemMedPonta) { tableDemMedPonta = item.quantidade; tableValorDemandaPonta = item.valor; }
+      else if (/Demanda.*Medida.*Fora\s*Ponta/i.test(item.label) && !tableDemMedFP) { tableDemMedFP = item.quantidade; tableValorDemFP = item.valor; }
+      else if (/Ultrapassagem|NÃO.*Consumida/i.test(item.label)) {
+        if (/Ponta(?!.*Fora)/i.test(item.label) && !tableUltrapPonta) { tableUltrapPonta = item.quantidade; tableValorUltraponta = item.valor; }
+        else if (/Fora\s*Ponta/i.test(item.label) && !tableUltrapFP) { tableUltrapFP = item.quantidade; tableValorUltrapFP = item.valor; }
+      else if (/Reactiv?a.*Excedente.*Ponta/i.test(item.label)) {
+        if (/Ponta(?!.*Fora)/i.test(item.label) && !tableReatExFP) { tableReatExFP = item.quantidade; tableValorReatFPonta = item.valor; }
+        else if (/Reactiv?a.*Excedente.*Fora\s*Ponta/i.test(item.label) && !tableReatEFP) { tableReatEFP = item.quantidade; tableValorReatEFP = item.valor; }
+      if (item.pisCofins && !tablePIS) tablePIS = item.pisCofins;
+      if (item.baseCalcICMS && !tableCOFINS) tableCOFINS = item.baseCalcICMS;
+      if (item.icms && !tableICMS) tableICMS = item.icms;
+    }
+  }
   const isSplitTariff = /AZUL|VERDE/i.test(flat) && !/CONVENCIONAL/i.test(flat);
 
   // ===== CONSUMO =====
@@ -458,12 +489,30 @@ export function extractEnergisaData(rawText: string): EnergisaInvoiceData {
       }
     }
 
-    // --- R$ Values (negative numbers before "chave de acesso:") ---
+    // --- R$ Values (embedded negative numbers before "chave de acesso:") ---
+    // ENERGISA PDFs put GDI R$ values embedded in composite lines like
+    // "1,083930-17,34" (alíquota + credit value). Standalone negatives like
+    // "-1,56" are tax adjustments, NOT the GDI credit amounts.
     const allRVals: number[] = [];
     const rSearchEnd = chaveIdx >= 0 ? chaveIdx : sectionEnd;
+    const totalNeeded = nOUC + nMUC;
+
+    // Strategy 1: Embedded negatives — lines ending with a negative number
+    // but containing additional content before it (e.g. "1,083930-17,34")
     for (let i = firstGDI; i < rSearchEnd; i++) {
-      const m = lines[i].match(/^(-\d[\d.]*,\d{2})$/);
-      if (m) allRVals.push(parseBR(m[1]));
+      const m = lines[i].match(/^(.+?)-((?:\d{1,3}\.)*\d+,\d{2})$/);
+      if (m && allRVals.length < totalNeeded) {
+        allRVals.push(parseBR('-' + m[2]));
+      }
+    }
+    // Strategy 2 fallback: standalone negative numbers (for PDFs without embedded format)
+    if (allRVals.length < totalNeeded) {
+      for (let i = firstGDI; i < rSearchEnd; i++) {
+        const m = lines[i].match(/^(-\d[\d.]*,\d{2})$/);
+        if (m && allRVals.length < totalNeeded) {
+          allRVals.push(parseBR(m[1]));
+        }
+      }
     }
 
     // Split: first nOUC values → oUC, next nMUC → mUC (sum each group)
@@ -487,7 +536,7 @@ export function extractEnergisaData(rawText: string): EnergisaInvoiceData {
     };
 
     const sumQtd = (arr: number[]) => arr.length > 0 ? fmtInt(arr.reduce((a, b) => a + b, 0)) : EMPTY;
-    const sumR = (arr: number[]) => arr.length > 0 ? fmtInt(arr.reduce((a, b) => a + b, 0)) : EMPTY;
+    const sumR = (arr: number[]) => arr.length > 0 ? fmtInt(Math.abs(arr.reduce((a, b) => a + b, 0))) : EMPTY;
 
     return {
       oUC_Qtd: sumQtd(oUCQtds),

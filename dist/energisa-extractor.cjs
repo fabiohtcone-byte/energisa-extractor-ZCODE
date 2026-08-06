@@ -367,9 +367,20 @@ function extractEnergisaData(rawText) {
     }
     const allRVals = [];
     const rSearchEnd = chaveIdx >= 0 ? chaveIdx : sectionEnd;
+    const totalNeeded = nOUC + nMUC;
     for (let i = firstGDI; i < rSearchEnd; i++) {
-      const m = lines[i].match(/^(-\d[\d.]*,\d{2})$/);
-      if (m) allRVals.push(parseBR(m[1]));
+      const m = lines[i].match(/^(.+?)-((?:\d{1,3}\.)*\d+,\d{2})$/);
+      if (m && allRVals.length < totalNeeded) {
+        allRVals.push(parseBR("-" + m[2]));
+      }
+    }
+    if (allRVals.length < totalNeeded) {
+      for (let i = firstGDI; i < rSearchEnd; i++) {
+        const m = lines[i].match(/^(-\d[\d.]*,\d{2})$/);
+        if (m && allRVals.length < totalNeeded) {
+          allRVals.push(parseBR(m[1]));
+        }
+      }
     }
     const oUCQtds = allQtds.splice(0, nOUC);
     const oUCRVals = allRVals.splice(0, nOUC);
@@ -388,7 +399,7 @@ function extractEnergisaData(rawText) {
       return (n < 0 ? "-" : "") + formatted + "," + decPart;
     };
     const sumQtd = (arr) => arr.length > 0 ? fmtInt(arr.reduce((a, b) => a + b, 0)) : EMPTY;
-    const sumR = (arr) => arr.length > 0 ? fmtInt(arr.reduce((a, b) => a + b, 0)) : EMPTY;
+    const sumR = (arr) => arr.length > 0 ? fmtInt(Math.abs(arr.reduce((a, b) => a + b, 0))) : EMPTY;
     return {
       oUC_Qtd: sumQtd(oUCQtds),
       oUC_Valor: sumR(oUCRVals),
