@@ -1,7 +1,9 @@
 "use strict";
+var __create = Object.create;
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
+var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
 var __export = (target, all) => {
   for (var name in all)
@@ -15,6 +17,14 @@ var __copyProps = (to, from, except, desc) => {
   }
   return to;
 };
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+  // If the importer is in node compatibility mode or this is not an ESM
+  // file that has been converted to a CommonJS file using a Babel-
+  // compatible transform (i.e. "__esModule" has not been set), then set
+  // "default" to the CommonJS "module.exports" for node compatibility.
+  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+  mod
+));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
 // src/lib/energisa-table-extractor.ts
@@ -6602,7 +6612,7 @@ function compileType3Glyph(imgData) {
     return null;
   }
   const steps = new Int32Array([0, width1, -1, 0, -width1, 0, 0, 0, 1]);
-  const path = new Path2D();
+  const path2 = new Path2D();
   for (i = 0; count && i <= height; i++) {
     let p = i * width1;
     const end = p + width;
@@ -6612,7 +6622,7 @@ function compileType3Glyph(imgData) {
     if (p === end) {
       continue;
     }
-    path.moveTo(p % width1, i);
+    path2.moveTo(p % width1, i);
     const p0 = p;
     let type = points[p];
     do {
@@ -6628,7 +6638,7 @@ function compileType3Glyph(imgData) {
         type = pp & 51 * type >> 4;
         points[p] &= type >> 2 | type << 2;
       }
-      path.lineTo(p % width1, p / width1 | 0);
+      path2.lineTo(p % width1, p / width1 | 0);
       if (!points[p]) {
         --count;
       }
@@ -6641,7 +6651,7 @@ function compileType3Glyph(imgData) {
     c.save();
     c.scale(1 / width, -1 / height);
     c.translate(0, -height);
-    c.fill(path);
+    c.fill(path2);
     c.beginPath();
     c.restore();
   };
@@ -7586,10 +7596,10 @@ var CanvasGraphics = class _CanvasGraphics {
     }
     ctx.save();
     ctx.beginPath();
-    for (const path of paths) {
-      ctx.setTransform(...path.transform);
-      ctx.translate(path.x, path.y);
-      path.addToPath(ctx, path.fontSize);
+    for (const path2 of paths) {
+      ctx.setTransform(...path2.transform);
+      ctx.translate(path2.x, path2.y);
+      path2.addToPath(ctx, path2.fontSize);
     }
     ctx.restore();
     ctx.clip();
@@ -20819,13 +20829,13 @@ var DrawLayer = class _DrawLayer {
     const root = this.#createSVG();
     const defs = _DrawLayer._svgFactory.createElement("defs");
     root.append(defs);
-    const path = _DrawLayer._svgFactory.createElement("path");
-    defs.append(path);
+    const path2 = _DrawLayer._svgFactory.createElement("path");
+    defs.append(path2);
     const pathId = `path_p${this.pageIndex}_${id}`;
-    path.setAttribute("id", pathId);
-    path.setAttribute("vector-effect", "non-scaling-stroke");
+    path2.setAttribute("id", pathId);
+    path2.setAttribute("vector-effect", "non-scaling-stroke");
     if (isPathUpdatable) {
-      this.#toUpdate.set(id, path);
+      this.#toUpdate.set(id, path2);
     }
     const clipPathId = hasClip ? this.#createClipPath(defs, pathId) : null;
     const use = _DrawLayer._svgFactory.createElement("use");
@@ -20843,11 +20853,11 @@ var DrawLayer = class _DrawLayer {
     const root = this.#createSVG();
     const defs = _DrawLayer._svgFactory.createElement("defs");
     root.append(defs);
-    const path = _DrawLayer._svgFactory.createElement("path");
-    defs.append(path);
+    const path2 = _DrawLayer._svgFactory.createElement("path");
+    defs.append(path2);
     const pathId = `path_p${this.pageIndex}_${id}`;
-    path.setAttribute("id", pathId);
-    path.setAttribute("vector-effect", "non-scaling-stroke");
+    path2.setAttribute("id", pathId);
+    path2.setAttribute("vector-effect", "non-scaling-stroke");
     let maskId;
     if (mustRemoveSelfIntersections) {
       const mask = _DrawLayer._svgFactory.createElement("mask");
@@ -20894,7 +20904,7 @@ var DrawLayer = class _DrawLayer {
       root,
       bbox,
       rootClass,
-      path
+      path: path2
     } = properties;
     const element = typeof elementOrId === "number" ? this.#mapping.get(elementOrId) : elementOrId;
     if (!element) {
@@ -20914,10 +20924,10 @@ var DrawLayer = class _DrawLayer {
         classList.toggle(className, value);
       }
     }
-    if (path) {
+    if (path2) {
       const defs = element.firstChild;
       const pathElement = defs.firstChild;
-      this.#updateProperties(pathElement, path);
+      this.#updateProperties(pathElement, path2);
     }
   }
   updateParent(id, layer) {
@@ -21000,9 +21010,10 @@ var __webpack_exports__stopEvent = __webpack_exports__.stopEvent;
 var __webpack_exports__version = __webpack_exports__.version;
 
 // src/lib/energisa-table-extractor.ts
-__webpack_exports__GlobalWorkerOptions.workerSrc = require("path").join(process.cwd(), "node_modules/pdfjs-dist/build/pdf.worker.mjs");
+var import_path = __toESM(require("path"));
+__webpack_exports__GlobalWorkerOptions.workerSrc = import_path.default.join(process.cwd(), "node_modules/pdfjs-dist/build/pdf.worker.mjs");
 async function extractTableFromPDF(pdfBuffer) {
-  const pdf = await __webpack_exports__getDocument({ data: new Uint8Array(pdfBuffer) }).promise;
+  const pdf = await __webpack_exports__getDocument({ data: new Uint8Array(pdfBuffer), disableWorker: true }).promise;
   const result = { items: [], pisTotal: "", cofinsTotal: "", icmsTotal: "" };
   for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
     const page = await pdf.getPage(pageNum);
@@ -21107,6 +21118,7 @@ async function extractTableFromPDF(pdfBuffer) {
     }
     if (result.items.length > 0) break;
   }
+  pdf.destroy();
   return result.items.length > 0 ? result : null;
 }
 // Annotate the CommonJS export names for ESM import in node:

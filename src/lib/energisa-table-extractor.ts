@@ -1,7 +1,8 @@
 import * as pdfjsLib from 'pdfjs-dist';
+import path from 'path';
 
-// Set worker path to avoid "fake worker" errors
-pdfjsLib.GlobalWorkerOptions.workerSrc = require('path').join(process.cwd(), 'node_modules/pdfjs-dist/build/pdf.worker.mjs');
+// Use worker path but disable it — run inline to avoid worker thread crashes
+pdfjsLib.GlobalWorkerOptions.workerSrc = path.join(process.cwd(), 'node_modules/pdfjs-dist/build/pdf.worker.mjs');
 
 export interface TableItem {
   label: string;
@@ -24,7 +25,7 @@ export interface TableExtraction {
 }
 
 export async function extractTableFromPDF(pdfBuffer: Buffer): Promise<TableExtraction | null> {
-  const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(pdfBuffer) }).promise;
+  const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(pdfBuffer), disableWorker: true }).promise;
   const result: TableExtraction = { items: [], pisTotal: '', cofinsTotal: '', icmsTotal: '' };
 
   for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
@@ -160,5 +161,6 @@ export async function extractTableFromPDF(pdfBuffer: Buffer): Promise<TableExtra
     if (result.items.length > 0) break;
   }
 
+  pdf.destroy();
   return result.items.length > 0 ? result : null;
 }
