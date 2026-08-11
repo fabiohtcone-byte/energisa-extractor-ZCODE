@@ -53,7 +53,7 @@ function findNumNearLine(lines, startIdx, direction, maxDist, mustBeOnlyNum) {
   }
   return EMPTY;
 }
-function extractEnergisaData(rawText) {
+function extractEnergisaData(rawText, tableData) {
   const lines = rawText.split(/[\r\n]+/).map((l) => l.trim()).filter((l) => l.length > 0);
   const flat = lines.join(" ");
   const Concessionaria = (() => {
@@ -437,6 +437,50 @@ function extractEnergisaData(rawText) {
     }
     return EMPTY;
   })();
+  if (tableData && tableData.length > 0) {
+    for (const item of tableData) {
+      const lbl = item.label;
+      const isFora = /Fora/i.test(lbl);
+      if (/Consumo/i.test(lbl) && item.quantidade) {
+        if (!isFora) {
+          ConsumoPonta = item.quantidade;
+          if (item.valor) ValorConsumoPonta = item.valor;
+        } else {
+          ConsumoForaPonta = item.quantidade;
+          if (item.valor) ValorConsumoForaPonta = item.valor;
+        }
+      } else if (/Demanda.*Medida/i.test(lbl) && item.quantidade) {
+        if (!isFora) {
+          DemandaMedidaPonta = item.quantidade;
+          if (item.valor) ValorDemandaPonta = item.valor;
+        } else {
+          DemandaMedidaForaPonta = item.quantidade;
+          if (item.valor) ValorDemandaForaPonta = item.valor;
+        }
+      } else if (/(?:Ultrapassagem|NÃO.*Consumida|Não.*Consumida)/i.test(lbl) && item.quantidade) {
+        if (!isFora) {
+          UltrapassagemPonta = item.quantidade;
+          if (item.valor) ValorUltrapassagemPonta = item.valor;
+        } else {
+          UltrapassagemForaPonta = item.quantidade;
+          if (item.valor) ValorUltrapassagemForaPonta = item.valor;
+        }
+      } else if (/Reactiv?a.*Excedente/i.test(lbl) && item.quantidade) {
+        if (!isFora) {
+          ReativaExcedentePonta = item.quantidade;
+          if (item.valor) ValorReativaExcedentePonta = item.valor;
+        } else {
+          ReativaExcedenteForaPonta = item.quantidade;
+          if (item.valor) ValorReativaExcedenteForaPonta = item.valor;
+        }
+      }
+      if (item.pisCofins) {
+        if (!PIS) PIS = item.pisCofins;
+        else if (!COFINS) COFINS = item.pisCofins;
+      }
+      if (item.icms && !ICMS) ICMS = item.icms;
+    }
+  }
   return {
     UC,
     Cidade,

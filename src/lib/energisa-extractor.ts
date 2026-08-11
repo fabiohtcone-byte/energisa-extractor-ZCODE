@@ -3,11 +3,7 @@ export interface TableItem {
   quantidade: string;
   valor: string;
   pisCofins: string;
-  baseCalcICMS: string;
-  aliquotaICMS: string;
   icms: string;
-  tarifa: string;
-  precoUnit: string;
 }
 
 export interface EnergisaInvoiceData {
@@ -94,7 +90,7 @@ function findNumNearLine(lines: string[], startIdx: number, direction: 1 | -1, m
 
 // ===================== MAIN EXTRACTOR =====================
 
-export function extractEnergisaData(rawText: string): EnergisaInvoiceData {
+export function extractEnergisaData(rawText: string, tableData?: TableItem[]): EnergisaInvoiceData {
   const lines = rawText.split(/[\r\n]+/).map(l => l.trim()).filter(l => l.length > 0);
   const flat = lines.join(' ');
 
@@ -264,25 +260,6 @@ export function extractEnergisaData(rawText: string): EnergisaInvoiceData {
     return EMPTY;
   })();
 
-  const hasTableData = tableData && tableData.length > 0;
-  let tablePIS = EMPTY, tableCOFINS = EMPTY, tableICMS = EMPTY;
-  if (hasTableData) {
-    for (const item of tableData) {
-      if (/Consumo em kWh.*Ponta(?!.*Fora)/i.test(item.label) && !tableConsumoPonta) { tableConsumoPonta = item.quantidade; tableValorConsumoPonta = item.valor; }
-      else if (/Consumo em kWh.*Fora\s*Ponta/i.test(item.label) && !tableConsumoFP) { tableConsumoFP = item.quantidade; tableValorConsumoFP = item.valor; }
-      else if (/Demanda.*Medida.*Ponta(?!.*Fora)/i.test(item.label) && !tableDemMedPonta) { tableDemMedPonta = item.quantidade; tableValorDemandaPonta = item.valor; }
-      else if (/Demanda.*Medida.*Fora\s*Ponta/i.test(item.label) && !tableDemMedFP) { tableDemMedFP = item.quantidade; tableValorDemFP = item.valor; }
-      else if (/Ultrapassagem|NÃO.*Consumida/i.test(item.label)) {
-        if (/Ponta(?!.*Fora)/i.test(item.label) && !tableUltrapPonta) { tableUltrapPonta = item.quantidade; tableValorUltraponta = item.valor; }
-        else if (/Fora\s*Ponta/i.test(item.label) && !tableUltrapFP) { tableUltrapFP = item.quantidade; tableValorUltrapFP = item.valor; }
-      else if (/Reactiv?a.*Excedente.*Ponta/i.test(item.label)) {
-        if (/Ponta(?!.*Fora)/i.test(item.label) && !tableReatExFP) { tableReatExFP = item.quantidade; tableValorReatFPonta = item.valor; }
-        else if (/Reactiv?a.*Excedente.*Fora\s*Ponta/i.test(item.label) && !tableReatEFP) { tableReatEFP = item.quantidade; tableValorReatEFP = item.valor; }
-      if (item.pisCofins && !tablePIS) tablePIS = item.pisCofins;
-      if (item.baseCalcICMS && !tableCOFINS) tableCOFINS = item.baseCalcICMS;
-      if (item.icms && !tableICMS) tableICMS = item.icms;
-    }
-  }
   const isSplitTariff = /AZUL|VERDE/i.test(flat) && !/CONVENCIONAL/i.test(flat);
 
   // ===== CONSUMO =====
@@ -586,6 +563,42 @@ export function extractEnergisaData(rawText: string): EnergisaInvoiceData {
     }
     return EMPTY;
   })();
+
+  // ===== TABLE DATA OVERRIDES (for AZUL/VERDE PDFs with position-extracted table) =====
+  // Table data from pdfjs position-based extraction is more reliable than pdf-parse
+  // text for tabular data, so ALWAYS override when table data is available.
+  if (tableData && tableData.length > 0) {
+    for (const item of tableData) {
+      const lbl = item.label;
+      const isFora = /Fora/i.test(lbl);
+      // Consumo
+      if (/Consumo/i.test(lbl) && item.quantidade) {
+        if (!isFora) { ConsumoPonta = item.quantidade; if (item.valor) ValorConsumoPonta = item.valor; }
+        else { ConsumoForaPonta = item.quantidade; if (item.valor) ValorConsumoForaPonta = item.valor; }
+      }
+      // Demanda Medida
+      else if (/Demanda.*Medida/i.test(lbl) && item.quantidade) {
+        if (!isFora) { DemandaMedidaPonta = item.quantidade; if (item.valor) ValorDemandaPonta = item.valor; }
+        else { DemandaMedidaForaPonta = item.quantidade; if (item.valor) ValorDemandaForaPonta = item.valor; }
+      }
+      // Ultrapassagem / Não Consumida
+      else if (/(?:Ultrapassagem|NÃO.*Consumida|Não.*Consumida)/i.test(lbl) && item.quantidade) {
+        if (!isFora) { UltrapassagemPonta = item.quantidade; if (item.valor) ValorUltrapassagemPonta = item.valor; }
+        else { UltrapassagemForaPonta = item.quantidade; if (item.valor) ValorUltrapassagemForaPonta = item.valor; }
+      }
+      // Reativa Excedente
+      else if (/Reactiv?a.*Excedente/i.test(lbl) && item.quantidade) {
+        if (!isFora) { ReativaExcedentePonta = item.quantidade; if (item.valor) ValorReativaExcedentePonta = item.valor; }
+        else { ReativaExcedenteForaPonta = item.quantidade; if (item.valor) ValorReativaExcedenteForaPonta = item.valor; }
+      }
+      // PIS/COFINS/ICMS from table rows
+      if (item.pisCofins) {
+        if (!PIS) PIS = item.pisCofins;
+        else if (!COFINS) COFINS = item.pisCofins;
+      }
+      if (item.icms && !ICMS) ICMS = item.icms;
+    }
+  }
 
   return {
     UC, Cidade, Tipo, Mercado, Concessionaria,

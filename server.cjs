@@ -4,6 +4,7 @@ const path = require('path');
 const { parse: parseUrl } = require('url');
 
 const { extractEnergisaData, FIELD_LABELS } = require('./dist/energisa-extractor.cjs');
+const { extractTableFromPDF } = require('./dist/energisa-table-extractor.cjs');
 
 // ===== MIME =====
 const MIME = {
@@ -90,9 +91,18 @@ const server = http.createServer(async (req, res) => {
         res.end(JSON.stringify({error:'PDF parse failed: ' + e.message}));
         return;
       }
+      let tableData = null;
+      try {
+        tableData = await Promise.race([
+          extractTableFromPDF(fp.body),
+          new Promise((_, rej) => setTimeout(() => rej(new Error('table timeout')), 10000))
+        ]);
+      } catch (e) {
+        console.log('Table extraction skipped:', e.message);
+      }
       const text = pd.text;
       if (!text || !text.trim()) { res.writeHead(422, {'Content-Type':'application/json'}); res.end('{"error":"no text"}'); return; }
-      const ext = extractEnergisaData(text);
+      const ext = extractEnergisaData(text, tableData ? tableData.items : undefined);
       const vals = Object.values(ext);
       const cnt = vals.filter(v => v !== '').length;
       res.writeHead(200, {'Content-Type':'application/json'});
