@@ -1,7 +1,6 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const { parse: parseUrl } = require('url');
 
 const { extractEnergisaData, FIELD_LABELS } = require('./dist/energisa-extractor.cjs');
 const { extractTableFromPDF } = require('./dist/energisa-table-extractor.cjs');
@@ -70,8 +69,8 @@ function serveFile(res, filePath, cache) {
 
 const server = http.createServer(async (req, res) => {
   try {
-    const parsedUrl = parseUrl(req.url, true);
-    const p = parsedUrl.pathname;
+    const url = new URL(req.url, 'http://localhost:3000');
+    const p = url.pathname;
 
     // ===== API: Extract PDF =====
     if (p === '/api/extract-pdf' && req.method === 'POST') {
@@ -135,8 +134,7 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    // ===== Static: _next/* (chunks, css, fonts) =====
-    // URL /_next/static/chunks/X.js -> file .next/static/chunks/X.js
+    // ===== Static: _next/* =====
     if (p.startsWith('/_next/')) {
       const filePath = path.join(__dirname, '.next', p.replace('/_next', ''));
       return serveFile(res, filePath, true);
@@ -157,7 +155,7 @@ const server = http.createServer(async (req, res) => {
     res.end('<h1>404</h1>');
 
   } catch (error) {
-    console.error('Error:', error.message);
+    console.error('Request error:', error.message);
     if (!res.headersSent) {
       res.writeHead(500, {'Content-Type':'application/json'});
       res.end(JSON.stringify({ error: error.message }));
@@ -167,10 +165,18 @@ const server = http.createServer(async (req, res) => {
 
 server.on('error', err => console.error('Server error:', err.message));
 
-// Keep process alive
-process.on('SIGTERM', () => { console.log('SIGTERM received, shutting down...'); process.exit(0); });
-process.on('uncaughtException', (err) => { console.error('Uncaught exception:', err.message, err.stack); });
-process.on('unhandledRejection', (reason) => { console.error('Unhandled rejection:', reason); });
+// Prevent crashes from unhandled rejections (Node 15+)
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled rejection:', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught exception:', err.message, err.stack);
+});
+
+// Ignore SIGTERM to prevent external kills
+process.on('SIGTERM', () => {
+  console.log('SIGTERM ignored - keeping alive');
+});
 
 server.listen(3000, '0.0.0.0', () => {
   console.log('> Server ready on http://localhost:3000');
