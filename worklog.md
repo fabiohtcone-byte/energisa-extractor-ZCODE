@@ -47,3 +47,27 @@ Stage Summary:
 - GDI PDFs (7929105158, 7948705165): no regression, embedded R$ extraction still works
 - Extraction rate improved from 40% to 58% for AZUL PDFs
 - Server stable through multiple sequential requests
+---
+Task ID: 1
+Agent: main
+Task: Corrigir valores extraídos das faturas Energisa
+
+Work Log:
+- Analisou a extração atual: apenas 35-47% dos campos eram extraídos (17-20 de 43)
+- Identificou que o table extractor (pdfjs-dist) não estava integrado na API route
+- Identificou que Vencimento nunca era extraído (padrão DD/MM/YYYYR$ não era detectado)
+- Identificou que ValorTotal usava TOTAL: (ICMS) em vez do valor real da fatura
+- Identificou bug: bloco duplicado de Ultrapassagem com variáveis erradas
+- Reescreveu energisa-extractor.ts com correções em Vencimento, ValorTotal, Cidade, UC, Subgrupo
+- Reescreveu route.ts para integrar table extractor via createRequire + Function constructor
+- Corrigiu bug do Turbopack que substituía require() por stub
+- Corrigiu bloco duplicado de Ultrapassagem que sobrescrevia DemandaMedida
+- Corrigiu lógica de Consumo para Convencional vs AZUL/VERDE
+- Removeu PIS/COFINS override do table (valores combinados, não individuais)
+
+Stage Summary:
+- Extração melhorou de ~37% para ~50% médio (28-70% por fatura)
+- Vencimento: agora 100% (era 0%)
+- ValorTotal: agora 100% correto
+- Consumo/Demanda/Ultrapassagem/Reativa: extraídos via table extractor
+- Valores R$: corretos para todas as faturas AZUL
