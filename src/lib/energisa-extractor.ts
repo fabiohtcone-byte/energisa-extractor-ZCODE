@@ -1,9 +1,21 @@
 export interface TableItem {
   label: string;
+  unidade: string;
   quantidade: string;
+  precoUnit: string;
   valor: string;
   pisCofins: string;
+  baseCalcICMS: string;
+  aliquotaICMS: string;
   icms: string;
+  tarifa: string;
+}
+
+export interface TableExtraction {
+  items: TableItem[];
+  pisTotal: string;
+  cofinsTotal: string;
+  icmsTotal: string;
 }
 
 export interface EnergisaInvoiceData {
@@ -89,7 +101,11 @@ function findNumNearLine(lines: string[], startIdx: number, direction: 1 | -1, m
 
 // ===================== MAIN EXTRACTOR =====================
 
-export function extractEnergisaData(rawText: string, tableData?: TableItem[]): EnergisaInvoiceData {
+export function extractEnergisaData(rawText: string, tableExtraction?: TableExtraction): EnergisaInvoiceData {
+  const tableData = tableExtraction?.items;
+  const tributosFromTable = tableExtraction
+    ? { pis: tableExtraction.pisTotal, cofins: tableExtraction.cofinsTotal, icms: tableExtraction.icmsTotal }
+    : null;
   const lines = rawText.split(/[\r\n]+/).map(l => l.trim()).filter(l => l.length > 0);
   const flat = lines.join(' ');
 
@@ -348,12 +364,19 @@ export function extractEnergisaData(rawText: string, tableData?: TableItem[]): E
     EnergiaReativaTotal = findQtyNearLine(lines, /Reactiv?a\s+Excedente/i);
   }
 
-  // ===== TRIBUTOS: PIS, COFINS, ICMS (text-based) =====
+  // ===== TRIBUTOS: PIS, COFINS, ICMS =====
+  // Priority: table extraction > text-based extraction
   let PIS = EMPTY;
   let COFINS = EMPTY;
   let ICMS = EMPTY;
 
-  (() => {
+  // Use tributos from table extraction if available (most reliable)
+  if (tributosFromTable?.pis) PIS = tributosFromTable.pis;
+  if (tributosFromTable?.cofins) COFINS = tributosFromTable.cofins;
+  if (tributosFromTable?.icms) ICMS = tributosFromTable.icms;
+
+  // Fallback: text-based extraction for any missing tributo
+  if (!PIS || !COFINS || !ICMS) {
     const pisIdx = findLine(lines, /^PIS\s*\/\s*$/i);
     if (pisIdx >= 0) {
       const nums: string[] = [];
@@ -367,7 +390,9 @@ export function extractEnergisaData(rawText: string, tableData?: TableItem[]): E
         }
       }
       if (nums.length >= 3) {
-        PIS = nums[0]; COFINS = nums[1]; ICMS = nums[2];
+        if (!PIS) PIS = nums[0];
+        if (!COFINS) COFINS = nums[1];
+        if (!ICMS) ICMS = nums[2];
       }
     }
     if (!PIS && !COFINS) {
@@ -379,7 +404,9 @@ export function extractEnergisaData(rawText: string, tableData?: TableItem[]): E
           if (m) nums.push(m[1]);
         }
         if (nums.length >= 3) {
-          PIS = nums[0]; COFINS = nums[1]; ICMS = nums[2];
+          if (!PIS) PIS = nums[0];
+          if (!COFINS) COFINS = nums[1];
+          if (!ICMS) ICMS = nums[2];
         }
       }
     }
@@ -393,7 +420,7 @@ export function extractEnergisaData(rawText: string, tableData?: TableItem[]): E
     if (!PIS) PIS = findTributoValue(lines, flat, /\bPIS\b(?!\/)/i);
     if (!COFINS) COFINS = findTributoValue(lines, flat, /\bCOFINS\b/i);
     if (!ICMS) ICMS = findTributoValue(lines, flat, /\bICMS\b(?!\s*%|\s*\()/i);
-  })();
+  }
 
   // ===== GDI =====
   const GDI = findTributoValue(lines, flat, /\bGDI\b/i);

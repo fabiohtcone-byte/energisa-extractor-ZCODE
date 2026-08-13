@@ -1,0 +1,776 @@
+     1→export interface TableItem {
+     2→  label: string;
+     3→  quantidade: string;
+     4→  valor: string;
+     5→  pisCofins: string;
+     6→  icms: string;
+     7→}
+     8→
+     9→export interface EnergisaInvoiceData {
+    10→  UC: string;
+    11→  Cidade: string;
+    12→  Tipo: string;
+    13→  Mercado: string;
+    14→  Concessionaria: string;
+    15→  MesReferencia: string;
+    16→  AnoLeitura: string;
+    17→  Vencimento: string;
+    18→  NotaFiscal: string;
+    19→  ModalidadeTarifaria: string;
+    20→  Subgrupo: string;
+    21→  ConsumoPonta: string;
+    22→  ConsumoForaPonta: string;
+    23→  ConsumoTotal: string;
+    24→  DemandaContratadaPonta: string;
+    25→  DemandaContratadaForaPonta: string;
+    26→  DemandaMedidaPonta: string;
+    27→  DemandaMedidaForaPonta: string;
+    28→  DemandaFaturadaPonta: string;
+    29→  DemandaFaturadaForaPonta: string;
+    30→  UltrapassagemPonta: string;
+    31→  UltrapassagemForaPonta: string;
+    32→  ReativaExcedentePonta: string;
+    33→  ReativaExcedenteForaPonta: string;
+    34→  ValorConsumoPonta: string;
+    35→  ValorConsumoForaPonta: string;
+    36→  ValorDemandaPonta: string;
+    37→  ValorDemandaForaPonta: string;
+    38→  ValorUltrapassagemPonta: string;
+    39→  ValorUltrapassagemForaPonta: string;
+    40→  ValorReativaExcedentePonta: string;
+    41→  ValorReativaExcedenteForaPonta: string;
+    42→  PIS: string;
+    43→  COFINS: string;
+    44→  ICMS: string;
+    45→  GDI: string;
+    46→  CIP: string;
+    47→  EnergiaReativaTotal: string;
+    48→  EnergiaAtvInjetadaGDIoUC_Qtd: string;
+    49→  EnergiaAtvInjetadaGDIoUC_Valor: string;
+    50→  EnergiaAtvInjetadaGDImUC_Qtd: string;
+    51→  EnergiaAtvInjetadaGDImUC_Valor: string;
+    52→  ValorTotal: string;
+    53→}
+    54→
+    55→const EMPTY = '';
+    56→
+    57→// ===================== HELPERS =====================
+    58→
+    59→function parseBR(s: string): number {
+    60→  const neg = s.startsWith('-');
+    61→  const clean = neg ? s.slice(1) : s;
+    62→  return parseFloat(clean.replace('.', '').replace(',', '.')) * (neg ? -1 : 1);
+    63→}
+    64→
+    65→function findLine(lines: string[], pattern: RegExp): number {
+    66→  return lines.findIndex(l => pattern.test(l));
+    67→}
+    68→
+    69→function findAllMoney(text: string): string[] {
+    70→  const matches = text.match(/R\$\s*([\d.]+,\d{2})/g);
+    71→  if (!matches) return [];
+    72→  return matches.map(m => m.match(/([\d.]+,\d{2})/)?.[1] || '').filter(Boolean);
+    73→}
+    74→
+    75→function findNumNearLine(lines: string[], startIdx: number, direction: 1 | -1, maxDist: number, mustBeOnlyNum: boolean): string {
+    76→  for (let i = startIdx + direction; i >= 0 && i < lines.length; i += direction) {
+    77→    if (Math.abs(i - startIdx) > maxDist) break;
+    78→    const line = lines[i];
+    79→    if (mustBeOnlyNum) {
+    80→      const m = line.match(/^(\d[\d.]+,\d{2})$/);
+    81→      if (m) return m[1];
+    82→    } else {
+    83→      const m = line.match(/([\d.]+,\d{2})/);
+    84→      if (m && !/^[A-Za-z]/.test(line)) return m[1];
+    85→    }
+    86→  }
+    87→  return EMPTY;
+    88→}
+    89→
+    90→// ===================== MAIN EXTRACTOR =====================
+    91→
+    92→export function extractEnergisaData(rawText: string, tableData?: TableItem[]): EnergisaInvoiceData {
+    93→  const lines = rawText.split(/[\r\n]+/).map(l => l.trim()).filter(l => l.length > 0);
+    94→  const flat = lines.join(' ');
+    95→
+    96→  // ===== CONCESSIONÁRIA =====
+    97→  const Concessionaria = (() => {
+    98→    for (const line of lines.slice(0, 20)) {
+    99→      if (/^ENERGISA/i.test(line) && line.length > 15 && !/\d{2}\s*\/\s*\d{2}/.test(line)) {
+   100→        return line.replace(/\s+/g, ' ');
+   101→      }
+   102→    }
+   103→    return EMPTY;
+   104→  })();
+   105→
+   106→  // ===== TIPO =====
+   107→  const Tipo = (() => {
+   108→    const u = flat.toUpperCase();
+   109→    if (/SERVI[ÇC]O\s+P[ÚU]BLICO/.test(u)) return 'SERVIÇO PÚBLICO';
+   110→    if (/PODER\s+P[ÚU]BLICO/.test(u)) return 'PODER PÚBLICO';
+   111→    if (/RESIDENCIAL/.test(u)) return 'RESIDENCIAL';
+   112→    if (/COMERCIAL/.test(u)) return 'COMERCIAL';
+   113→    if (/INDUSTRIAL/.test(u)) return 'INDUSTRIAL';
+   114→    if (/RURAL/.test(u)) return 'RURAL';
+   115→    return EMPTY;
+   116→  })();
+   117→
+   118→  // ===== MERCADO =====
+   119→  const Mercado = (() => {
+   120→    const m = flat.match(/SERVI[ÇC]O\s+P[ÚU]BLICO\s*\/\s*([A-ZÀ-Ú][A-ZÀ-Úa-zà-ú,\s]{3,40}?)(?:\s*TENSÃO|\s*\d|\s*$)/i);
+   121→    if (m) {
+   122→      const val = m[1].trim().replace(/\s+/g, ' ');
+   123→      if (val.length < 50) return val.toUpperCase();
+   124→    }
+   125→    return EMPTY;
+   126→  })();
+   127→
+   128→  // ===== CIDADE =====
+   129→  // Pattern: "DOURADOS (AG: 10)" or "ANASTACIO MS (AG: 37)" or "RIO VERDE DE MATO GROSSO (AG: 37)"
+   130→  const Cidade = (() => {
+   131→    for (const line of lines.slice(0, 60)) {
+   132→      // Match: CityName [StateAbbr] (AG: XX)
+   133→      const m = line.match(/([A-ZÀ-Ú][A-ZÀ-Ú\s]{3,30}?)\s+(?:MS|SP|PR|MT|GO|MG|RS)?\s*\(\s*AG\s*:\s*\d+\s*\)/i);
+   134→      if (m) {
+   135→        const name = m[1].trim().toUpperCase();
+   136→        const skip = ['SANESUL', 'ENERGISA', 'DISTRIBUIDORA', 'SA', 'EMPRESA DE SANEAMENTO',
+   137→          'RUA ', 'AV ', 'DOM.', 'ENDEREÇO', 'PAGADOR'];
+   138→        if (name.length >= 4 && name.length <= 30 && !skip.some(s => name.startsWith(s))) return name;
+   139→      }
+   140→    }
+   141→    return EMPTY;
+   142→  })();
+   143→
+   144→  // ===== UC =====
+   145→  // Strategy 1: Standard dotted format X.XXX.XXX-XX on its own line
+   146→  // Strategy 2: 13-digit format (e.g., 2103715020000) near address or standalone
+   147→  const UC = (() => {
+   148→    for (const line of lines) {
+   149→      const m = line.match(/^(\d{1,3}\.\d{3}\.\d{3}-\d{2})$/);
+   150→      if (m) return m[1];
+   151→    }
+   152→    for (const line of lines) {
+   153→      const m = line.match(/(\d{1,3}\.\d{3}\.\d{3}-\d{2})/);
+   154→      if (m && line.length < 40 && !/CNPJ|CPF|CEP/i.test(line)) return m[1];
+   155→    }
+   156→    // Strategy 3: 13-digit UC (Energisa MS format) - look in address lines
+   157→    // Pattern: "RUA ... - NNNNNNNNNNNNN RVD NNNNNN" or similar
+   158→    const uc13 = flat.match(/(?:RUA|AV|ESTRADA)[^\d]*(\d{13})\s/);
+   159→    if (uc13) return uc13[1];
+   160→    // Strategy 4: 13-digit standalone or near "Instalação:"
+   161→    const uc13b = flat.match(/Instalação\s*:?\s*(\d{13})/i);
+   162→    if (uc13b) return uc13b[1];
+   163→    // Strategy 5: broad search
+   164→    const broad = flat.match(/(\d{1,3}\.\d{3}\.\d{3}-\d{2})/);
+   165→    return broad ? broad[1] : EMPTY;
+   166→  })();
+   167→
+   168→  // ===== MÊS REFERÊNCIA =====
+   169→  const MesReferencia = (() => {
+   170→    const meses = 'Janeiro|Fevereiro|Mar[çc]o|Abril|Maio|Junho|Julho|Agosto|Setembro|Outubro|Novembro|Dezembro';
+   171→    const numToMonth: Record<string, string> = {
+   172→      '01': 'Janeiro', '02': 'Fevereiro', '03': 'Março', '04': 'Abril',
+   173→      '05': 'Maio', '06': 'Junho', '07': 'Julho', '08': 'Agosto',
+   174→      '09': 'Setembro', '10': 'Outubro', '11': 'Novembro', '12': 'Dezembro',
+   175→    };
+   176→    const nameMatch = flat.match(new RegExp(`(${meses})\\s*[\\/\\-]\\s*(\\d{4})`, 'i'));
+   177→    if (nameMatch) {
+   178→      const month = nameMatch[1].charAt(0).toUpperCase() + nameMatch[1].slice(1).toLowerCase();
+   179→      return `${month} / ${nameMatch[2]}`;
+   180→    }
+   181→    const numMatch = flat.match(/(\d{2})\s*[\\/]\s*(\d{4})/);
+   182→    if (numMatch && numToMonth[numMatch[1]]) {
+   183→      return `${numToMonth[numMatch[1]]} / ${numMatch[2]}`;
+   184→    }
+   185→    return EMPTY;
+   186→  })();
+   187→
+   188→  // ===== ANO LEITURA =====
+   189→  const AnoLeitura = (() => {
+   190→    const m = flat.match(/Leitura\s+Atual\s*:\s*\d{2}\s*\/\s*\d{2}\s*\/\s*(\d{4})/i);
+   191→    if (m) return m[1];
+   192→    if (MesReferencia) {
+   193→      const ym = MesReferencia.match(/(\d{4})/);
+   194→      if (ym) return ym[1];
+   195→    }
+   196→    return EMPTY;
+   197→  })();
+   198→
+   199→  // ===== VENCIMENTO =====
+   200→  // Best pattern: DD/MM/YYYY immediately followed by R$ (date + total on same line)
+   201→  // e.g., "21/07/2026R$ 13.356,50Junho / 2026"
+   202→  // Also handles: "Junho / 202621/07/2026R$ 1.635,98"
+   203→  const Vencimento = (() => {
+   204→    // Strategy 1: date + R$ on same line (most reliable for Energisa MS)
+   205→    const venMoney = flat.match(/(\d{2}\/\d{2}\/\d{4})\s*R\$\s*[\d.]+,\d{2}/);
+   206→    if (venMoney) return venMoney[1];
+   207→
+   208→    // Strategy 2: R$ + money + date on same line (reversed order)
+   209→    const moneyVen = flat.match(/R\$\s*[\d.]+,\d{2}\s*(\d{2}\/\d{2}\/\d{4})/);
+   210→    if (moneyVen) return moneyVen[1];
+   211→
+   212→    // Strategy 3: VENCIMENTO label nearby (original approach)
+   213→    const venIdx = findLine(lines, /VENCIMENTO/i);
+   214→    if (venIdx >= 0) {
+   215→      for (let i = venIdx - 1; i >= Math.max(0, venIdx - 5); i--) {
+   216→        const m = lines[i].match(/(\d{2}\/\d{2}\/\d{4})/);
+   217→        if (m) return m[1];
+   218→      }
+   219→      for (let i = venIdx + 1; i < Math.min(venIdx + 3, lines.length); i++) {
+   220→        const m = lines[i].match(/(\d{2}\/\d{2}\/\d{4})/);
+   221→        if (m) return m[1];
+   222→      }
+   223→    }
+   224→
+   225→    // Strategy 4: date in "Data de Apresentação:" line (next business day, close enough)
+   226→    const apresMatch = flat.match(/Data de Apresentação:\s*(\d{2}\/\d{2}\/\d{4})/i);
+   227→    if (apresMatch) return apresMatch[1];
+   228→
+   229→    return EMPTY;
+   230→  })();
+   231→
+   232→  // ===== NOTA FISCAL =====
+   233→  const NotaFiscal = (() => {
+   234→    const m = flat.match(/NOTA\s+FISCAL\s*N[º°]?\s*[:\-]?\s*(\d[\d.]*)/i);
+   235→    return m ? m[1] : EMPTY;
+   236→  })();
+   237→
+   238→  // ===== MODALIDADE TARIFÁRIA =====
+   239→  const ModalidadeTarifaria = (() => {
+   240→    if (/CONVENCIONAL/i.test(flat)) return 'CONVENCIONAL';
+   241→    if (/AZUL/i.test(flat) && /HOR[ÁA]RIO/i.test(flat)) return 'HORÁRIO AZUL';
+   242→    if (/AZUL/i.test(flat)) return 'AZUL';
+   243→    if (/VERDE/i.test(flat) && /HOR[ÁA]RIO/i.test(flat)) return 'HORÁRIO VERDE';
+   244→    if (/VERDE/i.test(flat)) return 'VERDE';
+   245→    return EMPTY;
+   246→  })();
+   247→
+   248→  // ===== SUBGRUPO =====
+   249→  const Subgrupo = (() => {
+   250→    // Look for "/A4" or "/B3" etc. in the classification line
+   251→    // Must be a letter + single digit, right after "/"
+   252→    const m = flat.match(/\/\s*([AB]\d)\s/);
+   253→    if (m) return m[1].toUpperCase();
+   254→    const classIdx = findLine(lines, /Classifica[çc][aã]o/i);
+   255→    if (classIdx >= 0) {
+   256→      const region = lines.slice(classIdx, Math.min(classIdx + 3, lines.length)).join(' ');
+   257→      const m2 = region.match(/\b([AB][1-4]|AS|BS)\b/);
+   258→      if (m2) return m2[1].toUpperCase();
+   259→    }
+   260→    return EMPTY;
+   261→  })();
+   262→
+   263→  const isSplitTariff = /AZUL|VERDE/i.test(flat) && !/CONVENCIONAL/i.test(flat);
+   264→
+   265→  // ===== CONSUMO (text-based, will be overridden by table data if available) =====
+   266→  let ConsumoPonta = EMPTY;
+   267→  let ConsumoForaPonta = EMPTY;
+   268→  let ConsumoTotal = EMPTY;
+   269→  let ValorConsumoPonta = EMPTY;
+   270→  let ValorConsumoForaPonta = EMPTY;
+   271→
+   272→  if (isSplitTariff) {
+   273→    const pontaIdx = findLine(lines, /Consumo\s+em\s+kWh.*Ponta(?!.*Fora)/i);
+   274→    const fpIdx = findLine(lines, /Consumo\s+em\s+kWh.*Fora\s*Ponta/i);
+   275→    if (pontaIdx >= 0) ConsumoPonta = findNumNearLine(lines, pontaIdx, 1, 8, false);
+   276→    if (fpIdx >= 0) ConsumoForaPonta = findNumNearLine(lines, fpIdx, 1, 8, false);
+   277→    ValorConsumoPonta = findRValueNearLine(lines, flat, /Consumo\s+em\s+kWh.*Ponta(?!.*Fora)/i);
+   278→    ValorConsumoForaPonta = findRValueNearLine(lines, flat, /Consumo\s+em\s+kWh.*Fora\s*Ponta/i);
+   279→  } else {
+   280→    for (const line of lines) {
+   281→      const km = line.match(/^KWH\s*([\d.,]+)$/i);
+   282→      if (km) { ConsumoTotal = km[1]; break; }
+   283→    }
+   284→    if (!ConsumoTotal) {
+   285→      const consIdx = findLine(lines, /CONSUMO\s+FATURADO/i);
+   286→      if (consIdx >= 0) {
+   287→        for (let i = consIdx + 1; i < Math.min(consIdx + 15, lines.length); i++) {
+   288→          const line = lines[i];
+   289→          if (/^(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)/i.test(line)) continue;
+   290→          if (/[A-Za-z]{4,}/.test(line)) continue;
+   291→          const m = line.match(/^(\d[\d.]+,\d{2})$/);
+   292→          if (m) { ConsumoTotal = m[1]; break; }
+   293→        }
+   294→      }
+   295→    }
+   296→    ValorConsumoForaPonta = findRValueNearLine(lines, flat, /Consumo\s+em\s+kWh(?!.*Ponta)/i);
+   297→  }
+   298→
+   299→  // ===== DEMANDA (text-based, will be overridden by table data if available) =====
+   300→  let DemandaContratadaPonta = EMPTY;
+   301→  let DemandaContratadaForaPonta = EMPTY;
+   302→  let DemandaMedidaPonta = EMPTY;
+   303→  let DemandaMedidaForaPonta = EMPTY;
+   304→  let DemandaFaturadaPonta = EMPTY;
+   305→  let DemandaFaturadaForaPonta = EMPTY;
+   306→  let ValorDemandaPonta = EMPTY;
+   307→  let ValorDemandaForaPonta = EMPTY;
+   308→
+   309→  if (isSplitTariff) {
+   310→    // Try to extract demanda contratada from flat text: "KW Ponta:33" or "KW Ponta: 33"
+   311→    const dcMatch = flat.match(/KW\s+Ponta\s*:\s*(\d+(?:[.,]\d+)?)/i);
+   312→    if (dcMatch) DemandaContratadaPonta = dcMatch[1].replace('.', ',');
+   313→    const dcFpMatch = flat.match(/Fora\s+Ponta\s*:\s*(\d+(?:[.,]\d+)?)/i);
+   314→    if (dcFpMatch) DemandaContratadaForaPonta = dcFpMatch[1].replace('.', ',');
+   315→
+   316→    DemandaMedidaPonta = findQtyNearLine(lines, /Demanda\s+Medida.*Ponta(?!.*Fora)/i);
+   317→    DemandaMedidaForaPonta = findQtyNearLine(lines, /Demanda\s+Medida.*Fora\s*Ponta/i);
+   318→    DemandaFaturadaPonta = findQtyNearLine(lines, /Demanda\s+Fatur[ae]da.*Ponta(?!.*Fora)/i) || DemandaMedidaPonta;
+   319→    DemandaFaturadaForaPonta = findQtyNearLine(lines, /Demanda\s+Fatur[ae]da.*Fora\s*Ponta/i) || DemandaMedidaForaPonta;
+   320→    ValorDemandaPonta = findRValueNearLine(lines, flat, /Demanda\s+(?:Medida|Fatur[ae]da).*Ponta(?!.*Fora)/i);
+   321→    ValorDemandaForaPonta = findRValueNearLine(lines, flat, /Demanda\s+(?:Medida|Fatur[ae]da).*Fora\s*Ponta/i);
+   322→  }
+   323→
+   324→  // ===== ULTRAPASSAGEM =====
+   325→  let UltrapassagemPonta = EMPTY;
+   326→  let UltrapassagemForaPonta = EMPTY;
+   327→  let ValorUltrapassagemPonta = EMPTY;
+   328→  let ValorUltrapassagemForaPonta = EMPTY;
+   329→  if (isSplitTariff) {
+   330→    UltrapassagemPonta = findQtyNearLine(lines, /Ultrapassagem.*Ponta(?!.*Fora)/i);
+   331→    UltrapassagemForaPonta = findQtyNearLine(lines, /Ultrapassagem.*Fora\s*Ponta/i);
+   332→    ValorUltrapassagemPonta = findRValueNearLine(lines, flat, /Ultrapassagem.*Ponta(?!.*Fora)/i);
+   333→    ValorUltrapassagemForaPonta = findRValueNearLine(lines, flat, /Ultrapassagem.*Fora\s*Ponta/i);
+   334→  }
+   335→
+   336→  // ===== REATIVA EXCEDENTE =====
+   337→  let ReativaExcedentePonta = EMPTY;
+   338→  let ReativaExcedenteForaPonta = EMPTY;
+   339→  let EnergiaReativaTotal = EMPTY;
+   340→  let ValorReativaExcedentePonta = EMPTY;
+   341→  let ValorReativaExcedenteForaPonta = EMPTY;
+   342→  if (isSplitTariff) {
+   343→    ReativaExcedentePonta = findQtyNearLine(lines, /Reactiv?a\s+Excedente.*Ponta(?!.*Fora)/i);
+   344→    ReativaExcedenteForaPonta = findQtyNearLine(lines, /Reactiv?a\s+Excedente.*Fora\s*Ponta/i);
+   345→    ValorReativaExcedentePonta = findRValueNearLine(lines, flat, /Reactiv?a\s+Excedente.*Ponta(?!.*Fora)/i);
+   346→    ValorReativaExcedenteForaPonta = findRValueNearLine(lines, flat, /Reactiv?a\s+Excedente.*Fora\s*Ponta/i);
+   347→  } else {
+   348→    EnergiaReativaTotal = findQtyNearLine(lines, /Reactiv?a\s+Excedente/i);
+   349→  }
+   350→
+   351→  // ===== TRIBUTOS: PIS, COFINS, ICMS (text-based) =====
+   352→  let PIS = EMPTY;
+   353→  let COFINS = EMPTY;
+   354→  let ICMS = EMPTY;
+   355→
+   356→  (() => {
+   357→    const pisIdx = findLine(lines, /^PIS\s*\/\s*$/i);
+   358→    if (pisIdx >= 0) {
+   359→      const nums: string[] = [];
+   360→      for (let i = pisIdx + 1; i < Math.min(pisIdx + 10, lines.length) && nums.length < 3; i++) {
+   361→        const lineNums = lines[i].match(/(\d[\d.]*,\d{2})/g);
+   362→        if (lineNums) {
+   363→          for (const n of lineNums) {
+   364→            nums.push(n);
+   365→            if (nums.length >= 3) break;
+   366→          }
+   367→        }
+   368→      }
+   369→      if (nums.length >= 3) {
+   370→        PIS = nums[0]; COFINS = nums[1]; ICMS = nums[2];
+   371→      }
+   372→    }
+   373→    if (!PIS && !COFINS) {
+   374→      const combinedIdx = findLine(lines, /PIS\/\s*COFINS/i);
+   375→      if (combinedIdx >= 0) {
+   376→        const nums: string[] = [];
+   377→        for (let i = combinedIdx + 1; i < Math.min(combinedIdx + 6, lines.length) && nums.length < 3; i++) {
+   378→          const m = lines[i].match(/^(\d[\d.]*,\d{2})$/);
+   379→          if (m) nums.push(m[1]);
+   380→        }
+   381→        if (nums.length >= 3) {
+   382→          PIS = nums[0]; COFINS = nums[1]; ICMS = nums[2];
+   383→        }
+   384→      }
+   385→    }
+   386→    if (!PIS || !COFINS) {
+   387→      const flatMatch = flat.match(/PIS\s*\/\s*COFINS[^\d]*?(\d[\d.]*,\d{2})[^\d]*?(\d[\d.]*,\d{2})/i);
+   388→      if (flatMatch) {
+   389→        if (!PIS) PIS = flatMatch[1];
+   390→        if (!COFINS) COFINS = flatMatch[2];
+   391→      }
+   392→    }
+   393→    if (!PIS) PIS = findTributoValue(lines, flat, /\bPIS\b(?!\/)/i);
+   394→    if (!COFINS) COFINS = findTributoValue(lines, flat, /\bCOFINS\b/i);
+   395→    if (!ICMS) ICMS = findTributoValue(lines, flat, /\bICMS\b(?!\s*%|\s*\()/i);
+   396→  })();
+   397→
+   398→  // ===== GDI =====
+   399→  const GDI = findTributoValue(lines, flat, /\bGDI\b/i);
+   400→
+   401→  // ===== CIP (text-based) =====
+   402→  const CIP_text = (() => {
+   403→    const cipIdx = findLine(lines, /CIP\s*MUNICIPAL/i);
+   404→    if (cipIdx >= 0) {
+   405→      const region = lines.slice(Math.max(0, cipIdx - 1), Math.min(cipIdx + 5, lines.length)).join(' ');
+   406→      const money = findAllMoney(region);
+   407→      if (money.length > 0) return money[money.length - 1];
+   408→    }
+   409→    return findTributoValue(lines, flat, /\bCIP\b/i);
+   410→  })();
+   411→
+   412→  // ===== ENERGIA ATIVA INJETADA GDI oUC / mUC =====
+   413→  let {
+   414→    oUC_Qtd: EnergiaAtvInjetadaGDIoUC_Qtd,
+   415→    oUC_Valor: EnergiaAtvInjetadaGDIoUC_Valor,
+   416→    mUC_Qtd: EnergiaAtvInjetadaGDImUC_Qtd,
+   417→    mUC_Valor: EnergiaAtvInjetadaGDImUC_Valor,
+   418→  } = extractGDI(lines, flat);
+   419→
+   420→  // ===== VALOR TOTAL =====
+   421→  // Best pattern: R$ value on same line as vencimento date + mes referência
+   422→  // e.g., "21/07/2026R$ 13.356,50Junho / 2026"
+   423→  const ValorTotal = (() => {
+   424→    // Strategy 1: R$ on same line as date and mes referência (most reliable)
+   425→    const venTotal = flat.match(/\d{2}\/\d{2}\/\d{4}\s*R\$\s*([\d.]+,\d{2})/);
+   426→    if (venTotal) return venTotal[1];
+   427→
+   428→    // Strategy 2: R$ + value + mes referência on same line
+   429→    const totalMes = flat.match(/R\$\s*([\d.]+,\d{2})\s*(?:Janeiro|Fevereiro|Mar[çc]o|Abril|Maio|Junho|Julho|Agosto|Setembro|Outubro|Novembro|Dezembro)/i);
+   430→    if (totalMes) return totalMes[1];
+   431→
+   432→    // Strategy 3: "TOTAL A PAGAR" with R$
+   433→    const totalIdx = findLine(lines, /TOTAL\s+A\s+PAGAR/i);
+   434→    if (totalIdx >= 0) {
+   435→      const m1 = lines[totalIdx].match(/R\$\s*([\d.]+,\d{2})/);
+   436→      if (m1) return m1[1];
+   437→      for (let i = totalIdx + 1; i < Math.min(totalIdx + 3, lines.length); i++) {
+   438→        const m2 = lines[i].match(/R\$\s*([\d.]+,\d{2})/);
+   439→        if (m2) return m2[1];
+   440→        const m3 = lines[i].match(/^(\d[\d.]+,\d{2})$/);
+   441→        if (m3) return m3[1];
+   442→      }
+   443→    }
+   444→
+   445→    // Strategy 4: Last resort - largest R$ value
+   446→    const lastMoney = findAllMoney(flat);
+   447→    if (lastMoney.length > 0) {
+   448→      lastMoney.sort((a, b) => parseFloat(b.replace('.', '').replace(',', '.')) - parseFloat(a.replace('.', '').replace(',', '.')));
+   449→      return lastMoney[0];
+   450→    }
+   451→    return EMPTY;
+   452→  })();
+   453→
+   454→  // ===== TABLE DATA OVERRIDES =====
+   455→  // Table data from pdfjs position-based extraction is much more reliable for tabular data
+   456→  let CIP = CIP_text;
+   457→
+   458→  if (tableData && tableData.length > 0) {
+   459→    let cipFromTable = EMPTY;
+   460→
+   461→    for (const item of tableData) {
+   462→      const lbl = item.label;
+   463→      const isFora = /Fora/i.test(lbl) || /F[\s.]*Ponta/i.test(lbl);
+   464→      const isPonta = /Ponta/i.test(lbl) && !isFora;
+   465→
+   466→      // Consumo - check Convencional (no Ponta/Fora) first, then split
+   467→      if (/Consumo\s+em\s+kWh/i.test(lbl) && !/Reativ/i.test(lbl) && !/Injetada/i.test(lbl)) {
+   468→        // Convencional: label is exactly "Consumo em kWh" without Ponta/Fora
+   469→        if (!/Ponta/i.test(lbl) && !/Fora/i.test(lbl) && !/Intermedi/i.test(lbl)) {
+   470→          if (item.quantidade) ConsumoTotal = item.quantidade;
+   471→          if (item.valor) ValorConsumoForaPonta = item.valor;
+   472→        }
+   473→        // VERDE Intermediária
+   474→        else if (/Intermedi[áa]ria/i.test(lbl)) {
+   475→          if (item.quantidade && !ConsumoForaPonta) ConsumoForaPonta = item.quantidade;
+   476→        }
+   477→        // Split tariff (AZUL/VERDE)
+   478→        else if (isPonta) {
+   479→          if (item.quantidade) ConsumoPonta = item.quantidade;
+   480→          if (item.valor) ValorConsumoPonta = item.valor;
+   481→        } else if (isFora) {
+   482→          if (item.quantidade) ConsumoForaPonta = item.quantidade;
+   483→          if (item.valor) ValorConsumoForaPonta = item.valor;
+   484→        }
+   485→      }
+   486→      // Demanda Medida
+   487→      else if (/Demanda.*Medida/i.test(lbl) && !/Ultrapassagem/i.test(lbl) && !/Não.*Consumida/i.test(lbl)) {
+   488→        if (!isFora) {
+   489→          if (item.quantidade) DemandaMedidaPonta = item.quantidade;
+   490→          if (item.valor) ValorDemandaPonta = item.valor;
+   491→        } else {
+   492→          if (item.quantidade) DemandaMedidaForaPonta = item.quantidade;
+   493→          if (item.valor) ValorDemandaForaPonta = item.valor;
+   494→        }
+   495→      }
+   496→      // Ultrapassagem / Não Consumida
+   497→      else if (/(?:Ultrapassagem|Ultrap|Não\s*Consumida)/i.test(lbl) && /Demanda/i.test(lbl)) {
+   498→        if (!isFora) {
+   499→          if (item.quantidade) UltrapassagemPonta = item.quantidade;
+   500→          if (item.valor) ValorUltrapassagemPonta = item.valor;
+   501→        } else {
+   502→          if (item.quantidade) UltrapassagemForaPonta = item.quantidade;
+   503→          if (item.valor) ValorUltrapassagemForaPonta = item.valor;
+   504→        }
+   505→      }
+   506→      // Reativa Excedente
+   507→      else if (/Reactiv?a\s*Excedente/i.test(lbl) || /Energia\s*Reativa\s*Exced/i.test(lbl)) {
+   508→        if (!isFora && /Ponta/i.test(lbl)) {
+   509→          if (item.quantidade) ReativaExcedentePonta = item.quantidade;
+   510→          if (item.valor) ValorReativaExcedentePonta = item.valor;
+   511→        } else if (isFora || /F[\s.]*Ponta/i.test(lbl)) {
+   512→          if (item.quantidade) ReativaExcedenteForaPonta = item.quantidade;
+   513→          if (item.valor) ValorReativaExcedenteForaPonta = item.valor;
+   514→        } else if (!isFora && !/Ponta/i.test(lbl)) {
+   515→          // Generic reativa (Convencional)
+   516→          if (item.quantidade) EnergiaReativaTotal = item.quantidade;
+   517→          if (item.valor) ValorReativaExcedentePonta = item.valor;
+   518→        }
+   519→      }
+   520→      // CIP Municipal
+   521→      else if (/CIP\s*MUNICIPAL/i.test(lbl) || /^CONT\.IL\.PUB/i.test(lbl)) {
+   522→        if (item.valor) cipFromTable = item.valor;
+   523→      }
+   524→      // GDI items
+   525→      else if (/Energia\s*Atv\s*Injetada\s*GDI\s*oUC/i.test(lbl)) {
+   526→        if (item.quantidade && !EnergiaAtvInjetadaGDIoUC_Qtd) EnergiaAtvInjetadaGDIoUC_Qtd = item.quantidade;
+   527→        if (item.valor && !EnergiaAtvInjetadaGDIoUC_Valor) EnergiaAtvInjetadaGDIoUC_Valor = item.valor;
+   528→      } else if (/Energia\s*Atv\s*Injetada\s*GDI\s*mUC/i.test(lbl)) {
+   529→        // Multiple mUC entries: accumulate
+   530→        if (item.quantidade) {
+   531→          EnergiaAtvInjetadaGDImUC_Qtd = EnergiaAtvInjetadaGDImUC_Qtd
+   532→            ? fmtSumBR(EnergiaAtvInjetadaGDImUC_Qtd, item.quantidade)
+   533→            : item.quantidade;
+   534→        }
+   535→        if (item.valor) {
+   536→          EnergiaAtvInjetadaGDImUC_Valor = EnergiaAtvInjetadaGDImUC_Valor
+   537→            ? fmtSumBR(EnergiaAtvInjetadaGDImUC_Valor, item.valor)
+   538→            : item.valor;
+   539→        }
+   540→      }
+   541→    }
+   542→
+   543→    // Override CIP from table
+   544→    if (cipFromTable) CIP = cipFromTable;
+   545→  }
+   546→
+   547→  return {
+   548→    UC, Cidade, Tipo, Mercado, Concessionaria,
+   549→    MesReferencia, AnoLeitura, Vencimento, NotaFiscal,
+   550→    ModalidadeTarifaria, Subgrupo,
+   551→    ConsumoPonta, ConsumoForaPonta, ConsumoTotal,
+   552→    DemandaContratadaPonta, DemandaContratadaForaPonta,
+   553→    DemandaMedidaPonta, DemandaMedidaForaPonta,
+   554→    DemandaFaturadaPonta, DemandaFaturadaForaPonta,
+   555→    UltrapassagemPonta, UltrapassagemForaPonta,
+   556→    ReativaExcedentePonta, ReativaExcedenteForaPonta,
+   557→    ValorConsumoPonta, ValorConsumoForaPonta,
+   558→    ValorDemandaPonta, ValorDemandaForaPonta,
+   559→    ValorUltrapassagemPonta, ValorUltrapassagemForaPonta,
+   560→    ValorReativaExcedentePonta, ValorReativaExcedenteForaPonta,
+   561→    PIS, COFINS, ICMS, GDI, CIP,
+   562→    EnergiaReativaTotal,
+   563→    EnergiaAtvInjetadaGDIoUC_Qtd, EnergiaAtvInjetadaGDIoUC_Valor,
+   564→    EnergiaAtvInjetadaGDImUC_Qtd, EnergiaAtvInjetadaGDImUC_Valor,
+   565→    ValorTotal,
+   566→  };
+   567→}
+   568→
+   569→// ===================== GDI EXTRACTION =====================
+   570→
+   571→function extractGDI(lines: string[], flat: string) {
+   572→  const EMPTY = '';
+   573→  let nOUC = 0;
+   574→  let nMUC = 0;
+   575→  let firstGDI = -1;
+   576→
+   577→  for (let i = 0; i < lines.length; i++) {
+   578→    if (/Energia\s*Atv\s*Injetada\s*GDI\s*oUC/i.test(lines[i])) {
+   579→      nOUC++;
+   580→      if (firstGDI < 0) firstGDI = i;
+   581→    } else if (/Energia\s*Atv\s*Injetada\s*GDI\s*mUC/i.test(lines[i])) {
+   582→      nMUC++;
+   583→      if (firstGDI < 0) firstGDI = i;
+   584→    }
+   585→  }
+   586→
+   587→  if (nOUC === 0 && nMUC === 0) {
+   588→    return { oUC_Qtd: EMPTY, oUC_Valor: EMPTY, mUC_Qtd: EMPTY, mUC_Valor: EMPTY };
+   589→  }
+   590→
+   591→  const chaveIdx = (() => {
+   592→    for (let i = firstGDI; i < Math.min(firstGDI + 100, lines.length); i++) {
+   593→      if (/^chave de acesso:\s*$/i.test(lines[i])) return i;
+   594→    }
+   595→    return -1;
+   596→  })();
+   597→
+   598→  let sectionEnd = Math.min(firstGDI + 100, lines.length);
+   599→  for (let i = firstGDI; i < Math.min(firstGDI + 120, lines.length); i++) {
+   600→    if (/^(Declara[cç]|EMITIDO EM|NOTA FISCAL N|Importante:)/i.test(lines[i])) {
+   601→      sectionEnd = i; break;
+   602→    }
+   603→  }
+   604→  if (chaveIdx >= 0) {
+   605→    sectionEnd = Math.min(Math.max(sectionEnd, chaveIdx + 20), lines.length);
+   606→  }
+   607→
+   608→  const allQtds: number[] = [];
+   609→  if (chaveIdx >= 0) {
+   610→    for (let i = chaveIdx + 1; i < Math.min(chaveIdx + 20, sectionEnd); i++) {
+   611→      const m = lines[i].match(/^(\d[\d.]*,\d{2})$/);
+   612→      if (m) allQtds.push(parseBR(m[1]));
+   613→    }
+   614→  }
+   615→  if (allQtds.length === 0) {
+   616→    for (let i = firstGDI; i < sectionEnd; i++) {
+   617→      const m = lines[i].match(/^(\d[\d.]+,\d{2})$/);
+   618→      if (m && parseBR(m[1]) >= 100) allQtds.push(parseBR(m[1]));
+   619→      if (allQtds.length >= nOUC + nMUC) break;
+   620→    }
+   621→  }
+   622→
+   623→  const allRVals: number[] = [];
+   624→  const rSearchEnd = chaveIdx >= 0 ? chaveIdx : sectionEnd;
+   625→  const totalNeeded = nOUC + nMUC;
+   626→
+   627→  for (let i = firstGDI; i < rSearchEnd; i++) {
+   628→    const m = lines[i].match(/^(.+?)-((?:\d{1,3}\.)*\d+,\d{2})$/);
+   629→    if (m && allRVals.length < totalNeeded) {
+   630→      allRVals.push(parseBR('-' + m[2]));
+   631→    }
+   632→  }
+   633→  if (allRVals.length < totalNeeded) {
+   634→    for (let i = firstGDI; i < rSearchEnd; i++) {
+   635→      const m = lines[i].match(/^(-\d[\d.]*,\d{2})$/);
+   636→      if (m && allRVals.length < totalNeeded) {
+   637→        allRVals.push(parseBR(m[1]));
+   638→      }
+   639→    }
+   640→  }
+   641→
+   642→  const oUCQtds = allQtds.splice(0, nOUC);
+   643→  const oUCRVals = allRVals.splice(0, nOUC);
+   644→
+   645→  const sumQtd = (arr: number[]) => arr.length > 0 ? fmtBRNumber(arr.reduce((a, b) => a + b, 0)) : EMPTY;
+   646→  const sumR = (arr: number[]) => arr.length > 0 ? fmtBRNumber(Math.abs(arr.reduce((a, b) => a + b, 0))) : EMPTY;
+   647→
+   648→  return {
+   649→    oUC_Qtd: sumQtd(oUCQtds),
+   650→    oUC_Valor: sumR(oUCRVals),
+   651→    mUC_Qtd: sumQtd(allQtds),
+   652→    mUC_Valor: sumR(allRVals),
+   653→  };
+   654→}
+   655→
+   656→// ===================== NUMBER FORMATTING =====================
+   657→
+   658→function fmtBRNumber(n: number): string {
+   659→  const abs = Math.abs(n);
+   660→  const intPart = Math.floor(abs).toString();
+   661→  const decPart = Math.round((abs - Math.floor(abs)) * 100).toString().padStart(2, '0');
+   662→  let formatted = '';
+   663→  for (let i = intPart.length - 1, c = 0; i >= 0; i--, c++) {
+   664→    if (c > 0 && c % 3 === 0) formatted = '.' + formatted;
+   665→    formatted = intPart[i] + formatted;
+   666→  }
+   667→  return (n < 0 ? '-' : '') + formatted + ',' + decPart;
+   668→}
+   669→
+   670→function fmtSumBR(a: string, b: string): string {
+   671→  return fmtBRNumber(parseBR(a) + parseBR(b));
+   672→}
+   673→
+   674→// ===================== ITEM HELPERS =====================
+   675→
+   676→function findQtyNearLine(lines: string[], labelPattern: RegExp): string {
+   677→  const idx = findLine(lines, labelPattern);
+   678→  if (idx < 0) return EMPTY;
+   679→  for (let i = idx + 1; i < Math.min(idx + 10, lines.length); i++) {
+   680→    const line = lines[i];
+   681→    if (/[A-Za-z]{4,}/.test(line) && !/kWh|kW|R\$|tarifa/i.test(line)) continue;
+   682→    const m = line.match(/([\d.]+,\d{2})/);
+   683→    if (m) return m[1];
+   684→  }
+   685→  return EMPTY;
+   686→}
+   687→
+   688→function findRValueNearLine(lines: string[], flat: string, labelPattern: RegExp): string {
+   689→  const idx = findLine(lines, labelPattern);
+   690→  if (idx < 0) return EMPTY;
+   691→  const region = lines.slice(idx, Math.min(idx + 12, lines.length)).join(' ');
+   692→  const moneyVals = findAllMoney(region);
+   693→  if (moneyVals.length > 0) return moneyVals[moneyVals.length - 1];
+   694→  return EMPTY;
+   695→}
+   696→
+   697→function findTributoValue(lines: string[], flat: string, labelPattern: RegExp): string {
+   698→  const idx = findLine(lines, labelPattern);
+   699→  if (idx >= 0) {
+   700→    for (let i = idx + 1; i < Math.min(idx + 6, lines.length); i++) {
+   701→      const m = lines[i].match(/^(\d[\d.]+,\d{2})$/);
+   702→      if (m) return m[1];
+   703→    }
+   704→  }
+   705→  const flatMatch = flat.match(new RegExp(labelPattern.source + '[^\\d]*?([\\d.]+,\\d{2})', 'i'));
+   706→  return flatMatch ? flatMatch[1] : EMPTY;
+   707→}
+   708→
+   709→// ===================== FIELD LABELS & CATEGORIES =====================
+   710→
+   711→export const FIELD_LABELS: Record<keyof EnergisaInvoiceData, string> = {
+   712→  UC: 'UC (Unidade Consumidora)',
+   713→  Cidade: 'Cidade',
+   714→  Tipo: 'Tipo',
+   715→  Mercado: 'Mercado',
+   716→  Concessionaria: 'Concessionária',
+   717→  MesReferencia: 'Mês Referência',
+   718→  AnoLeitura: 'Ano Leitura',
+   719→  Vencimento: 'Vencimento',
+   720→  NotaFiscal: 'Nota Fiscal',
+   721→  ModalidadeTarifaria: 'Modalidade Tarifária',
+   722→  Subgrupo: 'Subgrupo',
+   723→  ConsumoPonta: 'Consumo Ponta (kWh)',
+   724→  ConsumoForaPonta: 'Consumo Fora Ponta (kWh)',
+   725→  ConsumoTotal: 'Consumo Total (kWh)',
+   726→  DemandaContratadaPonta: 'Demanda Contratada Ponta (kW)',
+   727→  DemandaContratadaForaPonta: 'Demanda Contratada Fora Ponta (kW)',
+   728→  DemandaMedidaPonta: 'Demanda Medida Ponta (kW)',
+   729→  DemandaMedidaForaPonta: 'Demanda Medida Fora Ponta (kW)',
+   730→  DemandaFaturadaPonta: 'Demanda Faturada Ponta (kW)',
+   731→  DemandaFaturadaForaPonta: 'Demanda Faturada Fora Ponta (kW)',
+   732→  UltrapassagemPonta: 'Ultrapassagem Ponta (kW)',
+   733→  UltrapassagemForaPonta: 'Ultrapassagem Fora Ponta (kW)',
+   734→  ReativaExcedentePonta: 'Reativa Excedente Ponta (kWh)',
+   735→  ReativaExcedenteForaPonta: 'Reativa Excedente Fora Ponta (kWh)',
+   736→  ValorConsumoPonta: 'Valor Consumo Ponta (R$)',
+   737→  ValorConsumoForaPonta: 'Valor Consumo Fora Ponta (R$)',
+   738→  ValorDemandaPonta: 'Valor Demanda Ponta (R$)',
+   739→  ValorDemandaForaPonta: 'Valor Demanda Fora Ponta (R$)',
+   740→  ValorUltrapassagemPonta: 'Valor Ultrapassagem Ponta (R$)',
+   741→  ValorUltrapassagemForaPonta: 'Valor Ultrapassagem Fora Ponta (R$)',
+   742→  ValorReativaExcedentePonta: 'Valor Reativa Excedente Ponta (R$)',
+   743→  ValorReativaExcedenteForaPonta: 'Valor Reativa Excedente Fora Ponta (R$)',
+   744→  PIS: 'PIS (R$)',
+   745→  COFINS: 'COFINS (R$)',
+   746→  ICMS: 'ICMS (R$)',
+   747→  GDI: 'GDI (R$)',
+   748→  CIP: 'CIP (R$)',
+   749→  EnergiaReativaTotal: 'Energia Reativa Total (kWh)',
+   750→  EnergiaAtvInjetadaGDIoUC_Qtd: 'Energia Atv Injetada GDI oUC (kWh)',
+   751→  EnergiaAtvInjetadaGDIoUC_Valor: 'Energia Atv Injetada GDI oUC (R$)',
+   752→  EnergiaAtvInjetadaGDImUC_Qtd: 'Energia Atv Injetada GDI mUC (kWh)',
+   753→  EnergiaAtvInjetadaGDImUC_Valor: 'Energia Atv Injetada GDI mUC (R$)',
+   754→  ValorTotal: 'Valor Total (R$)',
+   755→};
+   756→
+   757→export const FIELD_CATEGORIES: { category: string; fields: (keyof EnergisaInvoiceData)[] }[] = [
+   758→  { category: 'Identificação', fields: ['UC', 'Cidade', 'Tipo', 'Mercado', 'Concessionaria'] },
+   759→  { category: 'Datas e Documentos', fields: ['MesReferencia', 'AnoLeitura', 'Vencimento', 'NotaFiscal'] },
+   760→  { category: 'Tarifa', fields: ['ModalidadeTarifaria', 'Subgrupo'] },
+   761→  { category: 'Consumo (kWh)', fields: ['ConsumoPonta', 'ConsumoForaPonta', 'ConsumoTotal'] },
+   762→  { category: 'Demanda Contratada (kW)', fields: ['DemandaContratadaPonta', 'DemandaContratadaForaPonta'] },
+   763→  { category: 'Demanda Medida (kW)', fields: ['DemandaMedidaPonta', 'DemandaMedidaForaPonta'] },
+   764→  { category: 'Demanda Faturada (kW)', fields: ['DemandaFaturadaPonta', 'DemandaFaturadaForaPonta'] },
+   765→  { category: 'Ultrapassagem (kW)', fields: ['UltrapassagemPonta', 'UltrapassagemForaPonta'] },
+   766→  { category: 'Reativa Excedente (kWh)', fields: ['ReativaExcedentePonta', 'ReativaExcedenteForaPonta', 'EnergiaReativaTotal'] },
+   767→  { category: 'Valores - Consumo (R$)', fields: ['ValorConsumoPonta', 'ValorConsumoForaPonta'] },
+   768→  { category: 'Valores - Demanda (R$)', fields: ['ValorDemandaPonta', 'ValorDemandaForaPonta'] },
+   769→  { category: 'Valores - Ultrapassagem (R$)', fields: ['ValorUltrapassagemPonta', 'ValorUltrapassagemForaPonta'] },
+   770→  { category: 'Valores - Reativa Excedente (R$)', fields: ['ValorReativaExcedentePonta', 'ValorReativaExcedenteForaPonta'] },
+   771→  { category: 'Tributos e Encargos (R$)', fields: ['PIS', 'COFINS', 'ICMS', 'GDI', 'CIP'] },
+   772→  { category: 'Energia Injetada GDI oUC', fields: ['EnergiaAtvInjetadaGDIoUC_Qtd', 'EnergiaAtvInjetadaGDIoUC_Valor'] },
+   773→  { category: 'Energia Injetada GDI mUC', fields: ['EnergiaAtvInjetadaGDImUC_Qtd', 'EnergiaAtvInjetadaGDImUC_Valor'] },
+   774→  { category: 'Total', fields: ['ValorTotal'] },
+   775→];
+   776→

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { extractEnergisaData, FIELD_LABELS, FIELD_CATEGORIES, TableItem } from '@/lib/energisa-extractor';
+import { extractEnergisaData, FIELD_LABELS, FIELD_CATEGORIES, TableItem, TableExtraction } from '@/lib/energisa-extractor';
 
 export async function POST(request: NextRequest) {
   try {
@@ -27,28 +27,28 @@ export async function POST(request: NextRequest) {
 
     // Step 2: table extraction via pdfjs-dist (position-based)
     // Uses createRequire + Function constructor to hide CJS require from Turbopack
-    let tableData: TableItem[] | undefined;
+    let tableExtraction: TableExtraction | undefined;
     try {
       const mod = await import('node:module');
       const nodeRequire = (mod as any).createRequire(import.meta.url);
       // Use Function constructor so Turbopack can't trace the require target
       const loadTable = new Function('req', 'cwd', 'return req(cwd + "/dist/energisa-table-extractor.cjs")');
       const tableModule = loadTable(nodeRequire, process.cwd()) as {
-        extractTableFromPDF: (buf: Buffer) => Promise<{ items: TableItem[] } | null>;
+        extractTableFromPDF: (buf: Buffer) => Promise<TableExtraction | null>;
       };
       const result = await Promise.race([
         tableModule.extractTableFromPDF(buffer),
         new Promise<never>((_, rej) => setTimeout(() => rej(new Error('table extraction timeout')), 15000)),
       ]);
       if (result?.items?.length > 0) {
-        tableData = result.items;
+        tableExtraction = result;
       }
     } catch (e) {
       console.log('Table extraction skipped:', (e as Error).message);
     }
 
     // Step 3: extract fields (text + table override)
-    const extracted = extractEnergisaData(text, tableData);
+    const extracted = extractEnergisaData(text, tableExtraction);
     const allValues = Object.values(extracted);
     const extractedCount = allValues.filter((v) => v !== '').length;
     const totalFields = allValues.length;
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: extracted,
-      stats: { extractedCount, totalFields, extractionRate, pageCount: numpages, tableItems: tableData?.length ?? 0 },
+      stats: { extractedCount, totalFields, extractionRate, pageCount: numpages, tableItems: tableExtraction?.items?.length ?? 0 },
     });
   } catch (error) {
     console.error('Erro:', error);

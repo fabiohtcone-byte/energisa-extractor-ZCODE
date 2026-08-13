@@ -1,0 +1,2002 @@
+     1→"use strict";
+     2→var __create = Object.create;
+     3→var __defProp = Object.defineProperty;
+     4→var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+     5→var __getOwnPropNames = Object.getOwnPropertyNames;
+     6→var __getProtoOf = Object.getPrototypeOf;
+     7→var __hasOwnProp = Object.prototype.hasOwnProperty;
+     8→var __export = (target, all) => {
+     9→  for (var name in all)
+    10→    __defProp(target, name, { get: all[name], enumerable: true });
+    11→};
+    12→var __copyProps = (to, from, except, desc) => {
+    13→  if (from && typeof from === "object" || typeof from === "function") {
+    14→    for (let key of __getOwnPropNames(from))
+    15→      if (!__hasOwnProp.call(to, key) && key !== except)
+    16→        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+    17→  }
+    18→  return to;
+    19→};
+    20→var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+    21→  // If the importer is in node compatibility mode or this is not an ESM
+    22→  // file that has been converted to a CommonJS file using a Babel-
+    23→  // compatible transform (i.e. "__esModule" has not been set), then set
+    24→  // "default" to the CommonJS "module.exports" for node compatibility.
+    25→  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+    26→  mod
+    27→));
+    28→var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+    29→
+    30→// src/lib/energisa-table-extractor.ts
+    31→var energisa_table_extractor_exports = {};
+    32→__export(energisa_table_extractor_exports, {
+    33→  extractTableFromPDF: () => extractTableFromPDF
+    34→});
+    35→module.exports = __toCommonJS(energisa_table_extractor_exports);
+    36→
+    37→// node_modules/pdfjs-dist/build/pdf.mjs
+    38→var import_meta = {};
+    39→var __webpack_require__ = {};
+    40→(() => {
+    41→  __webpack_require__.d = (exports2, definition) => {
+    42→    for (var key in definition) {
+    43→      if (__webpack_require__.o(definition, key) && !__webpack_require__.o(exports2, key)) {
+    44→        Object.defineProperty(exports2, key, { enumerable: true, get: definition[key] });
+    45→      }
+    46→    }
+    47→  };
+    48→})();
+    49→(() => {
+    50→  __webpack_require__.o = (obj, prop) => Object.prototype.hasOwnProperty.call(obj, prop);
+    51→})();
+    52→var __webpack_exports__ = globalThis.pdfjsLib = {};
+    53→__webpack_require__.d(__webpack_exports__, {
+    54→  AbortException: () => (
+    55→    /* reexport */
+    56→    AbortException
+    57→  ),
+    58→  AnnotationEditorLayer: () => (
+    59→    /* reexport */
+    60→    AnnotationEditorLayer
+    61→  ),
+    62→  AnnotationEditorParamsType: () => (
+    63→    /* reexport */
+    64→    AnnotationEditorParamsType
+    65→  ),
+    66→  AnnotationEditorType: () => (
+    67→    /* reexport */
+    68→    AnnotationEditorType
+    69→  ),
+    70→  AnnotationEditorUIManager: () => (
+    71→    /* reexport */
+    72→    AnnotationEditorUIManager
+    73→  ),
+    74→  AnnotationLayer: () => (
+    75→    /* reexport */
+    76→    AnnotationLayer
+    77→  ),
+    78→  AnnotationMode: () => (
+    79→    /* reexport */
+    80→    AnnotationMode
+    81→  ),
+    82→  ColorPicker: () => (
+    83→    /* reexport */
+    84→    ColorPicker
+    85→  ),
+    86→  DOMSVGFactory: () => (
+    87→    /* reexport */
+    88→    DOMSVGFactory
+    89→  ),
+    90→  DrawLayer: () => (
+    91→    /* reexport */
+    92→    DrawLayer
+    93→  ),
+    94→  FeatureTest: () => (
+    95→    /* reexport */
+    96→    util_FeatureTest
+    97→  ),
+    98→  GlobalWorkerOptions: () => (
+    99→    /* reexport */
+   100→    GlobalWorkerOptions
+   101→  ),
+   102→  ImageKind: () => (
+   103→    /* reexport */
+   104→    util_ImageKind
+   105→  ),
+   106→  InvalidPDFException: () => (
+   107→    /* reexport */
+   108→    InvalidPDFException
+   109→  ),
+   110→  MissingPDFException: () => (
+   111→    /* reexport */
+   112→    MissingPDFException
+   113→  ),
+   114→  OPS: () => (
+   115→    /* reexport */
+   116→    OPS
+   117→  ),
+   118→  OutputScale: () => (
+   119→    /* reexport */
+   120→    OutputScale
+   121→  ),
+   122→  PDFDataRangeTransport: () => (
+   123→    /* reexport */
+   124→    PDFDataRangeTransport
+   125→  ),
+   126→  PDFDateString: () => (
+   127→    /* reexport */
+   128→    PDFDateString
+   129→  ),
+   130→  PDFWorker: () => (
+   131→    /* reexport */
+   132→    PDFWorker
+   133→  ),
+   134→  PasswordResponses: () => (
+   135→    /* reexport */
+   136→    PasswordResponses
+   137→  ),
+   138→  PermissionFlag: () => (
+   139→    /* reexport */
+   140→    PermissionFlag
+   141→  ),
+   142→  PixelsPerInch: () => (
+   143→    /* reexport */
+   144→    PixelsPerInch
+   145→  ),
+   146→  RenderingCancelledException: () => (
+   147→    /* reexport */
+   148→    RenderingCancelledException
+   149→  ),
+   150→  TextLayer: () => (
+   151→    /* reexport */
+   152→    TextLayer
+   153→  ),
+   154→  UnexpectedResponseException: () => (
+   155→    /* reexport */
+   156→    UnexpectedResponseException
+   157→  ),
+   158→  Util: () => (
+   159→    /* reexport */
+   160→    Util
+   161→  ),
+   162→  VerbosityLevel: () => (
+   163→    /* reexport */
+   164→    VerbosityLevel
+   165→  ),
+   166→  XfaLayer: () => (
+   167→    /* reexport */
+   168→    XfaLayer
+   169→  ),
+   170→  build: () => (
+   171→    /* reexport */
+   172→    build
+   173→  ),
+   174→  createValidAbsoluteUrl: () => (
+   175→    /* reexport */
+   176→    createValidAbsoluteUrl
+   177→  ),
+   178→  fetchData: () => (
+   179→    /* reexport */
+   180→    fetchData
+   181→  ),
+   182→  getDocument: () => (
+   183→    /* reexport */
+   184→    getDocument
+   185→  ),
+   186→  getFilenameFromUrl: () => (
+   187→    /* reexport */
+   188→    getFilenameFromUrl
+   189→  ),
+   190→  getPdfFilenameFromUrl: () => (
+   191→    /* reexport */
+   192→    getPdfFilenameFromUrl
+   193→  ),
+   194→  getXfaPageViewport: () => (
+   195→    /* reexport */
+   196→    getXfaPageViewport
+   197→  ),
+   198→  isDataScheme: () => (
+   199→    /* reexport */
+   200→    isDataScheme
+   201→  ),
+   202→  isPdfFile: () => (
+   203→    /* reexport */
+   204→    isPdfFile
+   205→  ),
+   206→  noContextMenu: () => (
+   207→    /* reexport */
+   208→    noContextMenu
+   209→  ),
+   210→  normalizeUnicode: () => (
+   211→    /* reexport */
+   212→    normalizeUnicode
+   213→  ),
+   214→  setLayerDimensions: () => (
+   215→    /* reexport */
+   216→    setLayerDimensions
+   217→  ),
+   218→  shadow: () => (
+   219→    /* reexport */
+   220→    shadow
+   221→  ),
+   222→  stopEvent: () => (
+   223→    /* reexport */
+   224→    stopEvent
+   225→  ),
+   226→  version: () => (
+   227→    /* reexport */
+   228→    version
+   229→  )
+   230→});
+   231→var isNodeJS = typeof process === "object" && process + "" === "[object process]" && !process.versions.nw && !(process.versions.electron && process.type && process.type !== "browser");
+   232→var IDENTITY_MATRIX = [1, 0, 0, 1, 0, 0];
+   233→var FONT_IDENTITY_MATRIX = [1e-3, 0, 0, 1e-3, 0, 0];
+   234→var MAX_IMAGE_SIZE_TO_CACHE = 1e7;
+   235→var LINE_FACTOR = 1.35;
+   236→var LINE_DESCENT_FACTOR = 0.35;
+   237→var BASELINE_FACTOR = LINE_DESCENT_FACTOR / LINE_FACTOR;
+   238→var RenderingIntentFlag = {
+   239→  ANY: 1,
+   240→  DISPLAY: 2,
+   241→  PRINT: 4,
+   242→  SAVE: 8,
+   243→  ANNOTATIONS_FORMS: 16,
+   244→  ANNOTATIONS_STORAGE: 32,
+   245→  ANNOTATIONS_DISABLE: 64,
+   246→  IS_EDITING: 128,
+   247→  OPLIST: 256
+   248→};
+   249→var AnnotationMode = {
+   250→  DISABLE: 0,
+   251→  ENABLE: 1,
+   252→  ENABLE_FORMS: 2,
+   253→  ENABLE_STORAGE: 3
+   254→};
+   255→var AnnotationEditorPrefix = "pdfjs_internal_editor_";
+   256→var AnnotationEditorType = {
+   257→  DISABLE: -1,
+   258→  NONE: 0,
+   259→  FREETEXT: 3,
+   260→  HIGHLIGHT: 9,
+   261→  STAMP: 13,
+   262→  INK: 15
+   263→};
+   264→var AnnotationEditorParamsType = {
+   265→  RESIZE: 1,
+   266→  CREATE: 2,
+   267→  FREETEXT_SIZE: 11,
+   268→  FREETEXT_COLOR: 12,
+   269→  FREETEXT_OPACITY: 13,
+   270→  INK_COLOR: 21,
+   271→  INK_THICKNESS: 22,
+   272→  INK_OPACITY: 23,
+   273→  HIGHLIGHT_COLOR: 31,
+   274→  HIGHLIGHT_DEFAULT_COLOR: 32,
+   275→  HIGHLIGHT_THICKNESS: 33,
+   276→  HIGHLIGHT_FREE: 34,
+   277→  HIGHLIGHT_SHOW_ALL: 35,
+   278→  DRAW_STEP: 41
+   279→};
+   280→var PermissionFlag = {
+   281→  PRINT: 4,
+   282→  MODIFY_CONTENTS: 8,
+   283→  COPY: 16,
+   284→  MODIFY_ANNOTATIONS: 32,
+   285→  FILL_INTERACTIVE_FORMS: 256,
+   286→  COPY_FOR_ACCESSIBILITY: 512,
+   287→  ASSEMBLE: 1024,
+   288→  PRINT_HIGH_QUALITY: 2048
+   289→};
+   290→var TextRenderingMode = {
+   291→  FILL: 0,
+   292→  STROKE: 1,
+   293→  FILL_STROKE: 2,
+   294→  INVISIBLE: 3,
+   295→  FILL_ADD_TO_PATH: 4,
+   296→  STROKE_ADD_TO_PATH: 5,
+   297→  FILL_STROKE_ADD_TO_PATH: 6,
+   298→  ADD_TO_PATH: 7,
+   299→  FILL_STROKE_MASK: 3,
+   300→  ADD_TO_PATH_FLAG: 4
+   301→};
+   302→var util_ImageKind = {
+   303→  GRAYSCALE_1BPP: 1,
+   304→  RGB_24BPP: 2,
+   305→  RGBA_32BPP: 3
+   306→};
+   307→var AnnotationType = {
+   308→  TEXT: 1,
+   309→  LINK: 2,
+   310→  FREETEXT: 3,
+   311→  LINE: 4,
+   312→  SQUARE: 5,
+   313→  CIRCLE: 6,
+   314→  POLYGON: 7,
+   315→  POLYLINE: 8,
+   316→  HIGHLIGHT: 9,
+   317→  UNDERLINE: 10,
+   318→  SQUIGGLY: 11,
+   319→  STRIKEOUT: 12,
+   320→  STAMP: 13,
+   321→  CARET: 14,
+   322→  INK: 15,
+   323→  POPUP: 16,
+   324→  FILEATTACHMENT: 17,
+   325→  SOUND: 18,
+   326→  MOVIE: 19,
+   327→  WIDGET: 20,
+   328→  SCREEN: 21,
+   329→  PRINTERMARK: 22,
+   330→  TRAPNET: 23,
+   331→  WATERMARK: 24,
+   332→  THREED: 25,
+   333→  REDACT: 26
+   334→};
+   335→var AnnotationBorderStyleType = {
+   336→  SOLID: 1,
+   337→  DASHED: 2,
+   338→  BEVELED: 3,
+   339→  INSET: 4,
+   340→  UNDERLINE: 5
+   341→};
+   342→var VerbosityLevel = {
+   343→  ERRORS: 0,
+   344→  WARNINGS: 1,
+   345→  INFOS: 5
+   346→};
+   347→var OPS = {
+   348→  dependency: 1,
+   349→  setLineWidth: 2,
+   350→  setLineCap: 3,
+   351→  setLineJoin: 4,
+   352→  setMiterLimit: 5,
+   353→  setDash: 6,
+   354→  setRenderingIntent: 7,
+   355→  setFlatness: 8,
+   356→  setGState: 9,
+   357→  save: 10,
+   358→  restore: 11,
+   359→  transform: 12,
+   360→  moveTo: 13,
+   361→  lineTo: 14,
+   362→  curveTo: 15,
+   363→  curveTo2: 16,
+   364→  curveTo3: 17,
+   365→  closePath: 18,
+   366→  rectangle: 19,
+   367→  stroke: 20,
+   368→  closeStroke: 21,
+   369→  fill: 22,
+   370→  eoFill: 23,
+   371→  fillStroke: 24,
+   372→  eoFillStroke: 25,
+   373→  closeFillStroke: 26,
+   374→  closeEOFillStroke: 27,
+   375→  endPath: 28,
+   376→  clip: 29,
+   377→  eoClip: 30,
+   378→  beginText: 31,
+   379→  endText: 32,
+   380→  setCharSpacing: 33,
+   381→  setWordSpacing: 34,
+   382→  setHScale: 35,
+   383→  setLeading: 36,
+   384→  setFont: 37,
+   385→  setTextRenderingMode: 38,
+   386→  setTextRise: 39,
+   387→  moveText: 40,
+   388→  setLeadingMoveText: 41,
+   389→  setTextMatrix: 42,
+   390→  nextLine: 43,
+   391→  showText: 44,
+   392→  showSpacedText: 45,
+   393→  nextLineShowText: 46,
+   394→  nextLineSetSpacingShowText: 47,
+   395→  setCharWidth: 48,
+   396→  setCharWidthAndBounds: 49,
+   397→  setStrokeColorSpace: 50,
+   398→  setFillColorSpace: 51,
+   399→  setStrokeColor: 52,
+   400→  setStrokeColorN: 53,
+   401→  setFillColor: 54,
+   402→  setFillColorN: 55,
+   403→  setStrokeGray: 56,
+   404→  setFillGray: 57,
+   405→  setStrokeRGBColor: 58,
+   406→  setFillRGBColor: 59,
+   407→  setStrokeCMYKColor: 60,
+   408→  setFillCMYKColor: 61,
+   409→  shadingFill: 62,
+   410→  beginInlineImage: 63,
+   411→  beginImageData: 64,
+   412→  endInlineImage: 65,
+   413→  paintXObject: 66,
+   414→  markPoint: 67,
+   415→  markPointProps: 68,
+   416→  beginMarkedContent: 69,
+   417→  beginMarkedContentProps: 70,
+   418→  endMarkedContent: 71,
+   419→  beginCompat: 72,
+   420→  endCompat: 73,
+   421→  paintFormXObjectBegin: 74,
+   422→  paintFormXObjectEnd: 75,
+   423→  beginGroup: 76,
+   424→  endGroup: 77,
+   425→  beginAnnotation: 80,
+   426→  endAnnotation: 81,
+   427→  paintImageMaskXObject: 83,
+   428→  paintImageMaskXObjectGroup: 84,
+   429→  paintImageXObject: 85,
+   430→  paintInlineImageXObject: 86,
+   431→  paintInlineImageXObjectGroup: 87,
+   432→  paintImageXObjectRepeat: 88,
+   433→  paintImageMaskXObjectRepeat: 89,
+   434→  paintSolidColorImageMask: 90,
+   435→  constructPath: 91,
+   436→  setStrokeTransparent: 92,
+   437→  setFillTransparent: 93
+   438→};
+   439→var PasswordResponses = {
+   440→  NEED_PASSWORD: 1,
+   441→  INCORRECT_PASSWORD: 2
+   442→};
+   443→var verbosity = VerbosityLevel.WARNINGS;
+   444→function setVerbosityLevel(level) {
+   445→  if (Number.isInteger(level)) {
+   446→    verbosity = level;
+   447→  }
+   448→}
+   449→function getVerbosityLevel() {
+   450→  return verbosity;
+   451→}
+   452→function info(msg) {
+   453→  if (verbosity >= VerbosityLevel.INFOS) {
+   454→    console.log(`Info: ${msg}`);
+   455→  }
+   456→}
+   457→function warn(msg) {
+   458→  if (verbosity >= VerbosityLevel.WARNINGS) {
+   459→    console.log(`Warning: ${msg}`);
+   460→  }
+   461→}
+   462→function unreachable(msg) {
+   463→  throw new Error(msg);
+   464→}
+   465→function assert(cond, msg) {
+   466→  if (!cond) {
+   467→    unreachable(msg);
+   468→  }
+   469→}
+   470→function _isValidProtocol(url) {
+   471→  switch (url?.protocol) {
+   472→    case "http:":
+   473→    case "https:":
+   474→    case "ftp:":
+   475→    case "mailto:":
+   476→    case "tel:":
+   477→      return true;
+   478→    default:
+   479→      return false;
+   480→  }
+   481→}
+   482→function createValidAbsoluteUrl(url, baseUrl = null, options = null) {
+   483→  if (!url) {
+   484→    return null;
+   485→  }
+   486→  try {
+   487→    if (options && typeof url === "string") {
+   488→      if (options.addDefaultProtocol && url.startsWith("www.")) {
+   489→        const dots = url.match(/\./g);
+   490→        if (dots?.length >= 2) {
+   491→          url = `http://${url}`;
+   492→        }
+   493→      }
+   494→      if (options.tryConvertEncoding) {
+   495→        try {
+   496→          url = stringToUTF8String(url);
+   497→        } catch {
+   498→        }
+   499→      }
+   500→    }
+   501→    const absoluteUrl = baseUrl ? new URL(url, baseUrl) : new URL(url);
+   502→    if (_isValidProtocol(absoluteUrl)) {
+   503→      return absoluteUrl;
+   504→    }
+   505→  } catch {
+   506→  }
+   507→  return null;
+   508→}
+   509→function shadow(obj, prop, value, nonSerializable = false) {
+   510→  Object.defineProperty(obj, prop, {
+   511→    value,
+   512→    enumerable: !nonSerializable,
+   513→    configurable: true,
+   514→    writable: false
+   515→  });
+   516→  return value;
+   517→}
+   518→var BaseException = (function BaseExceptionClosure() {
+   519→  function BaseException2(message, name) {
+   520→    this.message = message;
+   521→    this.name = name;
+   522→  }
+   523→  BaseException2.prototype = new Error();
+   524→  BaseException2.constructor = BaseException2;
+   525→  return BaseException2;
+   526→})();
+   527→var PasswordException = class extends BaseException {
+   528→  constructor(msg, code) {
+   529→    super(msg, "PasswordException");
+   530→    this.code = code;
+   531→  }
+   532→};
+   533→var UnknownErrorException = class extends BaseException {
+   534→  constructor(msg, details) {
+   535→    super(msg, "UnknownErrorException");
+   536→    this.details = details;
+   537→  }
+   538→};
+   539→var InvalidPDFException = class extends BaseException {
+   540→  constructor(msg) {
+   541→    super(msg, "InvalidPDFException");
+   542→  }
+   543→};
+   544→var MissingPDFException = class extends BaseException {
+   545→  constructor(msg) {
+   546→    super(msg, "MissingPDFException");
+   547→  }
+   548→};
+   549→var UnexpectedResponseException = class extends BaseException {
+   550→  constructor(msg, status) {
+   551→    super(msg, "UnexpectedResponseException");
+   552→    this.status = status;
+   553→  }
+   554→};
+   555→var FormatError = class extends BaseException {
+   556→  constructor(msg) {
+   557→    super(msg, "FormatError");
+   558→  }
+   559→};
+   560→var AbortException = class extends BaseException {
+   561→  constructor(msg) {
+   562→    super(msg, "AbortException");
+   563→  }
+   564→};
+   565→function bytesToString(bytes) {
+   566→  if (typeof bytes !== "object" || bytes?.length === void 0) {
+   567→    unreachable("Invalid argument for bytesToString");
+   568→  }
+   569→  const length = bytes.length;
+   570→  const MAX_ARGUMENT_COUNT = 8192;
+   571→  if (length < MAX_ARGUMENT_COUNT) {
+   572→    return String.fromCharCode.apply(null, bytes);
+   573→  }
+   574→  const strBuf = [];
+   575→  for (let i = 0; i < length; i += MAX_ARGUMENT_COUNT) {
+   576→    const chunkEnd = Math.min(i + MAX_ARGUMENT_COUNT, length);
+   577→    const chunk = bytes.subarray(i, chunkEnd);
+   578→    strBuf.push(String.fromCharCode.apply(null, chunk));
+   579→  }
+   580→  return strBuf.join("");
+   581→}
+   582→function stringToBytes(str) {
+   583→  if (typeof str !== "string") {
+   584→    unreachable("Invalid argument for stringToBytes");
+   585→  }
+   586→  const length = str.length;
+   587→  const bytes = new Uint8Array(length);
+   588→  for (let i = 0; i < length; ++i) {
+   589→    bytes[i] = str.charCodeAt(i) & 255;
+   590→  }
+   591→  return bytes;
+   592→}
+   593→function string32(value) {
+   594→  return String.fromCharCode(value >> 24 & 255, value >> 16 & 255, value >> 8 & 255, value & 255);
+   595→}
+   596→function objectFromMap(map) {
+   597→  const obj = /* @__PURE__ */ Object.create(null);
+   598→  for (const [key, value] of map) {
+   599→    obj[key] = value;
+   600→  }
+   601→  return obj;
+   602→}
+   603→function isLittleEndian() {
+   604→  const buffer8 = new Uint8Array(4);
+   605→  buffer8[0] = 1;
+   606→  const view32 = new Uint32Array(buffer8.buffer, 0, 1);
+   607→  return view32[0] === 1;
+   608→}
+   609→function isEvalSupported() {
+   610→  try {
+   611→    new Function("");
+   612→    return true;
+   613→  } catch {
+   614→    return false;
+   615→  }
+   616→}
+   617→var util_FeatureTest = class {
+   618→  static get isLittleEndian() {
+   619→    return shadow(this, "isLittleEndian", isLittleEndian());
+   620→  }
+   621→  static get isEvalSupported() {
+   622→    return shadow(this, "isEvalSupported", isEvalSupported());
+   623→  }
+   624→  static get isOffscreenCanvasSupported() {
+   625→    return shadow(this, "isOffscreenCanvasSupported", typeof OffscreenCanvas !== "undefined");
+   626→  }
+   627→  static get isImageDecoderSupported() {
+   628→    return shadow(this, "isImageDecoderSupported", typeof ImageDecoder !== "undefined");
+   629→  }
+   630→  static get platform() {
+   631→    if (typeof navigator !== "undefined" && typeof navigator?.platform === "string") {
+   632→      return shadow(this, "platform", {
+   633→        isMac: navigator.platform.includes("Mac"),
+   634→        isWindows: navigator.platform.includes("Win"),
+   635→        isFirefox: typeof navigator?.userAgent === "string" && navigator.userAgent.includes("Firefox")
+   636→      });
+   637→    }
+   638→    return shadow(this, "platform", {
+   639→      isMac: false,
+   640→      isWindows: false,
+   641→      isFirefox: false
+   642→    });
+   643→  }
+   644→  static get isCSSRoundSupported() {
+   645→    return shadow(this, "isCSSRoundSupported", globalThis.CSS?.supports?.("width: round(1.5px, 1px)"));
+   646→  }
+   647→};
+   648→var hexNumbers = Array.from(Array(256).keys(), (n) => n.toString(16).padStart(2, "0"));
+   649→var Util = class {
+   650→  static makeHexColor(r, g, b) {
+   651→    return `#${hexNumbers[r]}${hexNumbers[g]}${hexNumbers[b]}`;
+   652→  }
+   653→  static scaleMinMax(transform, minMax) {
+   654→    let temp;
+   655→    if (transform[0]) {
+   656→      if (transform[0] < 0) {
+   657→        temp = minMax[0];
+   658→        minMax[0] = minMax[2];
+   659→        minMax[2] = temp;
+   660→      }
+   661→      minMax[0] *= transform[0];
+   662→      minMax[2] *= transform[0];
+   663→      if (transform[3] < 0) {
+   664→        temp = minMax[1];
+   665→        minMax[1] = minMax[3];
+   666→        minMax[3] = temp;
+   667→      }
+   668→      minMax[1] *= transform[3];
+   669→      minMax[3] *= transform[3];
+   670→    } else {
+   671→      temp = minMax[0];
+   672→      minMax[0] = minMax[1];
+   673→      minMax[1] = temp;
+   674→      temp = minMax[2];
+   675→      minMax[2] = minMax[3];
+   676→      minMax[3] = temp;
+   677→      if (transform[1] < 0) {
+   678→        temp = minMax[1];
+   679→        minMax[1] = minMax[3];
+   680→        minMax[3] = temp;
+   681→      }
+   682→      minMax[1] *= transform[1];
+   683→      minMax[3] *= transform[1];
+   684→      if (transform[2] < 0) {
+   685→        temp = minMax[0];
+   686→        minMax[0] = minMax[2];
+   687→        minMax[2] = temp;
+   688→      }
+   689→      minMax[0] *= transform[2];
+   690→      minMax[2] *= transform[2];
+   691→    }
+   692→    minMax[0] += transform[4];
+   693→    minMax[1] += transform[5];
+   694→    minMax[2] += transform[4];
+   695→    minMax[3] += transform[5];
+   696→  }
+   697→  static transform(m1, m2) {
+   698→    return [m1[0] * m2[0] + m1[2] * m2[1], m1[1] * m2[0] + m1[3] * m2[1], m1[0] * m2[2] + m1[2] * m2[3], m1[1] * m2[2] + m1[3] * m2[3], m1[0] * m2[4] + m1[2] * m2[5] + m1[4], m1[1] * m2[4] + m1[3] * m2[5] + m1[5]];
+   699→  }
+   700→  static applyTransform(p, m) {
+   701→    const xt = p[0] * m[0] + p[1] * m[2] + m[4];
+   702→    const yt = p[0] * m[1] + p[1] * m[3] + m[5];
+   703→    return [xt, yt];
+   704→  }
+   705→  static applyInverseTransform(p, m) {
+   706→    const d = m[0] * m[3] - m[1] * m[2];
+   707→    const xt = (p[0] * m[3] - p[1] * m[2] + m[2] * m[5] - m[4] * m[3]) / d;
+   708→    const yt = (-p[0] * m[1] + p[1] * m[0] + m[4] * m[1] - m[5] * m[0]) / d;
+   709→    return [xt, yt];
+   710→  }
+   711→  static getAxialAlignedBoundingBox(r, m) {
+   712→    const p1 = this.applyTransform(r, m);
+   713→    const p2 = this.applyTransform(r.slice(2, 4), m);
+   714→    const p3 = this.applyTransform([r[0], r[3]], m);
+   715→    const p4 = this.applyTransform([r[2], r[1]], m);
+   716→    return [Math.min(p1[0], p2[0], p3[0], p4[0]), Math.min(p1[1], p2[1], p3[1], p4[1]), Math.max(p1[0], p2[0], p3[0], p4[0]), Math.max(p1[1], p2[1], p3[1], p4[1])];
+   717→  }
+   718→  static inverseTransform(m) {
+   719→    const d = m[0] * m[3] - m[1] * m[2];
+   720→    return [m[3] / d, -m[1] / d, -m[2] / d, m[0] / d, (m[2] * m[5] - m[4] * m[3]) / d, (m[4] * m[1] - m[5] * m[0]) / d];
+   721→  }
+   722→  static singularValueDecompose2dScale(m) {
+   723→    const transpose = [m[0], m[2], m[1], m[3]];
+   724→    const a = m[0] * transpose[0] + m[1] * transpose[2];
+   725→    const b = m[0] * transpose[1] + m[1] * transpose[3];
+   726→    const c = m[2] * transpose[0] + m[3] * transpose[2];
+   727→    const d = m[2] * transpose[1] + m[3] * transpose[3];
+   728→    const first = (a + d) / 2;
+   729→    const second = Math.sqrt((a + d) ** 2 - 4 * (a * d - c * b)) / 2;
+   730→    const sx = first + second || 1;
+   731→    const sy = first - second || 1;
+   732→    return [Math.sqrt(sx), Math.sqrt(sy)];
+   733→  }
+   734→  static normalizeRect(rect) {
+   735→    const r = rect.slice(0);
+   736→    if (rect[0] > rect[2]) {
+   737→      r[0] = rect[2];
+   738→      r[2] = rect[0];
+   739→    }
+   740→    if (rect[1] > rect[3]) {
+   741→      r[1] = rect[3];
+   742→      r[3] = rect[1];
+   743→    }
+   744→    return r;
+   745→  }
+   746→  static intersect(rect1, rect2) {
+   747→    const xLow = Math.max(Math.min(rect1[0], rect1[2]), Math.min(rect2[0], rect2[2]));
+   748→    const xHigh = Math.min(Math.max(rect1[0], rect1[2]), Math.max(rect2[0], rect2[2]));
+   749→    if (xLow > xHigh) {
+   750→      return null;
+   751→    }
+   752→    const yLow = Math.max(Math.min(rect1[1], rect1[3]), Math.min(rect2[1], rect2[3]));
+   753→    const yHigh = Math.min(Math.max(rect1[1], rect1[3]), Math.max(rect2[1], rect2[3]));
+   754→    if (yLow > yHigh) {
+   755→      return null;
+   756→    }
+   757→    return [xLow, yLow, xHigh, yHigh];
+   758→  }
+   759→  static #getExtremumOnCurve(x0, x1, x2, x3, y0, y1, y2, y3, t, minMax) {
+   760→    if (t <= 0 || t >= 1) {
+   761→      return;
+   762→    }
+   763→    const mt = 1 - t;
+   764→    const tt = t * t;
+   765→    const ttt = tt * t;
+   766→    const x = mt * (mt * (mt * x0 + 3 * t * x1) + 3 * tt * x2) + ttt * x3;
+   767→    const y = mt * (mt * (mt * y0 + 3 * t * y1) + 3 * tt * y2) + ttt * y3;
+   768→    minMax[0] = Math.min(minMax[0], x);
+   769→    minMax[1] = Math.min(minMax[1], y);
+   770→    minMax[2] = Math.max(minMax[2], x);
+   771→    minMax[3] = Math.max(minMax[3], y);
+   772→  }
+   773→  static #getExtremum(x0, x1, x2, x3, y0, y1, y2, y3, a, b, c, minMax) {
+   774→    if (Math.abs(a) < 1e-12) {
+   775→      if (Math.abs(b) >= 1e-12) {
+   776→        this.#getExtremumOnCurve(x0, x1, x2, x3, y0, y1, y2, y3, -c / b, minMax);
+   777→      }
+   778→      return;
+   779→    }
+   780→    const delta = b ** 2 - 4 * c * a;
+   781→    if (delta < 0) {
+   782→      return;
+   783→    }
+   784→    const sqrtDelta = Math.sqrt(delta);
+   785→    const a2 = 2 * a;
+   786→    this.#getExtremumOnCurve(x0, x1, x2, x3, y0, y1, y2, y3, (-b + sqrtDelta) / a2, minMax);
+   787→    this.#getExtremumOnCurve(x0, x1, x2, x3, y0, y1, y2, y3, (-b - sqrtDelta) / a2, minMax);
+   788→  }
+   789→  static bezierBoundingBox(x0, y0, x1, y1, x2, y2, x3, y3, minMax) {
+   790→    if (minMax) {
+   791→      minMax[0] = Math.min(minMax[0], x0, x3);
+   792→      minMax[1] = Math.min(minMax[1], y0, y3);
+   793→      minMax[2] = Math.max(minMax[2], x0, x3);
+   794→      minMax[3] = Math.max(minMax[3], y0, y3);
+   795→    } else {
+   796→      minMax = [Math.min(x0, x3), Math.min(y0, y3), Math.max(x0, x3), Math.max(y0, y3)];
+   797→    }
+   798→    this.#getExtremum(x0, x1, x2, x3, y0, y1, y2, y3, 3 * (-x0 + 3 * (x1 - x2) + x3), 6 * (x0 - 2 * x1 + x2), 3 * (x1 - x0), minMax);
+   799→    this.#getExtremum(x0, x1, x2, x3, y0, y1, y2, y3, 3 * (-y0 + 3 * (y1 - y2) + y3), 6 * (y0 - 2 * y1 + y2), 3 * (y1 - y0), minMax);
+   800→    return minMax;
+   801→  }
+   802→};
+   803→function stringToUTF8String(str) {
+   804→  return decodeURIComponent(escape(str));
+   805→}
+   806→var NormalizeRegex = null;
+   807→var NormalizationMap = null;
+   808→function normalizeUnicode(str) {
+   809→  if (!NormalizeRegex) {
+   810→    NormalizeRegex = /([\u00a0\u00b5\u037e\u0eb3\u2000-\u200a\u202f\u2126\ufb00-\ufb04\ufb06\ufb20-\ufb36\ufb38-\ufb3c\ufb3e\ufb40-\ufb41\ufb43-\ufb44\ufb46-\ufba1\ufba4-\ufba9\ufbae-\ufbb1\ufbd3-\ufbdc\ufbde-\ufbe7\ufbea-\ufbf8\ufbfc-\ufbfd\ufc00-\ufc5d\ufc64-\ufcf1\ufcf5-\ufd3d\ufd88\ufdf4\ufdfa-\ufdfb\ufe71\ufe77\ufe79\ufe7b\ufe7d]+)|(\ufb05+)/gu;
+   811→    NormalizationMap = /* @__PURE__ */ new Map([["\uFB05", "\u017Ft"]]);
+   812→  }
+   813→  return str.replaceAll(NormalizeRegex, (_, p1, p2) => p1 ? p1.normalize("NFKC") : NormalizationMap.get(p2));
+   814→}
+   815→function getUuid() {
+   816→  if (typeof crypto.randomUUID === "function") {
+   817→    return crypto.randomUUID();
+   818→  }
+   819→  const buf = new Uint8Array(32);
+   820→  crypto.getRandomValues(buf);
+   821→  return bytesToString(buf);
+   822→}
+   823→var AnnotationPrefix = "pdfjs_internal_id_";
+   824→var FontRenderOps = {
+   825→  BEZIER_CURVE_TO: 0,
+   826→  MOVE_TO: 1,
+   827→  LINE_TO: 2,
+   828→  QUADRATIC_CURVE_TO: 3,
+   829→  RESTORE: 4,
+   830→  SAVE: 5,
+   831→  SCALE: 6,
+   832→  TRANSFORM: 7,
+   833→  TRANSLATE: 8
+   834→};
+   835→function toBase64Util(arr) {
+   836→  if (Uint8Array.prototype.toBase64) {
+   837→    return arr.toBase64();
+   838→  }
+   839→  return btoa(bytesToString(arr));
+   840→}
+   841→if (typeof Promise.try !== "function") {
+   842→  Promise.try = function(fn, ...args) {
+   843→    return new Promise((resolve) => {
+   844→      resolve(fn(...args));
+   845→    });
+   846→  };
+   847→}
+   848→var SVG_NS = "http://www.w3.org/2000/svg";
+   849→var PixelsPerInch = class {
+   850→  static CSS = 96;
+   851→  static PDF = 72;
+   852→  static PDF_TO_CSS_UNITS = this.CSS / this.PDF;
+   853→};
+   854→async function fetchData(url, type = "text") {
+   855→  if (isValidFetchUrl(url, document.baseURI)) {
+   856→    const response = await fetch(url);
+   857→    if (!response.ok) {
+   858→      throw new Error(response.statusText);
+   859→    }
+   860→    switch (type) {
+   861→      case "arraybuffer":
+   862→        return response.arrayBuffer();
+   863→      case "blob":
+   864→        return response.blob();
+   865→      case "json":
+   866→        return response.json();
+   867→    }
+   868→    return response.text();
+   869→  }
+   870→  return new Promise((resolve, reject) => {
+   871→    const request = new XMLHttpRequest();
+   872→    request.open("GET", url, true);
+   873→    request.responseType = type;
+   874→    request.onreadystatechange = () => {
+   875→      if (request.readyState !== XMLHttpRequest.DONE) {
+   876→        return;
+   877→      }
+   878→      if (request.status === 200 || request.status === 0) {
+   879→        switch (type) {
+   880→          case "arraybuffer":
+   881→          case "blob":
+   882→          case "json":
+   883→            resolve(request.response);
+   884→            return;
+   885→        }
+   886→        resolve(request.responseText);
+   887→        return;
+   888→      }
+   889→      reject(new Error(request.statusText));
+   890→    };
+   891→    request.send(null);
+   892→  });
+   893→}
+   894→var PageViewport = class _PageViewport {
+   895→  constructor({
+   896→    viewBox,
+   897→    scale,
+   898→    rotation,
+   899→    offsetX = 0,
+   900→    offsetY = 0,
+   901→    dontFlip = false
+   902→  }) {
+   903→    this.viewBox = viewBox;
+   904→    this.scale = scale;
+   905→    this.rotation = rotation;
+   906→    this.offsetX = offsetX;
+   907→    this.offsetY = offsetY;
+   908→    const centerX = (viewBox[2] + viewBox[0]) / 2;
+   909→    const centerY = (viewBox[3] + viewBox[1]) / 2;
+   910→    let rotateA, rotateB, rotateC, rotateD;
+   911→    rotation %= 360;
+   912→    if (rotation < 0) {
+   913→      rotation += 360;
+   914→    }
+   915→    switch (rotation) {
+   916→      case 180:
+   917→        rotateA = -1;
+   918→        rotateB = 0;
+   919→        rotateC = 0;
+   920→        rotateD = 1;
+   921→        break;
+   922→      case 90:
+   923→        rotateA = 0;
+   924→        rotateB = 1;
+   925→        rotateC = 1;
+   926→        rotateD = 0;
+   927→        break;
+   928→      case 270:
+   929→        rotateA = 0;
+   930→        rotateB = -1;
+   931→        rotateC = -1;
+   932→        rotateD = 0;
+   933→        break;
+   934→      case 0:
+   935→        rotateA = 1;
+   936→        rotateB = 0;
+   937→        rotateC = 0;
+   938→        rotateD = -1;
+   939→        break;
+   940→      default:
+   941→        throw new Error("PageViewport: Invalid rotation, must be a multiple of 90 degrees.");
+   942→    }
+   943→    if (dontFlip) {
+   944→      rotateC = -rotateC;
+   945→      rotateD = -rotateD;
+   946→    }
+   947→    let offsetCanvasX, offsetCanvasY;
+   948→    let width, height;
+   949→    if (rotateA === 0) {
+   950→      offsetCanvasX = Math.abs(centerY - viewBox[1]) * scale + offsetX;
+   951→      offsetCanvasY = Math.abs(centerX - viewBox[0]) * scale + offsetY;
+   952→      width = (viewBox[3] - viewBox[1]) * scale;
+   953→      height = (viewBox[2] - viewBox[0]) * scale;
+   954→    } else {
+   955→      offsetCanvasX = Math.abs(centerX - viewBox[0]) * scale + offsetX;
+   956→      offsetCanvasY = Math.abs(centerY - viewBox[1]) * scale + offsetY;
+   957→      width = (viewBox[2] - viewBox[0]) * scale;
+   958→      height = (viewBox[3] - viewBox[1]) * scale;
+   959→    }
+   960→    this.transform = [rotateA * scale, rotateB * scale, rotateC * scale, rotateD * scale, offsetCanvasX - rotateA * scale * centerX - rotateC * scale * centerY, offsetCanvasY - rotateB * scale * centerX - rotateD * scale * centerY];
+   961→    this.width = width;
+   962→    this.height = height;
+   963→  }
+   964→  get rawDims() {
+   965→    const {
+   966→      viewBox
+   967→    } = this;
+   968→    return shadow(this, "rawDims", {
+   969→      pageWidth: viewBox[2] - viewBox[0],
+   970→      pageHeight: viewBox[3] - viewBox[1],
+   971→      pageX: viewBox[0],
+   972→      pageY: viewBox[1]
+   973→    });
+   974→  }
+   975→  clone({
+   976→    scale = this.scale,
+   977→    rotation = this.rotation,
+   978→    offsetX = this.offsetX,
+   979→    offsetY = this.offsetY,
+   980→    dontFlip = false
+   981→  } = {}) {
+   982→    return new _PageViewport({
+   983→      viewBox: this.viewBox.slice(),
+   984→      scale,
+   985→      rotation,
+   986→      offsetX,
+   987→      offsetY,
+   988→      dontFlip
+   989→    });
+   990→  }
+   991→  convertToViewportPoint(x, y) {
+   992→    return Util.applyTransform([x, y], this.transform);
+   993→  }
+   994→  convertToViewportRectangle(rect) {
+   995→    const topLeft = Util.applyTransform([rect[0], rect[1]], this.transform);
+   996→    const bottomRight = Util.applyTransform([rect[2], rect[3]], this.transform);
+   997→    return [topLeft[0], topLeft[1], bottomRight[0], bottomRight[1]];
+   998→  }
+   999→  convertToPdfPoint(x, y) {
+  1000→    return Util.applyInverseTransform([x, y], this.transform);
+  1001→  }
+  1002→};
+  1003→var RenderingCancelledException = class extends BaseException {
+  1004→  constructor(msg, extraDelay = 0) {
+  1005→    super(msg, "RenderingCancelledException");
+  1006→    this.extraDelay = extraDelay;
+  1007→  }
+  1008→};
+  1009→function isDataScheme(url) {
+  1010→  const ii = url.length;
+  1011→  let i = 0;
+  1012→  while (i < ii && url[i].trim() === "") {
+  1013→    i++;
+  1014→  }
+  1015→  return url.substring(i, i + 5).toLowerCase() === "data:";
+  1016→}
+  1017→function isPdfFile(filename) {
+  1018→  return typeof filename === "string" && /\.pdf$/i.test(filename);
+  1019→}
+  1020→function getFilenameFromUrl(url) {
+  1021→  [url] = url.split(/[#?]/, 1);
+  1022→  return url.substring(url.lastIndexOf("/") + 1);
+  1023→}
+  1024→function getPdfFilenameFromUrl(url, defaultFilename = "document.pdf") {
+  1025→  if (typeof url !== "string") {
+  1026→    return defaultFilename;
+  1027→  }
+  1028→  if (isDataScheme(url)) {
+  1029→    warn('getPdfFilenameFromUrl: ignore "data:"-URL for performance reasons.');
+  1030→    return defaultFilename;
+  1031→  }
+  1032→  const reURI = /^(?:(?:[^:]+:)?\/\/[^/]+)?([^?#]*)(\?[^#]*)?(#.*)?$/;
+  1033→  const reFilename = /[^/?#=]+\.pdf\b(?!.*\.pdf\b)/i;
+  1034→  const splitURI = reURI.exec(url);
+  1035→  let suggestedFilename = reFilename.exec(splitURI[1]) || reFilename.exec(splitURI[2]) || reFilename.exec(splitURI[3]);
+  1036→  if (suggestedFilename) {
+  1037→    suggestedFilename = suggestedFilename[0];
+  1038→    if (suggestedFilename.includes("%")) {
+  1039→      try {
+  1040→        suggestedFilename = reFilename.exec(decodeURIComponent(suggestedFilename))[0];
+  1041→      } catch {
+  1042→      }
+  1043→    }
+  1044→  }
+  1045→  return suggestedFilename || defaultFilename;
+  1046→}
+  1047→var StatTimer = class {
+  1048→  started = /* @__PURE__ */ Object.create(null);
+  1049→  times = [];
+  1050→  time(name) {
+  1051→    if (name in this.started) {
+  1052→      warn(`Timer is already running for ${name}`);
+  1053→    }
+  1054→    this.started[name] = Date.now();
+  1055→  }
+  1056→  timeEnd(name) {
+  1057→    if (!(name in this.started)) {
+  1058→      warn(`Timer has not been started for ${name}`);
+  1059→    }
+  1060→    this.times.push({
+  1061→      name,
+  1062→      start: this.started[name],
+  1063→      end: Date.now()
+  1064→    });
+  1065→    delete this.started[name];
+  1066→  }
+  1067→  toString() {
+  1068→    const outBuf = [];
+  1069→    let longest = 0;
+  1070→    for (const {
+  1071→      name
+  1072→    } of this.times) {
+  1073→      longest = Math.max(name.length, longest);
+  1074→    }
+  1075→    for (const {
+  1076→      name,
+  1077→      start,
+  1078→      end
+  1079→    } of this.times) {
+  1080→      outBuf.push(`${name.padEnd(longest)} ${end - start}ms
+  1081→`);
+  1082→    }
+  1083→    return outBuf.join("");
+  1084→  }
+  1085→};
+  1086→function isValidFetchUrl(url, baseUrl) {
+  1087→  try {
+  1088→    const {
+  1089→      protocol
+  1090→    } = baseUrl ? new URL(url, baseUrl) : new URL(url);
+  1091→    return protocol === "http:" || protocol === "https:";
+  1092→  } catch {
+  1093→    return false;
+  1094→  }
+  1095→}
+  1096→function noContextMenu(e) {
+  1097→  e.preventDefault();
+  1098→}
+  1099→function stopEvent(e) {
+  1100→  e.preventDefault();
+  1101→  e.stopPropagation();
+  1102→}
+  1103→function deprecated(details) {
+  1104→  console.log("Deprecated API usage: " + details);
+  1105→}
+  1106→var PDFDateString = class {
+  1107→  static #regex;
+  1108→  static toDateObject(input) {
+  1109→    if (!input || typeof input !== "string") {
+  1110→      return null;
+  1111→    }
+  1112→    this.#regex ||= new RegExp("^D:(\\d{4})(\\d{2})?(\\d{2})?(\\d{2})?(\\d{2})?(\\d{2})?([Z|+|-])?(\\d{2})?'?(\\d{2})?'?");
+  1113→    const matches = this.#regex.exec(input);
+  1114→    if (!matches) {
+  1115→      return null;
+  1116→    }
+  1117→    const year = parseInt(matches[1], 10);
+  1118→    let month = parseInt(matches[2], 10);
+  1119→    month = month >= 1 && month <= 12 ? month - 1 : 0;
+  1120→    let day = parseInt(matches[3], 10);
+  1121→    day = day >= 1 && day <= 31 ? day : 1;
+  1122→    let hour = parseInt(matches[4], 10);
+  1123→    hour = hour >= 0 && hour <= 23 ? hour : 0;
+  1124→    let minute = parseInt(matches[5], 10);
+  1125→    minute = minute >= 0 && minute <= 59 ? minute : 0;
+  1126→    let second = parseInt(matches[6], 10);
+  1127→    second = second >= 0 && second <= 59 ? second : 0;
+  1128→    const universalTimeRelation = matches[7] || "Z";
+  1129→    let offsetHour = parseInt(matches[8], 10);
+  1130→    offsetHour = offsetHour >= 0 && offsetHour <= 23 ? offsetHour : 0;
+  1131→    let offsetMinute = parseInt(matches[9], 10) || 0;
+  1132→    offsetMinute = offsetMinute >= 0 && offsetMinute <= 59 ? offsetMinute : 0;
+  1133→    if (universalTimeRelation === "-") {
+  1134→      hour += offsetHour;
+  1135→      minute += offsetMinute;
+  1136→    } else if (universalTimeRelation === "+") {
+  1137→      hour -= offsetHour;
+  1138→      minute -= offsetMinute;
+  1139→    }
+  1140→    return new Date(Date.UTC(year, month, day, hour, minute, second));
+  1141→  }
+  1142→};
+  1143→function getXfaPageViewport(xfaPage, {
+  1144→  scale = 1,
+  1145→  rotation = 0
+  1146→}) {
+  1147→  const {
+  1148→    width,
+  1149→    height
+  1150→  } = xfaPage.attributes.style;
+  1151→  const viewBox = [0, 0, parseInt(width), parseInt(height)];
+  1152→  return new PageViewport({
+  1153→    viewBox,
+  1154→    scale,
+  1155→    rotation
+  1156→  });
+  1157→}
+  1158→function getRGB(color) {
+  1159→  if (color.startsWith("#")) {
+  1160→    const colorRGB = parseInt(color.slice(1), 16);
+  1161→    return [(colorRGB & 16711680) >> 16, (colorRGB & 65280) >> 8, colorRGB & 255];
+  1162→  }
+  1163→  if (color.startsWith("rgb(")) {
+  1164→    return color.slice(4, -1).split(",").map((x) => parseInt(x));
+  1165→  }
+  1166→  if (color.startsWith("rgba(")) {
+  1167→    return color.slice(5, -1).split(",").map((x) => parseInt(x)).slice(0, 3);
+  1168→  }
+  1169→  warn(`Not a valid color format: "${color}"`);
+  1170→  return [0, 0, 0];
+  1171→}
+  1172→function getColorValues(colors) {
+  1173→  const span = document.createElement("span");
+  1174→  span.style.visibility = "hidden";
+  1175→  document.body.append(span);
+  1176→  for (const name of colors.keys()) {
+  1177→    span.style.color = name;
+  1178→    const computedColor = window.getComputedStyle(span).color;
+  1179→    colors.set(name, getRGB(computedColor));
+  1180→  }
+  1181→  span.remove();
+  1182→}
+  1183→function getCurrentTransform(ctx) {
+  1184→  const {
+  1185→    a,
+  1186→    b,
+  1187→    c,
+  1188→    d,
+  1189→    e,
+  1190→    f
+  1191→  } = ctx.getTransform();
+  1192→  return [a, b, c, d, e, f];
+  1193→}
+  1194→function getCurrentTransformInverse(ctx) {
+  1195→  const {
+  1196→    a,
+  1197→    b,
+  1198→    c,
+  1199→    d,
+  1200→    e,
+  1201→    f
+  1202→  } = ctx.getTransform().invertSelf();
+  1203→  return [a, b, c, d, e, f];
+  1204→}
+  1205→function setLayerDimensions(div, viewport, mustFlip = false, mustRotate = true) {
+  1206→  if (viewport instanceof PageViewport) {
+  1207→    const {
+  1208→      pageWidth,
+  1209→      pageHeight
+  1210→    } = viewport.rawDims;
+  1211→    const {
+  1212→      style
+  1213→    } = div;
+  1214→    const useRound = util_FeatureTest.isCSSRoundSupported;
+  1215→    const w = `var(--scale-factor) * ${pageWidth}px`, h = `var(--scale-factor) * ${pageHeight}px`;
+  1216→    const widthStr = useRound ? `round(down, ${w}, var(--scale-round-x, 1px))` : `calc(${w})`, heightStr = useRound ? `round(down, ${h}, var(--scale-round-y, 1px))` : `calc(${h})`;
+  1217→    if (!mustFlip || viewport.rotation % 180 === 0) {
+  1218→      style.width = widthStr;
+  1219→      style.height = heightStr;
+  1220→    } else {
+  1221→      style.width = heightStr;
+  1222→      style.height = widthStr;
+  1223→    }
+  1224→  }
+  1225→  if (mustRotate) {
+  1226→    div.setAttribute("data-main-rotation", viewport.rotation);
+  1227→  }
+  1228→}
+  1229→var OutputScale = class {
+  1230→  constructor() {
+  1231→    const pixelRatio = window.devicePixelRatio || 1;
+  1232→    this.sx = pixelRatio;
+  1233→    this.sy = pixelRatio;
+  1234→  }
+  1235→  get scaled() {
+  1236→    return this.sx !== 1 || this.sy !== 1;
+  1237→  }
+  1238→  get symmetric() {
+  1239→    return this.sx === this.sy;
+  1240→  }
+  1241→};
+  1242→var EditorToolbar = class _EditorToolbar {
+  1243→  #toolbar = null;
+  1244→  #colorPicker = null;
+  1245→  #editor;
+  1246→  #buttons = null;
+  1247→  #altText = null;
+  1248→  static #l10nRemove = null;
+  1249→  constructor(editor) {
+  1250→    this.#editor = editor;
+  1251→    _EditorToolbar.#l10nRemove ||= Object.freeze({
+  1252→      freetext: "pdfjs-editor-remove-freetext-button",
+  1253→      highlight: "pdfjs-editor-remove-highlight-button",
+  1254→      ink: "pdfjs-editor-remove-ink-button",
+  1255→      stamp: "pdfjs-editor-remove-stamp-button"
+  1256→    });
+  1257→  }
+  1258→  render() {
+  1259→    const editToolbar = this.#toolbar = document.createElement("div");
+  1260→    editToolbar.classList.add("editToolbar", "hidden");
+  1261→    editToolbar.setAttribute("role", "toolbar");
+  1262→    const signal = this.#editor._uiManager._signal;
+  1263→    editToolbar.addEventListener("contextmenu", noContextMenu, {
+  1264→      signal
+  1265→    });
+  1266→    editToolbar.addEventListener("pointerdown", _EditorToolbar.#pointerDown, {
+  1267→      signal
+  1268→    });
+  1269→    const buttons = this.#buttons = document.createElement("div");
+  1270→    buttons.className = "buttons";
+  1271→    editToolbar.append(buttons);
+  1272→    const position = this.#editor.toolbarPosition;
+  1273→    if (position) {
+  1274→      const {
+  1275→        style
+  1276→      } = editToolbar;
+  1277→      const x = this.#editor._uiManager.direction === "ltr" ? 1 - position[0] : position[0];
+  1278→      style.insetInlineEnd = `${100 * x}%`;
+  1279→      style.top = `calc(${100 * position[1]}% + var(--editor-toolbar-vert-offset))`;
+  1280→    }
+  1281→    this.#addDeleteButton();
+  1282→    return editToolbar;
+  1283→  }
+  1284→  get div() {
+  1285→    return this.#toolbar;
+  1286→  }
+  1287→  static #pointerDown(e) {
+  1288→    e.stopPropagation();
+  1289→  }
+  1290→  #focusIn(e) {
+  1291→    this.#editor._focusEventsAllowed = false;
+  1292→    stopEvent(e);
+  1293→  }
+  1294→  #focusOut(e) {
+  1295→    this.#editor._focusEventsAllowed = true;
+  1296→    stopEvent(e);
+  1297→  }
+  1298→  #addListenersToElement(element) {
+  1299→    const signal = this.#editor._uiManager._signal;
+  1300→    element.addEventListener("focusin", this.#focusIn.bind(this), {
+  1301→      capture: true,
+  1302→      signal
+  1303→    });
+  1304→    element.addEventListener("focusout", this.#focusOut.bind(this), {
+  1305→      capture: true,
+  1306→      signal
+  1307→    });
+  1308→    element.addEventListener("contextmenu", noContextMenu, {
+  1309→      signal
+  1310→    });
+  1311→  }
+  1312→  hide() {
+  1313→    this.#toolbar.classList.add("hidden");
+  1314→    this.#colorPicker?.hideDropdown();
+  1315→  }
+  1316→  show() {
+  1317→    this.#toolbar.classList.remove("hidden");
+  1318→    this.#altText?.shown();
+  1319→  }
+  1320→  #addDeleteButton() {
+  1321→    const {
+  1322→      editorType,
+  1323→      _uiManager
+  1324→    } = this.#editor;
+  1325→    const button = document.createElement("button");
+  1326→    button.className = "delete";
+  1327→    button.tabIndex = 0;
+  1328→    button.setAttribute("data-l10n-id", _EditorToolbar.#l10nRemove[editorType]);
+  1329→    this.#addListenersToElement(button);
+  1330→    button.addEventListener("click", (e) => {
+  1331→      _uiManager.delete();
+  1332→    }, {
+  1333→      signal: _uiManager._signal
+  1334→    });
+  1335→    this.#buttons.append(button);
+  1336→  }
+  1337→  get #divider() {
+  1338→    const divider = document.createElement("div");
+  1339→    divider.className = "divider";
+  1340→    return divider;
+  1341→  }
+  1342→  async addAltText(altText) {
+  1343→    const button = await altText.render();
+  1344→    this.#addListenersToElement(button);
+  1345→    this.#buttons.prepend(button, this.#divider);
+  1346→    this.#altText = altText;
+  1347→  }
+  1348→  addColorPicker(colorPicker) {
+  1349→    this.#colorPicker = colorPicker;
+  1350→    const button = colorPicker.renderButton();
+  1351→    this.#addListenersToElement(button);
+  1352→    this.#buttons.prepend(button, this.#divider);
+  1353→  }
+  1354→  remove() {
+  1355→    this.#toolbar.remove();
+  1356→    this.#colorPicker?.destroy();
+  1357→    this.#colorPicker = null;
+  1358→  }
+  1359→};
+  1360→var HighlightToolbar = class {
+  1361→  #buttons = null;
+  1362→  #toolbar = null;
+  1363→  #uiManager;
+  1364→  constructor(uiManager) {
+  1365→    this.#uiManager = uiManager;
+  1366→  }
+  1367→  #render() {
+  1368→    const editToolbar = this.#toolbar = document.createElement("div");
+  1369→    editToolbar.className = "editToolbar";
+  1370→    editToolbar.setAttribute("role", "toolbar");
+  1371→    editToolbar.addEventListener("contextmenu", noContextMenu, {
+  1372→      signal: this.#uiManager._signal
+  1373→    });
+  1374→    const buttons = this.#buttons = document.createElement("div");
+  1375→    buttons.className = "buttons";
+  1376→    editToolbar.append(buttons);
+  1377→    this.#addHighlightButton();
+  1378→    return editToolbar;
+  1379→  }
+  1380→  #getLastPoint(boxes, isLTR) {
+  1381→    let lastY = 0;
+  1382→    let lastX = 0;
+  1383→    for (const box of boxes) {
+  1384→      const y = box.y + box.height;
+  1385→      if (y < lastY) {
+  1386→        continue;
+  1387→      }
+  1388→      const x = box.x + (isLTR ? box.width : 0);
+  1389→      if (y > lastY) {
+  1390→        lastX = x;
+  1391→        lastY = y;
+  1392→        continue;
+  1393→      }
+  1394→      if (isLTR) {
+  1395→        if (x > lastX) {
+  1396→          lastX = x;
+  1397→        }
+  1398→      } else if (x < lastX) {
+  1399→        lastX = x;
+  1400→      }
+  1401→    }
+  1402→    return [isLTR ? 1 - lastX : lastX, lastY];
+  1403→  }
+  1404→  show(parent, boxes, isLTR) {
+  1405→    const [x, y] = this.#getLastPoint(boxes, isLTR);
+  1406→    const {
+  1407→      style
+  1408→    } = this.#toolbar ||= this.#render();
+  1409→    parent.append(this.#toolbar);
+  1410→    style.insetInlineEnd = `${100 * x}%`;
+  1411→    style.top = `calc(${100 * y}% + var(--editor-toolbar-vert-offset))`;
+  1412→  }
+  1413→  hide() {
+  1414→    this.#toolbar.remove();
+  1415→  }
+  1416→  #addHighlightButton() {
+  1417→    const button = document.createElement("button");
+  1418→    button.className = "highlightButton";
+  1419→    button.tabIndex = 0;
+  1420→    button.setAttribute("data-l10n-id", `pdfjs-highlight-floating-button1`);
+  1421→    const span = document.createElement("span");
+  1422→    button.append(span);
+  1423→    span.className = "visuallyHidden";
+  1424→    span.setAttribute("data-l10n-id", "pdfjs-highlight-floating-button-label");
+  1425→    const signal = this.#uiManager._signal;
+  1426→    button.addEventListener("contextmenu", noContextMenu, {
+  1427→      signal
+  1428→    });
+  1429→    button.addEventListener("click", () => {
+  1430→      this.#uiManager.highlightSelection("floating_button");
+  1431→    }, {
+  1432→      signal
+  1433→    });
+  1434→    this.#buttons.append(button);
+  1435→  }
+  1436→};
+  1437→function bindEvents(obj, element, names) {
+  1438→  for (const name of names) {
+  1439→    element.addEventListener(name, obj[name].bind(obj));
+  1440→  }
+  1441→}
+  1442→var IdManager = class {
+  1443→  #id = 0;
+  1444→  get id() {
+  1445→    return `${AnnotationEditorPrefix}${this.#id++}`;
+  1446→  }
+  1447→};
+  1448→var ImageManager = class _ImageManager {
+  1449→  #baseId = getUuid();
+  1450→  #id = 0;
+  1451→  #cache = null;
+  1452→  static get _isSVGFittingCanvas() {
+  1453→    const svg = `data:image/svg+xml;charset=UTF-8,<svg viewBox="0 0 1 1" width="1" height="1" xmlns="http://www.w3.org/2000/svg"><rect width="1" height="1" style="fill:red;"/></svg>`;
+  1454→    const canvas = new OffscreenCanvas(1, 3);
+  1455→    const ctx = canvas.getContext("2d", {
+  1456→      willReadFrequently: true
+  1457→    });
+  1458→    const image = new Image();
+  1459→    image.src = svg;
+  1460→    const promise = image.decode().then(() => {
+  1461→      ctx.drawImage(image, 0, 0, 1, 1, 0, 0, 1, 3);
+  1462→      return new Uint32Array(ctx.getImageData(0, 0, 1, 1).data.buffer)[0] === 0;
+  1463→    });
+  1464→    return shadow(this, "_isSVGFittingCanvas", promise);
+  1465→  }
+  1466→  async #get(key, rawData) {
+  1467→    this.#cache ||= /* @__PURE__ */ new Map();
+  1468→    let data = this.#cache.get(key);
+  1469→    if (data === null) {
+  1470→      return null;
+  1471→    }
+  1472→    if (data?.bitmap) {
+  1473→      data.refCounter += 1;
+  1474→      return data;
+  1475→    }
+  1476→    try {
+  1477→      data ||= {
+  1478→        bitmap: null,
+  1479→        id: `image_${this.#baseId}_${this.#id++}`,
+  1480→        refCounter: 0,
+  1481→        isSvg: false
+  1482→      };
+  1483→      let image;
+  1484→      if (typeof rawData === "string") {
+  1485→        data.url = rawData;
+  1486→        image = await fetchData(rawData, "blob");
+  1487→      } else if (rawData instanceof File) {
+  1488→        image = data.file = rawData;
+  1489→      } else if (rawData instanceof Blob) {
+  1490→        image = rawData;
+  1491→      }
+  1492→      if (image.type === "image/svg+xml") {
+  1493→        const mustRemoveAspectRatioPromise = _ImageManager._isSVGFittingCanvas;
+  1494→        const fileReader = new FileReader();
+  1495→        const imageElement = new Image();
+  1496→        const imagePromise = new Promise((resolve, reject) => {
+  1497→          imageElement.onload = () => {
+  1498→            data.bitmap = imageElement;
+  1499→            data.isSvg = true;
+  1500→            resolve();
+  1501→          };
+  1502→          fileReader.onload = async () => {
+  1503→            const url = data.svgUrl = fileReader.result;
+  1504→            imageElement.src = await mustRemoveAspectRatioPromise ? `${url}#svgView(preserveAspectRatio(none))` : url;
+  1505→          };
+  1506→          imageElement.onerror = fileReader.onerror = reject;
+  1507→        });
+  1508→        fileReader.readAsDataURL(image);
+  1509→        await imagePromise;
+  1510→      } else {
+  1511→        data.bitmap = await createImageBitmap(image);
+  1512→      }
+  1513→      data.refCounter = 1;
+  1514→    } catch (e) {
+  1515→      warn(e);
+  1516→      data = null;
+  1517→    }
+  1518→    this.#cache.set(key, data);
+  1519→    if (data) {
+  1520→      this.#cache.set(data.id, data);
+  1521→    }
+  1522→    return data;
+  1523→  }
+  1524→  async getFromFile(file) {
+  1525→    const {
+  1526→      lastModified,
+  1527→      name,
+  1528→      size,
+  1529→      type
+  1530→    } = file;
+  1531→    return this.#get(`${lastModified}_${name}_${size}_${type}`, file);
+  1532→  }
+  1533→  async getFromUrl(url) {
+  1534→    return this.#get(url, url);
+  1535→  }
+  1536→  async getFromBlob(id, blobPromise) {
+  1537→    const blob = await blobPromise;
+  1538→    return this.#get(id, blob);
+  1539→  }
+  1540→  async getFromId(id) {
+  1541→    this.#cache ||= /* @__PURE__ */ new Map();
+  1542→    const data = this.#cache.get(id);
+  1543→    if (!data) {
+  1544→      return null;
+  1545→    }
+  1546→    if (data.bitmap) {
+  1547→      data.refCounter += 1;
+  1548→      return data;
+  1549→    }
+  1550→    if (data.file) {
+  1551→      return this.getFromFile(data.file);
+  1552→    }
+  1553→    if (data.blobPromise) {
+  1554→      const {
+  1555→        blobPromise
+  1556→      } = data;
+  1557→      delete data.blobPromise;
+  1558→      return this.getFromBlob(data.id, blobPromise);
+  1559→    }
+  1560→    return this.getFromUrl(data.url);
+  1561→  }
+  1562→  getFromCanvas(id, canvas) {
+  1563→    this.#cache ||= /* @__PURE__ */ new Map();
+  1564→    let data = this.#cache.get(id);
+  1565→    if (data?.bitmap) {
+  1566→      data.refCounter += 1;
+  1567→      return data;
+  1568→    }
+  1569→    const offscreen = new OffscreenCanvas(canvas.width, canvas.height);
+  1570→    const ctx = offscreen.getContext("2d");
+  1571→    ctx.drawImage(canvas, 0, 0);
+  1572→    data = {
+  1573→      bitmap: offscreen.transferToImageBitmap(),
+  1574→      id: `image_${this.#baseId}_${this.#id++}`,
+  1575→      refCounter: 1,
+  1576→      isSvg: false
+  1577→    };
+  1578→    this.#cache.set(id, data);
+  1579→    this.#cache.set(data.id, data);
+  1580→    return data;
+  1581→  }
+  1582→  getSvgUrl(id) {
+  1583→    const data = this.#cache.get(id);
+  1584→    if (!data?.isSvg) {
+  1585→      return null;
+  1586→    }
+  1587→    return data.svgUrl;
+  1588→  }
+  1589→  deleteId(id) {
+  1590→    this.#cache ||= /* @__PURE__ */ new Map();
+  1591→    const data = this.#cache.get(id);
+  1592→    if (!data) {
+  1593→      return;
+  1594→    }
+  1595→    data.refCounter -= 1;
+  1596→    if (data.refCounter !== 0) {
+  1597→      return;
+  1598→    }
+  1599→    const {
+  1600→      bitmap
+  1601→    } = data;
+  1602→    if (!data.url && !data.file) {
+  1603→      const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+  1604→      const ctx = canvas.getContext("bitmaprenderer");
+  1605→      ctx.transferFromImageBitmap(bitmap);
+  1606→      data.blobPromise = canvas.convertToBlob();
+  1607→    }
+  1608→    bitmap.close?.();
+  1609→    data.bitmap = null;
+  1610→  }
+  1611→  isValidId(id) {
+  1612→    return id.startsWith(`image_${this.#baseId}_`);
+  1613→  }
+  1614→};
+  1615→var CommandManager = class {
+  1616→  #commands = [];
+  1617→  #locked = false;
+  1618→  #maxSize;
+  1619→  #position = -1;
+  1620→  constructor(maxSize = 128) {
+  1621→    this.#maxSize = maxSize;
+  1622→  }
+  1623→  add({
+  1624→    cmd,
+  1625→    undo,
+  1626→    post,
+  1627→    mustExec,
+  1628→    type = NaN,
+  1629→    overwriteIfSameType = false,
+  1630→    keepUndo = false
+  1631→  }) {
+  1632→    if (mustExec) {
+  1633→      cmd();
+  1634→    }
+  1635→    if (this.#locked) {
+  1636→      return;
+  1637→    }
+  1638→    const save = {
+  1639→      cmd,
+  1640→      undo,
+  1641→      post,
+  1642→      type
+  1643→    };
+  1644→    if (this.#position === -1) {
+  1645→      if (this.#commands.length > 0) {
+  1646→        this.#commands.length = 0;
+  1647→      }
+  1648→      this.#position = 0;
+  1649→      this.#commands.push(save);
+  1650→      return;
+  1651→    }
+  1652→    if (overwriteIfSameType && this.#commands[this.#position].type === type) {
+  1653→      if (keepUndo) {
+  1654→        save.undo = this.#commands[this.#position].undo;
+  1655→      }
+  1656→      this.#commands[this.#position] = save;
+  1657→      return;
+  1658→    }
+  1659→    const next = this.#position + 1;
+  1660→    if (next === this.#maxSize) {
+  1661→      this.#commands.splice(0, 1);
+  1662→    } else {
+  1663→      this.#position = next;
+  1664→      if (next < this.#commands.length) {
+  1665→        this.#commands.splice(next);
+  1666→      }
+  1667→    }
+  1668→    this.#commands.push(save);
+  1669→  }
+  1670→  undo() {
+  1671→    if (this.#position === -1) {
+  1672→      return;
+  1673→    }
+  1674→    this.#locked = true;
+  1675→    const {
+  1676→      undo,
+  1677→      post
+  1678→    } = this.#commands[this.#position];
+  1679→    undo();
+  1680→    post?.();
+  1681→    this.#locked = false;
+  1682→    this.#position -= 1;
+  1683→  }
+  1684→  redo() {
+  1685→    if (this.#position < this.#commands.length - 1) {
+  1686→      this.#position += 1;
+  1687→      this.#locked = true;
+  1688→      const {
+  1689→        cmd,
+  1690→        post
+  1691→      } = this.#commands[this.#position];
+  1692→      cmd();
+  1693→      post?.();
+  1694→      this.#locked = false;
+  1695→    }
+  1696→  }
+  1697→  hasSomethingToUndo() {
+  1698→    return this.#position !== -1;
+  1699→  }
+  1700→  hasSomethingToRedo() {
+  1701→    return this.#position < this.#commands.length - 1;
+  1702→  }
+  1703→  cleanType(type) {
+  1704→    if (this.#position === -1) {
+  1705→      return;
+  1706→    }
+  1707→    for (let i = this.#position; i >= 0; i--) {
+  1708→      if (this.#commands[i].type !== type) {
+  1709→        this.#commands.splice(i + 1, this.#position - i);
+  1710→        this.#position = i;
+  1711→        return;
+  1712→      }
+  1713→    }
+  1714→    this.#commands.length = 0;
+  1715→    this.#position = -1;
+  1716→  }
+  1717→  destroy() {
+  1718→    this.#commands = null;
+  1719→  }
+  1720→};
+  1721→var KeyboardManager = class {
+  1722→  constructor(callbacks) {
+  1723→    this.buffer = [];
+  1724→    this.callbacks = /* @__PURE__ */ new Map();
+  1725→    this.allKeys = /* @__PURE__ */ new Set();
+  1726→    const {
+  1727→      isMac
+  1728→    } = util_FeatureTest.platform;
+  1729→    for (const [keys, callback, options = {}] of callbacks) {
+  1730→      for (const key of keys) {
+  1731→        const isMacKey = key.startsWith("mac+");
+  1732→        if (isMac && isMacKey) {
+  1733→          this.callbacks.set(key.slice(4), {
+  1734→            callback,
+  1735→            options
+  1736→          });
+  1737→          this.allKeys.add(key.split("+").at(-1));
+  1738→        } else if (!isMac && !isMacKey) {
+  1739→          this.callbacks.set(key, {
+  1740→            callback,
+  1741→            options
+  1742→          });
+  1743→          this.allKeys.add(key.split("+").at(-1));
+  1744→        }
+  1745→      }
+  1746→    }
+  1747→  }
+  1748→  #serialize(event) {
+  1749→    if (event.altKey) {
+  1750→      this.buffer.push("alt");
+  1751→    }
+  1752→    if (event.ctrlKey) {
+  1753→      this.buffer.push("ctrl");
+  1754→    }
+  1755→    if (event.metaKey) {
+  1756→      this.buffer.push("meta");
+  1757→    }
+  1758→    if (event.shiftKey) {
+  1759→      this.buffer.push("shift");
+  1760→    }
+  1761→    this.buffer.push(event.key);
+  1762→    const str = this.buffer.join("+");
+  1763→    this.buffer.length = 0;
+  1764→    return str;
+  1765→  }
+  1766→  exec(self, event) {
+  1767→    if (!this.allKeys.has(event.key)) {
+  1768→      return;
+  1769→    }
+  1770→    const info2 = this.callbacks.get(this.#serialize(event));
+  1771→    if (!info2) {
+  1772→      return;
+  1773→    }
+  1774→    const {
+  1775→      callback,
+  1776→      options: {
+  1777→        bubbles = false,
+  1778→        args = [],
+  1779→        checker = null
+  1780→      }
+  1781→    } = info2;
+  1782→    if (checker && !checker(self, event)) {
+  1783→      return;
+  1784→    }
+  1785→    callback.bind(self, ...args, event)();
+  1786→    if (!bubbles) {
+  1787→      stopEvent(event);
+  1788→    }
+  1789→  }
+  1790→};
+  1791→var ColorManager = class _ColorManager {
+  1792→  static _colorsMapping = /* @__PURE__ */ new Map([["CanvasText", [0, 0, 0]], ["Canvas", [255, 255, 255]]]);
+  1793→  get _colors() {
+  1794→    const colors = /* @__PURE__ */ new Map([["CanvasText", null], ["Canvas", null]]);
+  1795→    getColorValues(colors);
+  1796→    return shadow(this, "_colors", colors);
+  1797→  }
+  1798→  convert(color) {
+  1799→    const rgb = getRGB(color);
+  1800→    if (!window.matchMedia("(forced-colors: active)").matches) {
+  1801→      return rgb;
+  1802→    }
+  1803→    for (const [name, RGB] of this._colors) {
+  1804→      if (RGB.every((x, i) => x === rgb[i])) {
+  1805→        return _ColorManager._colorsMapping.get(name);
+  1806→      }
+  1807→    }
+  1808→    return rgb;
+  1809→  }
+  1810→  getHexCode(name) {
+  1811→    const rgb = this._colors.get(name);
+  1812→    if (!rgb) {
+  1813→      return name;
+  1814→    }
+  1815→    return Util.makeHexColor(...rgb);
+  1816→  }
+  1817→};
+  1818→var AnnotationEditorUIManager = class _AnnotationEditorUIManager {
+  1819→  #abortController = new AbortController();
+  1820→  #activeEditor = null;
+  1821→  #allEditors = /* @__PURE__ */ new Map();
+  1822→  #allLayers = /* @__PURE__ */ new Map();
+  1823→  #altTextManager = null;
+  1824→  #annotationStorage = null;
+  1825→  #changedExistingAnnotations = null;
+  1826→  #commandManager = new CommandManager();
+  1827→  #copyPasteAC = null;
+  1828→  #currentDrawingSession = null;
+  1829→  #currentPageIndex = 0;
+  1830→  #deletedAnnotationsElementIds = /* @__PURE__ */ new Set();
+  1831→  #draggingEditors = null;
+  1832→  #editorTypes = null;
+  1833→  #editorsToRescale = /* @__PURE__ */ new Set();
+  1834→  _editorUndoBar = null;
+  1835→  #enableHighlightFloatingButton = false;
+  1836→  #enableUpdatedAddImage = false;
+  1837→  #enableNewAltTextWhenAddingImage = false;
+  1838→  #filterFactory = null;
+  1839→  #focusMainContainerTimeoutId = null;
+  1840→  #focusManagerAC = null;
+  1841→  #highlightColors = null;
+  1842→  #highlightWhenShiftUp = false;
+  1843→  #highlightToolbar = null;
+  1844→  #idManager = new IdManager();
+  1845→  #isEnabled = false;
+  1846→  #isWaiting = false;
+  1847→  #keyboardManagerAC = null;
+  1848→  #lastActiveElement = null;
+  1849→  #mainHighlightColorPicker = null;
+  1850→  #mlManager = null;
+  1851→  #mode = AnnotationEditorType.NONE;
+  1852→  #selectedEditors = /* @__PURE__ */ new Set();
+  1853→  #selectedTextNode = null;
+  1854→  #pageColors = null;
+  1855→  #showAllStates = null;
+  1856→  #previousStates = {
+  1857→    isEditing: false,
+  1858→    isEmpty: true,
+  1859→    hasSomethingToUndo: false,
+  1860→    hasSomethingToRedo: false,
+  1861→    hasSelectedEditor: false,
+  1862→    hasSelectedText: false
+  1863→  };
+  1864→  #translation = [0, 0];
+  1865→  #translationTimeoutId = null;
+  1866→  #container = null;
+  1867→  #viewer = null;
+  1868→  #updateModeCapability = null;
+  1869→  static TRANSLATE_SMALL = 1;
+  1870→  static TRANSLATE_BIG = 10;
+  1871→  static get _keyboardManager() {
+  1872→    const proto = _AnnotationEditorUIManager.prototype;
+  1873→    const arrowChecker = (self) => self.#container.contains(document.activeElement) && document.activeElement.tagName !== "BUTTON" && self.hasSomethingToControl();
+  1874→    const textInputChecker = (_self, {
+  1875→      target: el
+  1876→    }) => {
+  1877→      if (el instanceof HTMLInputElement) {
+  1878→        const {
+  1879→          type
+  1880→        } = el;
+  1881→        return type !== "text" && type !== "number";
+  1882→      }
+  1883→      return true;
+  1884→    };
+  1885→    const small = this.TRANSLATE_SMALL;
+  1886→    const big = this.TRANSLATE_BIG;
+  1887→    return shadow(this, "_keyboardManager", new KeyboardManager([[["ctrl+a", "mac+meta+a"], proto.selectAll, {
+  1888→      checker: textInputChecker
+  1889→    }], [["ctrl+z", "mac+meta+z"], proto.undo, {
+  1890→      checker: textInputChecker
+  1891→    }], [["ctrl+y", "ctrl+shift+z", "mac+meta+shift+z", "ctrl+shift+Z", "mac+meta+shift+Z"], proto.redo, {
+  1892→      checker: textInputChecker
+  1893→    }], [["Backspace", "alt+Backspace", "ctrl+Backspace", "shift+Backspace", "mac+Backspace", "mac+alt+Backspace", "mac+ctrl+Backspace", "Delete", "ctrl+Delete", "shift+Delete", "mac+Delete"], proto.delete, {
+  1894→      checker: textInputChecker
+  1895→    }], [["Enter", "mac+Enter"], proto.addNewEditorFromKeyboard, {
+  1896→      checker: (self, {
+  1897→        target: el
+  1898→      }) => !(el instanceof HTMLButtonElement) && self.#container.contains(el) && !self.isEnterHandled
+  1899→    }], [[" ", "mac+ "], proto.addNewEditorFromKeyboard, {
+  1900→      checker: (self, {
+  1901→        target: el
+  1902→      }) => !(el instanceof HTMLButtonElement) && self.#container.contains(document.activeElement)
+  1903→    }], [["Escape", "mac+Escape"], proto.unselectAll], [["ArrowLeft", "mac+ArrowLeft"], proto.translateSelectedEditors, {
+  1904→      args: [-small, 0],
+  1905→      checker: arrowChecker
+  1906→    }], [["ctrl+ArrowLeft", "mac+shift+ArrowLeft"], proto.translateSelectedEditors, {
+  1907→      args: [-big, 0],
+  1908→      checker: arrowChecker
+  1909→    }], [["ArrowRight", "mac+ArrowRight"], proto.translateSelectedEditors, {
+  1910→      args: [small, 0],
+  1911→      checker: arrowChecker
+  1912→    }], [["ctrl+ArrowRight", "mac+shift+ArrowRight"], proto.translateSelectedEditors, {
+  1913→      args: [big, 0],
+  1914→      checker: arrowChecker
+  1915→    }], [["ArrowUp", "mac+ArrowUp"], proto.translateSelectedEditors, {
+  1916→      args: [0, -small],
+  1917→      checker: arrowChecker
+  1918→    }], [["ctrl+ArrowUp", "mac+shift+ArrowUp"], proto.translateSelectedEditors, {
+  1919→      args: [0, -big],
+  1920→      checker: arrowChecker
+  1921→    }], [["ArrowDown", "mac+ArrowDown"], proto.translateSelectedEditors, {
+  1922→      args: [0, small],
+  1923→      checker: arrowChecker
+  1924→    }], [["ctrl+ArrowDown", "mac+shift+ArrowDown"], proto.translateSelectedEditors, {
+  1925→      args: [0, big],
+  1926→      checker: arrowChecker
+  1927→    }]]));
+  1928→  }
+  1929→  constructor(container, viewer, altTextManager, eventBus, pdfDocument, pageColors, highlightColors, enableHighlightFloatingButton, enableUpdatedAddImage, enableNewAltTextWhenAddingImage, mlManager, editorUndoBar) {
+  1930→    const signal = this._signal = this.#abortController.signal;
+  1931→    this.#container = container;
+  1932→    this.#viewer = viewer;
+  1933→    this.#altTextManager = altTextManager;
+  1934→    this._eventBus = eventBus;
+  1935→    eventBus._on("editingaction", this.onEditingAction.bind(this), {
+  1936→      signal
+  1937→    });
+  1938→    eventBus._on("pagechanging", this.onPageChanging.bind(this), {
+  1939→      signal
+  1940→    });
+  1941→    eventBus._on("scalechanging", this.onScaleChanging.bind(this), {
+  1942→      signal
+  1943→    });
+  1944→    eventBus._on("rotationchanging", this.onRotationChanging.bind(this), {
+  1945→      signal
+  1946→    });
+  1947→    eventBus._on("setpreference", this.onSetPreference.bind(this), {
+  1948→      signal
+  1949→    });
+  1950→    eventBus._on("switchannotationeditorparams", (evt) => this.updateParams(evt.type, evt.value), {
+  1951→      signal
+  1952→    });
+  1953→    this.#addSelectionListener();
+  1954→    this.#addDragAndDropListeners();
+  1955→    this.#addKeyboardManager();
+  1956→    this.#annotationStorage = pdfDocument.annotationStorage;
+  1957→    this.#filterFactory = pdfDocument.filterFactory;
+  1958→    this.#pageColors = pageColors;
+  1959→    this.#highlightColors = highlightColors || null;
+  1960→    this.#enableHighlightFloatingButton = enableHighlightFloatingButton;
+  1961→    this.#enableUpdatedAddImage = enableUpdatedAddImage;
+  1962→    this.#enableNewAltTextWhenAddingImage = enableNewAltTextWhenAddingImage;
+  1963→    this.#mlManager = mlManager || null;
+  1964→    this.viewParameters = {
+  1965→      realScale: PixelsPerInch.PDF_TO_CSS_UNITS,
+  1966→      rotation: 0
+  1967→    };
+  1968→    this.isShiftKeyDown = false;
+  1969→    this._editorUndoBar = editorUndoBar || null;
+  1970→  }
+  1971→  destroy() {
+  1972→    this.#updateModeCapability?.resolve();
+  1973→    this.#updateModeCapability = null;
+  1974→    this.#abortController?.abort();
+  1975→    this.#abortController = null;
+  1976→    this._signal = null;
+  1977→    for (const layer of this.#allLayers.values()) {
+  1978→      layer.destroy();
+  1979→    }
+  1980→    this.#allLayers.clear();
+  1981→    this.#allEditors.clear();
+  1982→    this.#editorsToRescale.clear();
+  1983→    this.#activeEditor = null;
+  1984→    this.#selectedEditors.clear();
+  1985→    this.#commandManager.destroy();
+  1986→    this.#altTextManager?.destroy();
+  1987→    this.#highlightToolbar?.hide();
+  1988→    this.#highlightToolbar = null;
+  1989→    if (this.#focusMainContainerTimeoutId) {
+  1990→      clearTimeout(this.#focusMainContainerTimeoutId);
+  1991→      this.#focusMainContainerTimeoutId = null;
+  1992→    }
+  1993→    if (this.#translationTimeoutId) {
+  1994→      clearTimeout(this.#translationTimeoutId);
+  1995→      this.#translationTimeoutId = null;
+  1996→    }
+  1997→    this._editorUndoBar?.destroy();
+  1998→  }
+  1999→  combinedSignal(ac) {
+  2000→    return AbortSignal.any([this._signal, ac.signal]);
+
+[showing lines 1-2000 of 21128; use offset=2001 with limit to continue reading]
