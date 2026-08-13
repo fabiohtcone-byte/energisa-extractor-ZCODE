@@ -160,23 +160,34 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
   // ===== UC =====
   // Strategy 1: Standard dotted format X.XXX.XXX-XX on its own line
   // Strategy 2: 13-digit format (e.g., 2103715020000) near address or standalone
+  // Strategy 3: Number concatenated with text (e.g., "9993000001DOM.  ENT.:")
   const UC = (() => {
+    // Strategy 1: Standard dotted format on its own line
     for (const line of lines) {
       const m = line.match(/^(\d{1,3}\.\d{3}\.\d{3}-\d{2})$/);
       if (m) return m[1];
     }
+    // Strategy 2: Dotted format on a short line (not CNPJ/CPF/CEP)
     for (const line of lines) {
       const m = line.match(/(\d{1,3}\.\d{3}\.\d{3}-\d{2})/);
       if (m && line.length < 40 && !/CNPJ|CPF|CEP/i.test(line)) return m[1];
     }
-    // Strategy 3: 13-digit UC (Energisa MS format) - look in address lines
-    // Pattern: "RUA ... - NNNNNNNNNNNNN RVD NNNNNN" or similar
+    // Strategy 3: Number (7-13 digits) concatenated with text at start of line
+    // e.g., "9993000001DOM.  ENT.:" or "9993000001 INSTALAÇÃO"
+    for (const line of lines) {
+      const m = line.match(/^(\d{7,13})(?=[A-Za-zÀ-ÿ])/);
+      if (m && !/^(\d{4})[-\/]/.test(line) && !/CEP|CNPJ|CPF|Insc/i.test(line)) return m[1];
+    }
+    // Strategy 4: 13-digit UC (Energisa MS format) - look in address lines
     const uc13 = flat.match(/(?:RUA|AV|ESTRADA)[^\d]*(\d{13})\s/);
     if (uc13) return uc13[1];
-    // Strategy 4: 13-digit standalone or near "Instalação:"
-    const uc13b = flat.match(/Instalação\s*:?\s*(\d{13})/i);
+    // Strategy 5: 13-digit standalone or near "Instalação:"
+    const uc13b = flat.match(/Instalação\s*:?\s*(\d{7,13})/i);
     if (uc13b) return uc13b[1];
-    // Strategy 5: broad search
+    // Strategy 6: 7-13 digit number near "MATRÍCULA:" or "UC" or "Inst"
+    const ucMat = flat.match(/(?:MATR[IÍ]CULA|UC\s*:?|Inst\.?\s*:?)[^\d]*(\d{7,13})/i);
+    if (ucMat) return ucMat[1];
+    // Strategy 7: broad search for dotted format
     const broad = flat.match(/(\d{1,3}\.\d{3}\.\d{3}-\d{2})/);
     return broad ? broad[1] : EMPTY;
   })();

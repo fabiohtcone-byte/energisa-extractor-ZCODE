@@ -91,7 +91,25 @@ export default function Home() {
       }
     }
 
-    setResults((prev) => [...prev, ...newResults]);
+    setResults((prev) => {
+      // Substitui extrações anteriores com a mesma UC pela nova
+      const updated = [...newResults];
+      for (const existing of prev) {
+        const existingUC = existing.data.UC.replace(/[^0-9]/g, '');
+        const alreadyAdded = updated.some(
+          (r) => r.data.UC.replace(/[^0-9]/g, '') === existingUC && existingUC !== ''
+        );
+        if (!alreadyAdded) updated.push(existing);
+      }
+      // Notifica substituições
+      for (const nr of newResults) {
+        const nrUC = nr.data.UC.replace(/[^0-9]/g, '');
+        if (nrUC && prev.some((r) => r.data.UC.replace(/[^0-9]/g, '') === nrUC)) {
+          toast.info(`UC ${nr.data.UC} atualizada com nova extração.`);
+        }
+      }
+      return updated;
+    });
     setIsProcessing(false);
 
     if (newResults.length > 0) {
