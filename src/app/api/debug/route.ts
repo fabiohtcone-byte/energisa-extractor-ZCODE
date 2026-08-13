@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { TableItem, TableExtraction } from '@/lib/energisa-extractor';
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,12 +10,38 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const pdfModule = require('pdf-parse/lib/pdf-parse.js');
-    const pdfData = await pdfModule(buffer);
-    const lines = pdfData.text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    // Step 1: text extraction
+    let text = '';
+    try {
+      const pdfModule = await import('pdf-parse');
+      const pdfData = await (pdfModule.default || pdfModule)(buffer);
+      text = pdfData.text;
+    } catch (e) {
+      return NextResponse.json({ error: 'PDF parse: ' + (e as Error).message }, { status: 500 });
+    }
 
-    return NextResponse.json({ lines, totalLines: lines.length, rawText: pdfData.text });
+    // Step 2: table extraction with full debug info
+    let tableResult: any = null;
+    try {
+      const mod = await import('node:module');
+      const nodeRequire = (mod as any).createRequire(import.meta.url);
+      const loadTable = new Function('req', 'cwd', 'return req(cwd + "/dist/energisa-table-extractor.cjs")');
+      const tableModule = loadTable(nodeRequire, process.cwd()) as {
+        extractTableFromPDF: (buf: Buffer) => Promise<TableExtraction | null>;
+      };
+      const result = await Promise.race([
+        tableModule.extractTableFromPDF(buffer),
+        new Promise<never>((_, rej) => setTimeout(() => rej(new Error('timeout')), 15000)),
+      ]);
+      if (result?.items?.length > 0) tableResult = result;
+    } catch (e) {
+      tableResult = { error: (e as Error).message };
+    }
+
+    return NextResponse.json({
+      rawText: text,
+      tableExtraction: tableResult,
+    });
   } catch (error) {
     console.error(error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
