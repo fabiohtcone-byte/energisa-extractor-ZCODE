@@ -158,36 +158,45 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
   })();
 
   // ===== UC =====
-  // Strategy 1: Standard dotted format X.XXX.XXX-XX on its own line
-  // Strategy 2: 13-digit format (e.g., 2103715020000) near address or standalone
-  // Strategy 3: Number concatenated with text (e.g., "9993000001DOM.  ENT.:")
   const UC = (() => {
-    // Strategy 1: Standard dotted format on its own line
+    // Strategy 1: Energisa slash format "NN/NNNNN-N" (e.g., "10/33836-8") — most reliable
+    for (const line of lines) {
+      const m = line.match(/^(?:\d{1,3}\/)?(\d{4,8})-\d$/);
+      if (m) {
+        const num = m[1].replace(/^0+/, '') || '0';
+        if (num.length >= 3) return num;
+      }
+    }
+    // Strategy 2: Slash format within a line near "Código:" (e.g., "Código: 10/33836-8")
+    const slashCtx = flat.match(/Código\s*:\s*(\d{1,3})\/(\d{4,8})-\d/i);
+    if (slashCtx) {
+      const num = slashCtx[2].replace(/^0+/, '') || '0';
+      if (num.length >= 3) return num;
+    }
+    // Strategy 3: Standard dotted format X.XXX.XXX-XX on its own line
     for (const line of lines) {
       const m = line.match(/^(\d{1,3}\.\d{3}\.\d{3}-\d{2})$/);
       if (m) return m[1];
     }
-    // Strategy 2: Dotted format on a short line (not CNPJ/CPF/CEP)
+    // Strategy 4: Dotted format on a short line (not CNPJ/CPF/CEP)
     for (const line of lines) {
       const m = line.match(/(\d{1,3}\.\d{3}\.\d{3}-\d{2})/);
       if (m && line.length < 40 && !/CNPJ|CPF|CEP/i.test(line)) return m[1];
     }
-    // Strategy 3: Number (7-13 digits) concatenated with text at start of line
-    // e.g., "9993000001DOM.  ENT.:" or "9993000001 INSTALAÇÃO"
-    for (const line of lines) {
-      const m = line.match(/^(\d{7,13})(?=[A-Za-zÀ-ÿ])/);
-      if (m && !/^(\d{4})[-\/]/.test(line) && !/CEP|CNPJ|CPF|Insc/i.test(line)) return m[1];
-    }
-    // Strategy 4: 13-digit UC (Energisa MS format) - look in address lines
+    // Strategy 5: MATRÍCULA field (e.g., "MATRÍCULA:0000033836-2025-08-6")
+    // Extracts the UC number from the matrícula, stripping leading zeros
+    const ucMat = flat.match(/MATR[IÍ]CULA\s*:\s*0*(\d{4,10})(?:-\d{4}-\d{2}-\d)?/i);
+    if (ucMat) return ucMat[1];
+    // Strategy 6: 13-digit UC (Energisa MS format) - look in address lines
     const uc13 = flat.match(/(?:RUA|AV|ESTRADA)[^\d]*(\d{13})\s/);
     if (uc13) return uc13[1];
-    // Strategy 5: 13-digit standalone or near "Instalação:"
+    // Strategy 7: 13-digit standalone or near "Instalação:"
     const uc13b = flat.match(/Instalação\s*:?\s*(\d{7,13})/i);
     if (uc13b) return uc13b[1];
-    // Strategy 6: 7-13 digit number near "MATRÍCULA:" or "UC" or "Inst"
-    const ucMat = flat.match(/(?:MATR[IÍ]CULA|UC\s*:?|Inst\.?\s*:?)[^\d]*(\d{7,13})/i);
-    if (ucMat) return ucMat[1];
-    // Strategy 7: broad search for dotted format
+    // Strategy 8: UC label with number
+    const ucLabel = flat.match(/(?:UC\s*:?|Unid\.?\s*Cons\.?)[^\d]*(\d{4,13})/i);
+    if (ucLabel) return ucLabel[1].replace(/^0+/, '') || ucLabel[1];
+    // Strategy 9: broad search for dotted format
     const broad = flat.match(/(\d{1,3}\.\d{3}\.\d{3}-\d{2})/);
     return broad ? broad[1] : EMPTY;
   })();

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { TableItem, TableExtraction } from '@/lib/energisa-extractor';
+import { extractEnergisaData, TableItem, TableExtraction } from '@/lib/energisa-extractor';
 
 export async function POST(request: NextRequest) {
   try {
@@ -38,9 +38,22 @@ export async function POST(request: NextRequest) {
       tableResult = { error: (e as Error).message };
     }
 
+    // Extract UC using the actual function
+    let extractedUC = 'ERROR';
+    let fullData: any = null;
+    try {
+      const tbl = tableResult && tableResult.items ? tableResult as TableExtraction : undefined;
+      fullData = extractEnergisaData(text, tbl);
+      extractedUC = String(fullData.UC) + ' [type:' + typeof fullData.UC + ']';
+    } catch(e) {
+      extractedUC = 'EXCEPTION: ' + (e as Error).message + ' ' + (e as Error).stack?.substring(0,200);
+    }
+
     return NextResponse.json({
       rawText: text,
       tableExtraction: tableResult,
+      extractedUC,
+      fieldCount: fullData ? Object.keys(fullData).length : 0,
     });
   } catch (error) {
     console.error(error);
