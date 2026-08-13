@@ -27,7 +27,7 @@ import {
   FileSpreadsheet,
   Bug,
 } from 'lucide-react';
-import { FIELD_LABELS, FIELD_CATEGORIES, type EnergisaInvoiceData } from '@/lib/energisa-extractor';
+import { FIELD_LABELS, FIELD_CATEGORIES, type EnergisaInvoiceData } from '@/lib/energisa-fields';
 
 interface ExtractionResult {
   fileName: string;

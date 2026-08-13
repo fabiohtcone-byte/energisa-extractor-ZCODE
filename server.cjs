@@ -101,7 +101,7 @@ const server = http.createServer(async (req, res) => {
       }
       const text = pd.text;
       if (!text || !text.trim()) { res.writeHead(422, {'Content-Type':'application/json'}); res.end('{"error":"no text"}'); return; }
-      const ext = extractEnergisaData(text, tableData ? tableData.items : undefined);
+      const ext = extractEnergisaData(text, tableData);
       const vals = Object.values(ext);
       const cnt = vals.filter(v => v !== '').length;
       res.writeHead(200, {'Content-Type':'application/json'});
@@ -178,6 +178,6 @@ process.on('SIGTERM', () => {
   console.log('SIGTERM ignored - keeping alive');
 });
 
-server.listen(3001, '0.0.0.0', () => {
-  console.log('> Server ready on http://localhost:3001');
+server.listen(3000, '0.0.0.0', () => {
+  console.log('> Server ready on http://localhost:3000');
 });
