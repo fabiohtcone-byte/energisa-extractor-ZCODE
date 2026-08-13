@@ -2,8 +2,17 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const { extractEnergisaData, FIELD_LABELS } = require('./dist/energisa-extractor.cjs');
-const { extractTableFromPDF } = require('./dist/energisa-table-extractor.cjs');
+// Lazy-load heavy modules only when needed (avoids pdfjs-dist killing process at startup)
+let _extractor = null;
+let _tableExtractor = null;
+function getExtractor() {
+  if (!_extractor) _extractor = require('./dist/energisa-extractor.cjs');
+  return _extractor;
+}
+function getTableExtractor() {
+  if (!_tableExtractor) _tableExtractor = require('./dist/energisa-table-extractor.cjs');
+  return _tableExtractor;
+}
 
 // ===== MIME =====
 const MIME = {
@@ -92,6 +101,7 @@ const server = http.createServer(async (req, res) => {
       }
       let tableData = null;
       try {
+        const { extractTableFromPDF } = getTableExtractor();
         tableData = await Promise.race([
           extractTableFromPDF(fp.body),
           new Promise((_, rej) => setTimeout(() => rej(new Error('table timeout')), 10000))
@@ -101,14 +111,14 @@ const server = http.createServer(async (req, res) => {
       }
       const text = pd.text;
       if (!text || !text.trim()) { res.writeHead(422, {'Content-Type':'application/json'}); res.end('{"error":"no text"}'); return; }
+      const { extractEnergisaData, FIELD_LABELS } = getExtractor();
       const ext = extractEnergisaData(text, tableData);
       const vals = Object.values(ext);
       const cnt = vals.filter(v => v !== '').length;
       res.writeHead(200, {'Content-Type':'application/json'});
       res.end(JSON.stringify({
         success: true, data: ext,
-        stats: { extractedCount: cnt, totalFields: vals.length, extractionRate: Math.round(cnt/vals.length*100), pageCount: pd.numpages },
-        rawText: text
+        stats: { extractedCount: cnt, totalFields: vals.length, extractionRate: Math.round(cnt/vals.length*100), pageCount: pd.numpages, tableItems: tableData?.items?.length ?? 0 },
       }));
       return;
     }
@@ -121,6 +131,7 @@ const server = http.createServer(async (req, res) => {
       const { invoices } = parsed;
       if (!invoices || !Array.isArray(invoices) || invoices.length === 0) { res.writeHead(400, {'Content-Type':'application/json'}); res.end('{"error":"empty"}'); return; }
       const XLSX = require('xlsx');
+      const { FIELD_LABELS } = getExtractor();
       const fk = Object.keys(FIELD_LABELS);
       const hdrs = [...fk.map(k => FIELD_LABELS[k]), 'Gerencia', 'LOCINS'];
       const rows = invoices.map(inv => [...fk.map(k => inv[k] || ''), '', '']);
@@ -165,17 +176,15 @@ const server = http.createServer(async (req, res) => {
 
 server.on('error', err => console.error('Server error:', err.message));
 
-// Prevent crashes from unhandled rejections (Node 15+)
-process.on('unhandledRejection', (reason, promise) => {
+process.on('unhandledRejection', (reason) => {
   console.error('Unhandled rejection:', reason);
 });
 process.on('uncaughtException', (err) => {
   console.error('Uncaught exception:', err.message, err.stack);
 });
 
-// Ignore SIGTERM to prevent external kills
 process.on('SIGTERM', () => {
-  console.log('SIGTERM ignored - keeping alive');
+  console.log('SIGTERM received, ignoring');
 });
 
 server.listen(3000, '0.0.0.0', () => {
