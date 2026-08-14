@@ -41,7 +41,13 @@ function parseMultipart(buf, boundary) {
   }
   return parts;
 }
+
+// Keep-alive: respond to health checks so container stays alive
+let lastReq = Date.now();
+setInterval(() => { if (Date.now() - lastReq > 300000) process.exit(1); }, 60000);
+
 const srv = http.createServer(async (req, res) => {
+  lastReq = Date.now();
   try {
     const p = new URL(req.url, 'http://x').pathname;
     if (p === '/api/extract-pdf' && req.method === 'POST') {
@@ -78,6 +84,12 @@ const srv = http.createServer(async (req, res) => {
     res.writeHead(404); res.end('404');
   } catch (e) { if (!res.headersSent) json(res, { error: e.message }, 500); }
 });
-process.on('SIGTERM', () => {});
-process.on('SIGHUP', () => {});
+
+// Ignore all signals - never exit
+['SIGTERM','SIGHUP','SIGINT','SIGUSR1','SIGUSR2'].forEach(s => process.on(s, () => {}));
+
 srv.listen(3000, '0.0.0.0', () => console.log('> Ready on :3000'));
+
+// Global error handlers to prevent crashes
+process.on('uncaughtException', (err) => { console.error('uncaught:', err.message); });
+process.on('unhandledRejection', (err) => { console.error('unhandled:', err?.message || err); });
