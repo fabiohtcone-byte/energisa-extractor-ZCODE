@@ -1,10 +1,8 @@
 #!/bin/bash
-LOG="/home/z/my-project/server.log"
-cd /home/z/my-project
 while true; do
-  echo "[$(date '+%H:%M:%S')] Starting server..." >> "$LOG"
-  setsid node /home/z/my-project/app.cjs >> "$LOG" 2>&1
-  EXIT_CODE=$?
-  echo "[$(date '+%H:%M:%S')] Crashed with exit $EXIT_CODE, restarting in 3s..." >> "$LOG"
-  sleep 3
+  if ! curl -s -o /dev/null -w '' http://localhost:3000/ 2>/dev/null; then
+    kill $(lsof -t -i:3000) 2>/dev/null
+    cd /home/z/my-project && setsid node app.cjs > /dev/null 2>&1 &
+  fi
+  sleep 10
 done
