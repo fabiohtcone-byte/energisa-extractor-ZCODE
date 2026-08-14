@@ -279,11 +279,19 @@ function extractEnergisaData(rawText, tableExtraction) {
   let UltrapassagemForaPonta = EMPTY;
   let ValorUltrapassagemPonta = EMPTY;
   let ValorUltrapassagemForaPonta = EMPTY;
+  let DemandaNaoConsumidaPonta = EMPTY;
+  let DemandaNaoConsumidaForaPonta = EMPTY;
+  let ValorNaoConsumidaPonta = EMPTY;
+  let ValorNaoConsumidaForaPonta = EMPTY;
   if (isSplitTariff) {
     UltrapassagemPonta = findQtyNearLine(lines, /Ultrapassagem.*Ponta(?!.*Fora)/i);
     UltrapassagemForaPonta = findQtyNearLine(lines, /Ultrapassagem.*Fora\s*Ponta/i);
     ValorUltrapassagemPonta = findRValueNearLine(lines, flat, /Ultrapassagem.*Ponta(?!.*Fora)/i);
     ValorUltrapassagemForaPonta = findRValueNearLine(lines, flat, /Ultrapassagem.*Fora\s*Ponta/i);
+    DemandaNaoConsumidaPonta = findQtyNearLine(lines, /Não\s*Consumida.*Ponta(?!.*Fora)/i);
+    DemandaNaoConsumidaForaPonta = findQtyNearLine(lines, /Não\s*Consumida.*Fora\s*Ponta/i);
+    ValorNaoConsumidaPonta = findRValueNearLine(lines, flat, /Não\s*Consumida.*Ponta(?!.*Fora)/i);
+    ValorNaoConsumidaForaPonta = findRValueNearLine(lines, flat, /Não\s*Consumida.*Fora\s*Ponta/i);
   }
   let ReativaExcedentePonta = EMPTY;
   let ReativaExcedenteForaPonta = EMPTY;
@@ -416,13 +424,21 @@ function extractEnergisaData(rawText, tableExtraction) {
           if (item.quantidade) DemandaMedidaForaPonta = item.quantidade;
           if (item.valor) ValorDemandaForaPonta = item.valor;
         }
-      } else if (/(?:Ultrapassagem|Ultrap|Não\s*Consumida)/i.test(lbl) && /Demanda/i.test(lbl)) {
+      } else if (/(?:Ultrapassagem|Ultrap)/i.test(lbl) && /Demanda/i.test(lbl) && !/Não\s*Consumida/i.test(lbl)) {
         if (!isFora) {
           if (item.quantidade) UltrapassagemPonta = item.quantidade;
           if (item.valor) ValorUltrapassagemPonta = item.valor;
         } else {
           if (item.quantidade) UltrapassagemForaPonta = item.quantidade;
           if (item.valor) ValorUltrapassagemForaPonta = item.valor;
+        }
+      } else if (/Não\s*Consumida/i.test(lbl) && /Demanda/i.test(lbl)) {
+        if (!isFora) {
+          if (item.quantidade) DemandaNaoConsumidaPonta = item.quantidade;
+          if (item.valor) ValorNaoConsumidaPonta = item.valor;
+        } else {
+          if (item.quantidade) DemandaNaoConsumidaForaPonta = item.quantidade;
+          if (item.valor) ValorNaoConsumidaForaPonta = item.valor;
         }
       } else if (/Reactiv?a\s*Excedente/i.test(lbl) || /Energia\s*Reativa\s*Exced/i.test(lbl)) {
         if (!isFora && /Ponta/i.test(lbl)) {
@@ -474,6 +490,10 @@ function extractEnergisaData(rawText, tableExtraction) {
     DemandaFaturadaForaPonta,
     UltrapassagemPonta,
     UltrapassagemForaPonta,
+    DemandaNaoConsumidaPonta,
+    DemandaNaoConsumidaForaPonta,
+    ValorNaoConsumidaPonta,
+    ValorNaoConsumidaForaPonta,
     ReativaExcedentePonta,
     ReativaExcedenteForaPonta,
     ValorConsumoPonta,
@@ -639,6 +659,10 @@ var FIELD_LABELS = {
   DemandaFaturadaForaPonta: "Demanda Faturada Fora Ponta (kW)",
   UltrapassagemPonta: "Ultrapassagem Ponta (kW)",
   UltrapassagemForaPonta: "Ultrapassagem Fora Ponta (kW)",
+  DemandaNaoConsumidaPonta: "Demanda Pot\xEAncia N\xE3o Consumida - Ponta (kW)",
+  DemandaNaoConsumidaForaPonta: "Demanda Pot\xEAncia N\xE3o Consumida - Fora Ponta (kW)",
+  ValorNaoConsumidaPonta: "Valor N\xE3o Consumida Ponta (R$)",
+  ValorNaoConsumidaForaPonta: "Valor N\xE3o Consumida Fora Ponta (R$)",
   ReativaExcedentePonta: "Reativa Excedente Ponta (kWh)",
   ReativaExcedenteForaPonta: "Reativa Excedente Fora Ponta (kWh)",
   ValorConsumoPonta: "Valor Consumo Ponta (R$)",
@@ -670,10 +694,12 @@ var FIELD_CATEGORIES = [
   { category: "Demanda Medida (kW)", fields: ["DemandaMedidaPonta", "DemandaMedidaForaPonta"] },
   { category: "Demanda Faturada (kW)", fields: ["DemandaFaturadaPonta", "DemandaFaturadaForaPonta"] },
   { category: "Ultrapassagem (kW)", fields: ["UltrapassagemPonta", "UltrapassagemForaPonta"] },
+  { category: "Demanda N\xE3o Consumida (kW)", fields: ["DemandaNaoConsumidaPonta", "DemandaNaoConsumidaForaPonta"] },
   { category: "Reativa Excedente (kWh)", fields: ["ReativaExcedentePonta", "ReativaExcedenteForaPonta", "EnergiaReativaTotal"] },
   { category: "Valores - Consumo (R$)", fields: ["ValorConsumoPonta", "ValorConsumoForaPonta"] },
   { category: "Valores - Demanda (R$)", fields: ["ValorDemandaPonta", "ValorDemandaForaPonta"] },
   { category: "Valores - Ultrapassagem (R$)", fields: ["ValorUltrapassagemPonta", "ValorUltrapassagemForaPonta"] },
+  { category: "Valores - Demanda N\xE3o Consumida (R$)", fields: ["ValorNaoConsumidaPonta", "ValorNaoConsumidaForaPonta"] },
   { category: "Valores - Reativa Excedente (R$)", fields: ["ValorReativaExcedentePonta", "ValorReativaExcedenteForaPonta"] },
   { category: "Tributos e Encargos (R$)", fields: ["PIS", "COFINS", "ICMS", "GDI", "CIP"] },
   { category: "Energia Injetada GDI oUC", fields: ["EnergiaAtvInjetadaGDIoUC_Qtd", "EnergiaAtvInjetadaGDIoUC_Valor"] },

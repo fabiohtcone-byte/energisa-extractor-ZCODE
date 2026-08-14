@@ -41,6 +41,10 @@ export interface EnergisaInvoiceData {
   DemandaFaturadaForaPonta: string;
   UltrapassagemPonta: string;
   UltrapassagemForaPonta: string;
+  DemandaNaoConsumidaPonta: string;
+  DemandaNaoConsumidaForaPonta: string;
+  ValorNaoConsumidaPonta: string;
+  ValorNaoConsumidaForaPonta: string;
   ReativaExcedentePonta: string;
   ReativaExcedenteForaPonta: string;
   ValorConsumoPonta: string;
@@ -362,11 +366,20 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
   let UltrapassagemForaPonta = EMPTY;
   let ValorUltrapassagemPonta = EMPTY;
   let ValorUltrapassagemForaPonta = EMPTY;
+  // ===== DEMANDA NÃO CONSUMIDA =====
+  let DemandaNaoConsumidaPonta = EMPTY;
+  let DemandaNaoConsumidaForaPonta = EMPTY;
+  let ValorNaoConsumidaPonta = EMPTY;
+  let ValorNaoConsumidaForaPonta = EMPTY;
   if (isSplitTariff) {
     UltrapassagemPonta = findQtyNearLine(lines, /Ultrapassagem.*Ponta(?!.*Fora)/i);
     UltrapassagemForaPonta = findQtyNearLine(lines, /Ultrapassagem.*Fora\s*Ponta/i);
     ValorUltrapassagemPonta = findRValueNearLine(lines, flat, /Ultrapassagem.*Ponta(?!.*Fora)/i);
     ValorUltrapassagemForaPonta = findRValueNearLine(lines, flat, /Ultrapassagem.*Fora\s*Ponta/i);
+    DemandaNaoConsumidaPonta = findQtyNearLine(lines, /Não\s*Consumida.*Ponta(?!.*Fora)/i);
+    DemandaNaoConsumidaForaPonta = findQtyNearLine(lines, /Não\s*Consumida.*Fora\s*Ponta/i);
+    ValorNaoConsumidaPonta = findRValueNearLine(lines, flat, /Não\s*Consumida.*Ponta(?!.*Fora)/i);
+    ValorNaoConsumidaForaPonta = findRValueNearLine(lines, flat, /Não\s*Consumida.*Fora\s*Ponta/i);
   }
 
   // ===== REATIVA EXCEDENTE =====
@@ -540,14 +553,24 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
           if (item.valor) ValorDemandaForaPonta = item.valor;
         }
       }
-      // Ultrapassagem / Não Consumida
-      else if (/(?:Ultrapassagem|Ultrap|Não\s*Consumida)/i.test(lbl) && /Demanda/i.test(lbl)) {
+      // Ultrapassagem
+      else if (/(?:Ultrapassagem|Ultrap)/i.test(lbl) && /Demanda/i.test(lbl) && !/Não\s*Consumida/i.test(lbl)) {
         if (!isFora) {
           if (item.quantidade) UltrapassagemPonta = item.quantidade;
           if (item.valor) ValorUltrapassagemPonta = item.valor;
         } else {
           if (item.quantidade) UltrapassagemForaPonta = item.quantidade;
           if (item.valor) ValorUltrapassagemForaPonta = item.valor;
+        }
+      }
+      // Demanda Potência Não Consumida
+      else if (/Não\s*Consumida/i.test(lbl) && /Demanda/i.test(lbl)) {
+        if (!isFora) {
+          if (item.quantidade) DemandaNaoConsumidaPonta = item.quantidade;
+          if (item.valor) ValorNaoConsumidaPonta = item.valor;
+        } else {
+          if (item.quantidade) DemandaNaoConsumidaForaPonta = item.quantidade;
+          if (item.valor) ValorNaoConsumidaForaPonta = item.valor;
         }
       }
       // Reativa Excedente
@@ -600,6 +623,8 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
     DemandaMedidaPonta, DemandaMedidaForaPonta,
     DemandaFaturadaPonta, DemandaFaturadaForaPonta,
     UltrapassagemPonta, UltrapassagemForaPonta,
+    DemandaNaoConsumidaPonta, DemandaNaoConsumidaForaPonta,
+    ValorNaoConsumidaPonta, ValorNaoConsumidaForaPonta,
     ReativaExcedentePonta, ReativaExcedenteForaPonta,
     ValorConsumoPonta, ValorConsumoForaPonta,
     ValorDemandaPonta, ValorDemandaForaPonta,
@@ -778,6 +803,10 @@ export const FIELD_LABELS: Record<keyof EnergisaInvoiceData, string> = {
   DemandaFaturadaForaPonta: 'Demanda Faturada Fora Ponta (kW)',
   UltrapassagemPonta: 'Ultrapassagem Ponta (kW)',
   UltrapassagemForaPonta: 'Ultrapassagem Fora Ponta (kW)',
+  DemandaNaoConsumidaPonta: 'Demanda Potência Não Consumida - Ponta (kW)',
+  DemandaNaoConsumidaForaPonta: 'Demanda Potência Não Consumida - Fora Ponta (kW)',
+  ValorNaoConsumidaPonta: 'Valor Não Consumida Ponta (R$)',
+  ValorNaoConsumidaForaPonta: 'Valor Não Consumida Fora Ponta (R$)',
   ReativaExcedentePonta: 'Reativa Excedente Ponta (kWh)',
   ReativaExcedenteForaPonta: 'Reativa Excedente Fora Ponta (kWh)',
   ValorConsumoPonta: 'Valor Consumo Ponta (R$)',
@@ -810,10 +839,12 @@ export const FIELD_CATEGORIES: { category: string; fields: (keyof EnergisaInvoic
   { category: 'Demanda Medida (kW)', fields: ['DemandaMedidaPonta', 'DemandaMedidaForaPonta'] },
   { category: 'Demanda Faturada (kW)', fields: ['DemandaFaturadaPonta', 'DemandaFaturadaForaPonta'] },
   { category: 'Ultrapassagem (kW)', fields: ['UltrapassagemPonta', 'UltrapassagemForaPonta'] },
+  { category: 'Demanda Não Consumida (kW)', fields: ['DemandaNaoConsumidaPonta', 'DemandaNaoConsumidaForaPonta'] },
   { category: 'Reativa Excedente (kWh)', fields: ['ReativaExcedentePonta', 'ReativaExcedenteForaPonta', 'EnergiaReativaTotal'] },
   { category: 'Valores - Consumo (R$)', fields: ['ValorConsumoPonta', 'ValorConsumoForaPonta'] },
   { category: 'Valores - Demanda (R$)', fields: ['ValorDemandaPonta', 'ValorDemandaForaPonta'] },
   { category: 'Valores - Ultrapassagem (R$)', fields: ['ValorUltrapassagemPonta', 'ValorUltrapassagemForaPonta'] },
+  { category: 'Valores - Demanda Não Consumida (R$)', fields: ['ValorNaoConsumidaPonta', 'ValorNaoConsumidaForaPonta'] },
   { category: 'Valores - Reativa Excedente (R$)', fields: ['ValorReativaExcedentePonta', 'ValorReativaExcedenteForaPonta'] },
   { category: 'Tributos e Encargos (R$)', fields: ['PIS', 'COFINS', 'ICMS', 'GDI', 'CIP'] },
   { category: 'Energia Injetada GDI oUC', fields: ['EnergiaAtvInjetadaGDIoUC_Qtd', 'EnergiaAtvInjetadaGDIoUC_Valor'] },

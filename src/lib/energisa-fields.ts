@@ -44,6 +44,10 @@ export interface EnergisaInvoiceData {
   DemandaFaturadaForaPonta: string;
   UltrapassagemPonta: string;
   UltrapassagemForaPonta: string;
+  DemandaNaoConsumidaPonta: string;
+  DemandaNaoConsumidaForaPonta: string;
+  ValorNaoConsumidaPonta: string;
+  ValorNaoConsumidaForaPonta: string;
   ReativaExcedentePonta: string;
   ReativaExcedenteForaPonta: string;
   ValorConsumoPonta: string;
@@ -90,6 +94,10 @@ export const FIELD_LABELS: Record<keyof EnergisaInvoiceData, string> = {
   DemandaFaturadaForaPonta: 'Demanda Faturada Fora Ponta (kW)',
   UltrapassagemPonta: 'Ultrapassagem Ponta (kW)',
   UltrapassagemForaPonta: 'Ultrapassagem Fora Ponta (kW)',
+  DemandaNaoConsumidaPonta: 'Demanda Potência Não Consumida - Ponta (kW)',
+  DemandaNaoConsumidaForaPonta: 'Demanda Potência Não Consumida - Fora Ponta (kW)',
+  ValorNaoConsumidaPonta: 'Valor Não Consumida Ponta (R$)',
+  ValorNaoConsumidaForaPonta: 'Valor Não Consumida Fora Ponta (R$)',
   ReativaExcedentePonta: 'Reativa Excedente Ponta (kWh)',
   ReativaExcedenteForaPonta: 'Reativa Excedente Fora Ponta (kWh)',
   ValorConsumoPonta: 'Valor Consumo Ponta (R$)',
@@ -122,10 +130,12 @@ export const FIELD_CATEGORIES: { category: string; fields: (keyof EnergisaInvoic
   { category: 'Demanda Medida (kW)', fields: ['DemandaMedidaPonta', 'DemandaMedidaForaPonta'] },
   { category: 'Demanda Faturada (kW)', fields: ['DemandaFaturadaPonta', 'DemandaFaturadaForaPonta'] },
   { category: 'Ultrapassagem (kW)', fields: ['UltrapassagemPonta', 'UltrapassagemForaPonta'] },
+  { category: 'Demanda Não Consumida (kW)', fields: ['DemandaNaoConsumidaPonta', 'DemandaNaoConsumidaForaPonta'] },
   { category: 'Reativa Excedente (kWh)', fields: ['ReativaExcedentePonta', 'ReativaExcedenteForaPonta', 'EnergiaReativaTotal'] },
   { category: 'Valores - Consumo (R$)', fields: ['ValorConsumoPonta', 'ValorConsumoForaPonta'] },
   { category: 'Valores - Demanda (R$)', fields: ['ValorDemandaPonta', 'ValorDemandaForaPonta'] },
   { category: 'Valores - Ultrapassagem (R$)', fields: ['ValorUltrapassagemPonta', 'ValorUltrapassagemForaPonta'] },
+  { category: 'Valores - Demanda Não Consumida (R$)', fields: ['ValorNaoConsumidaPonta', 'ValorNaoConsumidaForaPonta'] },
   { category: 'Valores - Reativa Excedente (R$)', fields: ['ValorReativaExcedentePonta', 'ValorReativaExcedenteForaPonta'] },
   { category: 'Tributos e Encargos (R$)', fields: ['PIS', 'COFINS', 'ICMS', 'GDI', 'CIP'] },
   { category: 'Energia Injetada GDI oUC', fields: ['EnergiaAtvInjetadaGDIoUC_Qtd', 'EnergiaAtvInjetadaGDIoUC_Valor'] },
