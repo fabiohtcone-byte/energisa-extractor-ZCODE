@@ -26,8 +26,16 @@ import {
   BarChart3,
   FileSpreadsheet,
   Bug,
+  Loader2,
 } from 'lucide-react';
 import { FIELD_LABELS, FIELD_CATEGORIES, type EnergisaInvoiceData } from '@/lib/energisa-fields';
+
+interface FileProgress {
+  fileName: string;
+  status: 'pending' | 'processing' | 'done' | 'error';
+  result?: ExtractionResult;
+  errorMsg?: string;
+}
 
 interface ExtractionResult {
   fileName: string;
@@ -47,6 +55,7 @@ export default function Home() {
   const [isDragging, setIsDragging] = useState(false);
   const [activeTab, setActiveTab] = useState('upload');
   const [debugMode, setDebugMode] = useState(false);
+  const [fileProgress, setFileProgress] = useState<FileProgress[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const processFiles = useCallback(async (files: FileList | File[]) => {
@@ -59,9 +68,24 @@ export default function Home() {
     setIsProcessing(true);
     const newResults: ExtractionResult[] = [];
 
-    if (pdfFiles.length === 1) {
-      // Single file: use the simple endpoint
-      const file = pdfFiles[0];
+    // Initialize progress for all files
+    const initialProgress: FileProgress[] = pdfFiles.map((f) => ({
+      fileName: f.name,
+      status: 'pending',
+    }));
+    setFileProgress(initialProgress);
+
+    // Process files sequentially with per-file progress
+    for (let i = 0; i < pdfFiles.length; i++) {
+      const file = pdfFiles[i];
+
+      // Mark current file as processing
+      setFileProgress((prev) =>
+        prev.map((p, idx) =>
+          idx === i ? { ...p, status: 'processing' as const } : p
+        )
+      );
+
       try {
         const formData = new FormData();
         formData.append('file', file);
@@ -70,50 +94,36 @@ export default function Home() {
           body: formData,
         });
         const result = await response.json();
+
         if (!response.ok) {
+          setFileProgress((prev) =>
+            prev.map((p, idx) =>
+              idx === i ? { ...p, status: 'error' as const, errorMsg: result.error } : p
+            )
+          );
           toast.error(`${file.name}: ${result.error}`);
         } else {
-          newResults.push({
+          const extractionResult: ExtractionResult = {
             fileName: file.name,
             data: result.data,
             stats: result.stats,
             rawText: result.rawText,
-          });
+          };
+          newResults.push(extractionResult);
+          setFileProgress((prev) =>
+            prev.map((p, idx) =>
+              idx === i ? { ...p, status: 'done' as const, result: extractionResult } : p
+            )
+          );
           toast.success(`${file.name}: ${result.stats.extractedCount}/${result.stats.totalFields} campos (${result.stats.extractionRate}%)`);
         }
       } catch {
+        setFileProgress((prev) =>
+          prev.map((p, idx) =>
+            idx === i ? { ...p, status: 'error' as const, errorMsg: 'Erro ao processar' } : p
+          )
+        );
         toast.error(`${file.name}: Erro ao processar.`);
-      }
-    } else {
-      // Multiple files: use batch endpoint (single Node.js process, no repeated cold-start)
-      try {
-        const formData = new FormData();
-        for (const f of pdfFiles) {
-          formData.append('file', f);
-        }
-        const response = await fetch('/api/extract-batch', {
-          method: 'POST',
-          body: formData,
-        });
-        const results = await response.json();
-        if (!response.ok || !Array.isArray(results)) {
-          toast.error(results?.error || 'Erro no processamento em lote.');
-        } else {
-          for (const r of results) {
-            if (r.error) {
-              toast.error(`${r.fileName}: ${r.error}`);
-            } else {
-              newResults.push({
-                fileName: r.fileName,
-                data: r.data,
-                stats: r.stats,
-              });
-              toast.success(`${r.fileName}: ${r.stats.extractedCount}/${r.stats.totalFields} campos (${r.stats.extractionRate}%)`);
-            }
-          }
-        }
-      } catch {
-        toast.error('Erro ao processar arquivos em lote.');
       }
     }
 
@@ -135,6 +145,7 @@ export default function Home() {
       return updated;
     });
     setIsProcessing(false);
+    setFileProgress([]);
 
     if (newResults.length > 0) {
       setActiveTab('results');
@@ -293,36 +304,125 @@ export default function Home() {
                     className="hidden"
                   />
                   <div className="flex flex-col items-center gap-3">
-                    {isProcessing ? (
-                      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-600" />
-                    ) : (
+                    {!isProcessing && (
                       <div className="p-3 rounded-full bg-emerald-100 text-emerald-600">
                         <FileText className="h-8 w-8" />
                       </div>
                     )}
-                    <div>
-                      <p className="text-base font-semibold text-slate-700">
-                        {isProcessing ? 'Processando...' : 'Arraste faturas PDF aqui'}
-                      </p>
-                      <p className="text-sm text-slate-500 mt-1">
-                        {isProcessing
-                          ? 'Extraindo dados dos PDFs...'
-                          : 'ou clique para selecionar os arquivos'}
-                      </p>
-                    </div>
-                    {/* Debug toggle */}
-                    <label className="flex items-center gap-2 mt-4 cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={debugMode}
-                        onChange={(e) => setDebugMode(e.target.checked)}
-                        disabled={isProcessing}
-                        className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-                      />
-                      <Bug className="h-4 w-4 text-slate-500" />
-                      <span className="text-xs text-slate-500">Modo Debug (mostra texto bruto do PDF)</span>
-                    </label>
+                    {!isProcessing && (
+                      <div>
+                        <p className="text-base font-semibold text-slate-700">
+                          Arraste faturas PDF aqui
+                        </p>
+                        <p className="text-sm text-slate-500 mt-1">
+                          ou clique para selecionar os arquivos
+                        </p>
+                      </div>
+                    )}
+                    {/* Debug toggle - only when not processing */}
+                    {!isProcessing && (
+                      <label className="flex items-center gap-2 mt-4 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={debugMode}
+                          onChange={(e) => setDebugMode(e.target.checked)}
+                          className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                        />
+                        <Bug className="h-4 w-4 text-slate-500" />
+                        <span className="text-xs text-slate-500">Modo Debug (mostra texto bruto do PDF)</span>
+                      </label>
+                    )}
                   </div>
+
+                  {/* Processing progress panel */}
+                  {isProcessing && fileProgress.length > 0 && (
+                    <div className="w-full max-w-md mx-auto text-left">
+                      {/* Overall progress bar */}
+                      <div className="mb-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-semibold text-slate-700">
+                            Processando faturas
+                          </span>
+                          <span className="text-sm font-medium text-emerald-700">
+                            {fileProgress.filter((p) => p.status === 'done' || p.status === 'error').length}/{fileProgress.length}
+                          </span>
+                        </div>
+                        <Progress
+                          value={(fileProgress.filter((p) => p.status === 'done' || p.status === 'error').length / fileProgress.length) * 100}
+                          className="h-2.5 [&>div]:bg-emerald-500"
+                        />
+                      </div>
+
+                      {/* Per-file list */}
+                      <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                        {fileProgress.map((fp, idx) => (
+                          <div
+                            key={idx}
+                            className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all ${
+                              fp.status === 'processing'
+                                ? 'bg-emerald-50 border border-emerald-200'
+                                : fp.status === 'done'
+                                  ? 'bg-slate-50'
+                                  : fp.status === 'error'
+                                    ? 'bg-red-50 border border-red-100'
+                                    : 'bg-slate-50/50'
+                            }`}
+                          >
+                            {/* Status icon */}
+                            <div className="flex-shrink-0">
+                              {fp.status === 'pending' && (
+                                <div className="h-5 w-5 rounded-full border-2 border-slate-300" />
+                              )}
+                              {fp.status === 'processing' && (
+                                <Loader2 className="h-5 w-5 text-emerald-600 animate-spin" />
+                              )}
+                              {fp.status === 'done' && (
+                                <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                              )}
+                              {fp.status === 'error' && (
+                                <AlertCircle className="h-5 w-5 text-red-500" />
+                              )}
+                            </div>
+
+                            {/* File name + stats */}
+                            <div className="flex-1 min-w-0">
+                              <p className={`truncate text-sm ${
+                                fp.status === 'processing' ? 'font-medium text-emerald-800' :
+                                fp.status === 'error' ? 'text-red-700' :
+                                fp.status === 'done' ? 'text-slate-700' : 'text-slate-400'
+                              }`}>
+                                {fp.fileName}
+                              </p>
+                              {fp.status === 'processing' && (
+                                <p className="text-xs text-emerald-600 mt-0.5">Extraindo dados...</p>
+                              )}
+                              {fp.status === 'done' && fp.result && (
+                                <p className="text-xs text-slate-500 mt-0.5">
+                                  {fp.result.stats.extractedCount}/{fp.result.stats.totalFields} campos ({fp.result.stats.extractionRate}%) — {fp.result.data.UC || 'UC não encontrada'}
+                                </p>
+                              )}
+                              {fp.status === 'error' && (
+                                <p className="text-xs text-red-500 mt-0.5">{fp.errorMsg}</p>
+                              )}
+                            </div>
+
+                            {/* Extraction rate badge for done */}
+                            {fp.status === 'done' && fp.result && (
+                              <span className={`flex-shrink-0 text-xs font-medium px-2 py-0.5 rounded-full ${
+                                fp.result.stats.extractionRate >= 70
+                                  ? 'bg-emerald-100 text-emerald-700'
+                                  : fp.result.stats.extractionRate >= 40
+                                    ? 'bg-amber-100 text-amber-700'
+                                    : 'bg-red-100 text-red-700'
+                              }`}>
+                                {fp.result.stats.extractionRate}%
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {results.length > 0 && (
