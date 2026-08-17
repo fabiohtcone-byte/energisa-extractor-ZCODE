@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Lightweight static file server + API proxy for ENERGISA invoice extraction.
 Uses Python (survives container) for serving; spawns Node.js for PDF processing."""
-import http.server, json, os, subprocess, sys, signal, socket
+import http.server, json, os, subprocess, sys, signal, socket, time
 
 ROOT = '/home/z/my-project'
 BUILD = os.path.join(ROOT, '.next')
@@ -21,7 +21,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         p = self.path.split('?')[0]
         if p.startswith('/_next/'):
-            rel = p[7:]  # strip '/_next/' → 'static/chunks/...' etc.
+            rel = p[7:]
             fp = os.path.join(BUILD, rel)
         elif p in ('/', '/index.html'):
             fp = os.path.join(BUILD, 'server', 'app', 'index.html')
@@ -46,6 +46,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         body = self.rfile.read(cl) if cl > 0 else b''
 
         if self.path == '/api/extract-pdf' and 'multipart' in ct:
+            t0 = time.time()
             try:
                 env = os.environ.copy()
                 env['CONTENT_TYPE'] = ct
@@ -53,11 +54,21 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     ['node', os.path.join(SCRIPTS, 'api-extract.cjs')],
                     input=body, capture_output=True, timeout=120, env=env
                 )
+                elapsed = round((time.time() - t0) * 1000)
                 if r.returncode == 0 and r.stdout:
-                    self.send_response(200)
-                    self.send_header('Content-Type', 'application/json')
-                    self.end_headers()
-                    self.wfile.write(r.stdout)
+                    try:
+                        result = json.loads(r.stdout)
+                        if 'stats' in result:
+                            result['stats']['totalTimeMs'] = elapsed
+                        self.send_response(200)
+                        self.send_header('Content-Type', 'application/json')
+                        self.end_headers()
+                        self.wfile.write(json.dumps(result).encode())
+                    except json.JSONDecodeError:
+                        self.send_response(200)
+                        self.send_header('Content-Type', 'application/json')
+                        self.end_headers()
+                        self.wfile.write(r.stdout)
                 else:
                     self.send_json(500, {'error': (r.stderr or b'unknown').decode()[:500]})
             except subprocess.TimeoutExpired:

@@ -59,37 +59,46 @@ export default function Home() {
     setIsProcessing(true);
     const newResults: ExtractionResult[] = [];
 
-    for (const file of pdfFiles) {
-      try {
-        const formData = new FormData();
-        formData.append('file', file);
+    // Process files in parallel (max 3 concurrent) for much faster multi-file uploads
+    const MAX_CONCURRENT = 3;
+    const pdfFilesArr = Array.from(pdfFiles);
+    const fileResults: (ExtractionResult | null)[] = new Array(pdfFilesArr.length).fill(null);
+    let nextIdx = 0;
 
-        if (debugMode) formData.append('debug', 'true');
-
-        const response = await fetch('/api/extract-pdf', {
-          method: 'POST',
-          body: formData,
-        });
-
-        const result = await response.json();
-
-        if (!response.ok) {
-          toast.error(`${file.name}: ${result.error}`);
-          continue;
+    const worker = async (workerId: number) => {
+      while (nextIdx < pdfFilesArr.length) {
+        const idx = nextIdx++;
+        const file = pdfFilesArr[idx];
+        try {
+          const formData = new FormData();
+          formData.append('file', file);
+          if (debugMode) formData.append('debug', 'true');
+          const response = await fetch('/api/extract-pdf', {
+            method: 'POST',
+            body: formData,
+          });
+          const result = await response.json();
+          if (!response.ok) {
+            toast.error(`${file.name}: ${result.error}`);
+            fileResults[idx] = null;
+          } else {
+            fileResults[idx] = {
+              fileName: file.name,
+              data: result.data,
+              stats: result.stats,
+              rawText: result.rawText,
+            };
+            toast.success(`${file.name}: ${result.stats.extractedCount}/${result.stats.totalFields} campos (${result.stats.extractionRate}%)`);
+          }
+        } catch {
+          toast.error(`${file.name}: Erro ao processar.`);
+          fileResults[idx] = null;
         }
-
-        newResults.push({
-          fileName: file.name,
-          data: result.data,
-          stats: result.stats,
-          rawText: result.rawText,
-        });
-
-        toast.success(`${file.name}: ${result.stats.extractedCount}/${result.stats.totalFields} campos extraídos (${result.stats.extractionRate}%)`);
-      } catch {
-        toast.error(`${file.name}: Erro ao processar.`);
       }
-    }
+    };
+
+    await Promise.all(Array.from({ length: Math.min(MAX_CONCURRENT, pdfFilesArr.length) }, (_, i) => worker(i)));
+    newResults.push(...fileResults.filter((r): r is ExtractionResult => r !== null));
 
     setResults((prev) => {
       // Substitui extrações anteriores com a mesma UC pela nova
