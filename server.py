@@ -2,6 +2,7 @@
 """Lightweight static file server + API proxy for ENERGISA invoice extraction.
 Uses Python (survives container) for serving; spawns Node.js for PDF processing."""
 import http.server, json, os, subprocess, sys, signal, socket, time
+from http.server import ThreadingHTTPServer
 
 ROOT = '/home/z/my-project'
 BUILD = os.path.join(ROOT, '.next')
@@ -77,6 +78,38 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self.send_json(500, {'error': str(e)[:500]})
             return
 
+        if self.path == '/api/extract-batch' and 'multipart' in ct:
+            t0 = time.time()
+            try:
+                env = os.environ.copy()
+                env['CONTENT_TYPE'] = ct
+                timeout = max(60, len(body) // 50000 * 30)  # scale timeout with upload size
+                r = subprocess.run(
+                    ['node', os.path.join(SCRIPTS, 'api-extract-batch.cjs')],
+                    input=body, capture_output=True, timeout=timeout, env=env
+                )
+                elapsed = round((time.time() - t0) * 1000)
+                if r.returncode == 0 and r.stdout:
+                    try:
+                        results = json.loads(r.stdout)
+                        if isinstance(results, list):
+                            for item in results:
+                                if 'stats' in item:
+                                    item['stats']['totalTimeMs'] = elapsed
+                        self.send_response(200)
+                        self.send_header('Content-Type', 'application/json')
+                        self.end_headers()
+                        self.wfile.write(json.dumps(results).encode())
+                    except json.JSONDecodeError:
+                        self.send_json(500, {'error': 'invalid batch response'})
+                else:
+                    self.send_json(500, {'error': (r.stderr or b'unknown').decode()[:500]})
+            except subprocess.TimeoutExpired:
+                self.send_json(504, {'error': 'Batch processing timeout'})
+            except Exception as e:
+                self.send_json(500, {'error': str(e)[:500]})
+            return
+
         if self.path == '/api/export-excel':
             try:
                 r = subprocess.run(
@@ -107,9 +140,10 @@ for sig in (signal.SIGTERM, signal.SIGHUP, signal.SIGINT):
     signal.signal(sig, signal.SIG_IGN)
 
 if __name__ == '__main__':
-    class ReusableHTTPServer(http.server.HTTPServer):
+    class ReusableThreadingServer(ThreadingHTTPServer):
         allow_reuse_address = True
         allow_reuse_port = True
-    srv = ReusableHTTPServer(('0.0.0.0', 3000), Handler)
+        daemon_threads = True
+    srv = ReusableThreadingServer(('0.0.0.0', 3000), Handler)
     print('> Ready on :3000')
     srv.serve_forever()

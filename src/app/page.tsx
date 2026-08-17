@@ -59,49 +59,65 @@ export default function Home() {
     setIsProcessing(true);
     const newResults: ExtractionResult[] = [];
 
-    // Process files in parallel (max 3 concurrent) for much faster multi-file uploads
-    const MAX_CONCURRENT = 3;
-    const pdfFilesArr = Array.from(pdfFiles);
-    const fileResults: (ExtractionResult | null)[] = new Array(pdfFilesArr.length).fill(null);
-    let nextIdx = 0;
-
-    const worker = async (workerId: number) => {
-      while (nextIdx < pdfFilesArr.length) {
-        const idx = nextIdx++;
-        const file = pdfFilesArr[idx];
-        try {
-          const formData = new FormData();
-          formData.append('file', file);
-          if (debugMode) formData.append('debug', 'true');
-          const response = await fetch('/api/extract-pdf', {
-            method: 'POST',
-            body: formData,
+    if (pdfFiles.length === 1) {
+      // Single file: use the simple endpoint
+      const file = pdfFiles[0];
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        const response = await fetch('/api/extract-pdf', {
+          method: 'POST',
+          body: formData,
+        });
+        const result = await response.json();
+        if (!response.ok) {
+          toast.error(`${file.name}: ${result.error}`);
+        } else {
+          newResults.push({
+            fileName: file.name,
+            data: result.data,
+            stats: result.stats,
+            rawText: result.rawText,
           });
-          const result = await response.json();
-          if (!response.ok) {
-            toast.error(`${file.name}: ${result.error}`);
-            fileResults[idx] = null;
-          } else {
-            fileResults[idx] = {
-              fileName: file.name,
-              data: result.data,
-              stats: result.stats,
-              rawText: result.rawText,
-            };
-            toast.success(`${file.name}: ${result.stats.extractedCount}/${result.stats.totalFields} campos (${result.stats.extractionRate}%)`);
-          }
-        } catch {
-          toast.error(`${file.name}: Erro ao processar.`);
-          fileResults[idx] = null;
+          toast.success(`${file.name}: ${result.stats.extractedCount}/${result.stats.totalFields} campos (${result.stats.extractionRate}%)`);
         }
+      } catch {
+        toast.error(`${file.name}: Erro ao processar.`);
       }
-    };
-
-    await Promise.all(Array.from({ length: Math.min(MAX_CONCURRENT, pdfFilesArr.length) }, (_, i) => worker(i)));
-    newResults.push(...fileResults.filter((r): r is ExtractionResult => r !== null));
+    } else {
+      // Multiple files: use batch endpoint (single Node.js process, no repeated cold-start)
+      try {
+        const formData = new FormData();
+        for (const f of pdfFiles) {
+          formData.append('file', f);
+        }
+        const response = await fetch('/api/extract-batch', {
+          method: 'POST',
+          body: formData,
+        });
+        const results = await response.json();
+        if (!response.ok || !Array.isArray(results)) {
+          toast.error(results?.error || 'Erro no processamento em lote.');
+        } else {
+          for (const r of results) {
+            if (r.error) {
+              toast.error(`${r.fileName}: ${r.error}`);
+            } else {
+              newResults.push({
+                fileName: r.fileName,
+                data: r.data,
+                stats: r.stats,
+              });
+              toast.success(`${r.fileName}: ${r.stats.extractedCount}/${r.stats.totalFields} campos (${r.stats.extractionRate}%)`);
+            }
+          }
+        }
+      } catch {
+        toast.error('Erro ao processar arquivos em lote.');
+      }
+    }
 
     setResults((prev) => {
-      // Substitui extrações anteriores com a mesma UC pela nova
       const updated = [...newResults];
       for (const existing of prev) {
         const existingUC = existing.data.UC.replace(/[^0-9]/g, '');
@@ -110,7 +126,6 @@ export default function Home() {
         );
         if (!alreadyAdded) updated.push(existing);
       }
-      // Notifica substituições
       for (const nr of newResults) {
         const nrUC = nr.data.UC.replace(/[^0-9]/g, '');
         if (nrUC && prev.some((r) => r.data.UC.replace(/[^0-9]/g, '') === nrUC)) {
@@ -125,7 +140,6 @@ export default function Home() {
       setActiveTab('results');
     }
   }, []);
-
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
