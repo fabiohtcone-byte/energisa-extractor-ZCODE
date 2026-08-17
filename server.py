@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Lightweight static file server + API proxy for ENERGISA invoice extraction.
 Uses Python (survives container) for serving; spawns Node.js for PDF processing."""
-import http.server, json, os, subprocess, sys, signal
+import http.server, json, os, subprocess, sys, signal, socket
 
 ROOT = '/home/z/my-project'
 BUILD = os.path.join(ROOT, '.next')
@@ -21,7 +21,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         p = self.path.split('?')[0]
         if p.startswith('/_next/'):
-            fp = os.path.join(BUILD, p.replace('/_next', '', 1))
+            rel = p[7:]  # strip '/_next/' → 'static/chunks/...' etc.
+            fp = os.path.join(BUILD, rel)
         elif p in ('/', '/index.html'):
             fp = os.path.join(BUILD, 'server', 'app', 'index.html')
         else:
@@ -95,6 +96,9 @@ for sig in (signal.SIGTERM, signal.SIGHUP, signal.SIGINT):
     signal.signal(sig, signal.SIG_IGN)
 
 if __name__ == '__main__':
-    srv = http.server.HTTPServer(('0.0.0.0', 3000), Handler)
+    class ReusableHTTPServer(http.server.HTTPServer):
+        allow_reuse_address = True
+        allow_reuse_port = True
+    srv = ReusableHTTPServer(('0.0.0.0', 3000), Handler)
     print('> Ready on :3000')
     srv.serve_forever()

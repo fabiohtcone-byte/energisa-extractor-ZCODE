@@ -9,5 +9,6 @@ if [ ! -f "dist/energisa-table-extractor.cjs" ]; then
   npx esbuild src/lib/energisa-table-extractor.ts --bundle --platform=node --format=cjs --outfile=dist/energisa-table-extractor.cjs --external:pdf-parse --external:pdfjs-dist 2>&1 | tail -3
 fi
 
-# Use exec to replace this shell with Python - stays in Caddy's process tree
-exec python3 /home/z/my-project/server.py
+# Use double-fork daemon to survive container process cleanup
+# This properly daemonizes the server so it persists after the parent shell exits
+exec python3 /home/z/my-project/daemon-server.py

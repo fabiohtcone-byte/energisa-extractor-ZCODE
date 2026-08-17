@@ -71,3 +71,40 @@ Stage Summary:
 - ValorTotal: agora 100% correto
 - Consumo/Demanda/Ultrapassagem/Reativa: extraídos via table extractor
 - Valores R$: corretos para todas as faturas AZUL
+
+---
+Task ID: 2
+Agent: Main Agent
+Task: Adicionar 4 campos de Demanda Não Consumida e corrigir separação Ultrapassagem
+
+Work Log:
+- Adicionou 4 novos campos: DemandaNaoConsumidaPonta, DemandaNaoConsumidaForaPonta, ValorNaoConsumidaPonta, ValorNaoConsumidaForaPonta
+- Atualizou energisa-extractor.ts e energisa-fields.ts com novos campos, labels e categorias
+- Separou regex de Ultrapassagem (exclui Não Consumida) do novo regex de Demanda Não Consumida
+- Corrigiu valores 0,78 e 12,49 que apareciam como Ultrapassagem em vez de Não Consumida
+- Adicionou suporte a abreviação "F Ponta" na extração por texto
+
+Stage Summary:
+- 4 novos campos extraídos corretamente (Demanda Não Consumida Ponta/Fora Ponta + Valores)
+- Ultrapassagem vs Não Consumida separados corretamente
+
+---
+Task ID: 3
+Agent: Main Agent
+Task: Estabilizar servidor no contêiner Kubernetes
+
+Work Log:
+- Investigou por que Node.js e Python morriam após 15-120s no contêiner
+- Descobriu que processos órfãos eram eliminados pelo contêiner
+- Tentou: nohup, setsid, disown, signal ignoring, loops de restart - todos falharam
+- Criou daemon-server.py com double-fork para daemonização UNIX completa
+- O daemon sobrevive porque é adotado pelo PID 1 (tini) como processo independente
+- Corrigiu bug em server.py: os.path.join com caminho absoluto ignorava o base path
+- Adicionou allow_reuse_address/allow_reuse_port ao HTTPServer
+- Atualizou dev.sh para usar daemon-server.py
+
+Stage Summary:
+- Servidor estável com daemon de double-fork (PPID=1, sessão própria)
+- Todos os assets estáticos (HTML, CSS, JS, WOFF2) servidos com HTTP 200
+- Proxy Caddy (porta 81 → 3000) funcionando corretamente
+- API endpoints de extração e exportação prontos
