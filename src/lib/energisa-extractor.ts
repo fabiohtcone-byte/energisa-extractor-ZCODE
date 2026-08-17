@@ -517,6 +517,15 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
 
   if (tableData && tableData.length > 0) {
     let cipFromTable = EMPTY;
+    // Reset GDI accumulators for clean table-based extraction
+    let tbl_oUC_Qtd = '' as string;
+    let tbl_oUC_Valor = '' as string;
+    let tbl_mUC_Qtd = '' as string;
+    let tbl_mUC_Valor = '' as string;
+    // Track GDI section in table for rows with truncated/missing labels
+    let inGDISection = false;
+    let gdiSectionType = '' as string; // 'oUC' or 'mUC'
+    let lastGDILabel = '' as string;
 
     for (const item of tableData) {
       const lbl = item.label;
@@ -593,25 +602,58 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
       }
       // GDI items
       else if (/Energia\s*Atv\s*Injetada\s*GDI\s*oUC/i.test(lbl)) {
-        if (item.quantidade && !EnergiaAtvInjetadaGDIoUC_Qtd) EnergiaAtvInjetadaGDIoUC_Qtd = item.quantidade;
-        if (item.valor && !EnergiaAtvInjetadaGDIoUC_Valor) EnergiaAtvInjetadaGDIoUC_Valor = item.valor;
+        if (item.quantidade && !tbl_oUC_Qtd) tbl_oUC_Qtd = item.quantidade;
+        if (item.valor && !tbl_oUC_Valor) tbl_oUC_Valor = item.valor;
+        inGDISection = true; gdiSectionType = 'oUC'; lastGDILabel = lbl;
       } else if (/Energia\s*Atv\s*Injetada\s*GDI\s*mUC/i.test(lbl)) {
         // Multiple mUC entries: accumulate
         if (item.quantidade) {
-          EnergiaAtvInjetadaGDImUC_Qtd = EnergiaAtvInjetadaGDImUC_Qtd
-            ? fmtSumBR(EnergiaAtvInjetadaGDImUC_Qtd, item.quantidade)
+          tbl_mUC_Qtd = tbl_mUC_Qtd
+            ? fmtSumBR(tbl_mUC_Qtd, item.quantidade)
             : item.quantidade;
         }
         if (item.valor) {
-          EnergiaAtvInjetadaGDImUC_Valor = EnergiaAtvInjetadaGDImUC_Valor
-            ? fmtSumBR(EnergiaAtvInjetadaGDImUC_Valor, item.valor)
+          tbl_mUC_Valor = tbl_mUC_Valor
+            ? fmtSumBR(tbl_mUC_Valor, item.valor)
             : item.valor;
         }
+        inGDISection = true; gdiSectionType = 'mUC'; lastGDILabel = lbl;
+      } else if (inGDISection && (/^K?WH$/i.test(lbl.trim()) || lbl.trim() === '') && item.quantidade) {
+        // Row with truncated/missing label inside GDI section (e.g. just "KWH" or empty)
+        // Accumulate as the same GDI type as the last full-label row
+        if (gdiSectionType === 'mUC') {
+          tbl_mUC_Qtd = tbl_mUC_Qtd
+            ? fmtSumBR(tbl_mUC_Qtd, item.quantidade)
+            : item.quantidade;
+          if (item.valor) {
+            tbl_mUC_Valor = tbl_mUC_Valor
+              ? fmtSumBR(tbl_mUC_Valor, item.valor)
+              : item.valor;
+          }
+        } else if (gdiSectionType === 'oUC') {
+          tbl_oUC_Qtd = tbl_oUC_Qtd
+            ? fmtSumBR(tbl_oUC_Qtd, item.quantidade)
+            : item.quantidade;
+          if (item.valor) {
+            tbl_oUC_Valor = tbl_oUC_Valor
+              ? fmtSumBR(tbl_oUC_Valor, item.valor)
+              : item.valor;
+          }
+        }
+      } else if (lbl.trim() !== '' && !/^K?WH$/i.test(lbl.trim())) {
+        // Non-GDI, non-truncated row ends the GDI section
+        inGDISection = false;
       }
     }
 
     // Override CIP from table
     if (cipFromTable) CIP = cipFromTable;
+
+    // Use table GDI values if found, otherwise keep text-based fallback
+    if (tbl_oUC_Qtd) EnergiaAtvInjetadaGDIoUC_Qtd = tbl_oUC_Qtd;
+    if (tbl_oUC_Valor) EnergiaAtvInjetadaGDIoUC_Valor = tbl_oUC_Valor;
+    if (tbl_mUC_Qtd) EnergiaAtvInjetadaGDImUC_Qtd = tbl_mUC_Qtd;
+    if (tbl_mUC_Valor) EnergiaAtvInjetadaGDImUC_Valor = tbl_mUC_Valor;
   }
 
   return {

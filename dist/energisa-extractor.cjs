@@ -399,6 +399,13 @@ function extractEnergisaData(rawText, tableExtraction) {
   let CIP = CIP_text;
   if (tableData && tableData.length > 0) {
     let cipFromTable = EMPTY;
+    let tbl_oUC_Qtd = "";
+    let tbl_oUC_Valor = "";
+    let tbl_mUC_Qtd = "";
+    let tbl_mUC_Valor = "";
+    let inGDISection = false;
+    let gdiSectionType = "";
+    let lastGDILabel = "";
     for (const item of tableData) {
       const lbl = item.label;
       const isFora = /Fora/i.test(lbl) || /F[\s.]*Ponta/i.test(lbl);
@@ -454,18 +461,42 @@ function extractEnergisaData(rawText, tableExtraction) {
       } else if (/CIP\s*MUNICIPAL/i.test(lbl) || /^CONT\.IL\.PUB/i.test(lbl)) {
         if (item.valor) cipFromTable = item.valor;
       } else if (/Energia\s*Atv\s*Injetada\s*GDI\s*oUC/i.test(lbl)) {
-        if (item.quantidade && !EnergiaAtvInjetadaGDIoUC_Qtd) EnergiaAtvInjetadaGDIoUC_Qtd = item.quantidade;
-        if (item.valor && !EnergiaAtvInjetadaGDIoUC_Valor) EnergiaAtvInjetadaGDIoUC_Valor = item.valor;
+        if (item.quantidade && !tbl_oUC_Qtd) tbl_oUC_Qtd = item.quantidade;
+        if (item.valor && !tbl_oUC_Valor) tbl_oUC_Valor = item.valor;
+        inGDISection = true;
+        gdiSectionType = "oUC";
+        lastGDILabel = lbl;
       } else if (/Energia\s*Atv\s*Injetada\s*GDI\s*mUC/i.test(lbl)) {
         if (item.quantidade) {
-          EnergiaAtvInjetadaGDImUC_Qtd = EnergiaAtvInjetadaGDImUC_Qtd ? fmtSumBR(EnergiaAtvInjetadaGDImUC_Qtd, item.quantidade) : item.quantidade;
+          tbl_mUC_Qtd = tbl_mUC_Qtd ? fmtSumBR(tbl_mUC_Qtd, item.quantidade) : item.quantidade;
         }
         if (item.valor) {
-          EnergiaAtvInjetadaGDImUC_Valor = EnergiaAtvInjetadaGDImUC_Valor ? fmtSumBR(EnergiaAtvInjetadaGDImUC_Valor, item.valor) : item.valor;
+          tbl_mUC_Valor = tbl_mUC_Valor ? fmtSumBR(tbl_mUC_Valor, item.valor) : item.valor;
         }
+        inGDISection = true;
+        gdiSectionType = "mUC";
+        lastGDILabel = lbl;
+      } else if (inGDISection && (/^K?WH$/i.test(lbl.trim()) || lbl.trim() === "") && item.quantidade) {
+        if (gdiSectionType === "mUC") {
+          tbl_mUC_Qtd = tbl_mUC_Qtd ? fmtSumBR(tbl_mUC_Qtd, item.quantidade) : item.quantidade;
+          if (item.valor) {
+            tbl_mUC_Valor = tbl_mUC_Valor ? fmtSumBR(tbl_mUC_Valor, item.valor) : item.valor;
+          }
+        } else if (gdiSectionType === "oUC") {
+          tbl_oUC_Qtd = tbl_oUC_Qtd ? fmtSumBR(tbl_oUC_Qtd, item.quantidade) : item.quantidade;
+          if (item.valor) {
+            tbl_oUC_Valor = tbl_oUC_Valor ? fmtSumBR(tbl_oUC_Valor, item.valor) : item.valor;
+          }
+        }
+      } else if (lbl.trim() !== "" && !/^K?WH$/i.test(lbl.trim())) {
+        inGDISection = false;
       }
     }
     if (cipFromTable) CIP = cipFromTable;
+    if (tbl_oUC_Qtd) EnergiaAtvInjetadaGDIoUC_Qtd = tbl_oUC_Qtd;
+    if (tbl_oUC_Valor) EnergiaAtvInjetadaGDIoUC_Valor = tbl_oUC_Valor;
+    if (tbl_mUC_Qtd) EnergiaAtvInjetadaGDImUC_Qtd = tbl_mUC_Qtd;
+    if (tbl_mUC_Valor) EnergiaAtvInjetadaGDImUC_Valor = tbl_mUC_Valor;
   }
   return {
     UC,

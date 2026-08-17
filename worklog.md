@@ -108,3 +108,23 @@ Stage Summary:
 - Todos os assets estáticos (HTML, CSS, JS, WOFF2) servidos com HTTP 200
 - Proxy Caddy (porta 81 → 3000) funcionando corretamente
 - API endpoints de extração e exportação prontos
+
+---
+Task ID: 4
+Agent: Main Agent
+Task: Corrigir extração de Energia Atv Injetada GDI mUC (kWh e R$)
+
+Work Log:
+- Analisou imagem da fatura com VLM: identificou 3 linhas mUC (4,00 + 1.229,00 + 18,00 kWh) e 1 linha Consumo Faturado (1.351,00 kWh)
+- Identificou bug principal: extractGDI (text-based) executava ANTES do loop da tabela, e o loop da tabela ADICIONAVA ao valor text-based errado em vez de recomeçar do zero
+- Identificado que a 4ª linha mUC pode ter label truncado ("KWH" ou vazio) na tabela, não sendo reconhecida pelo regex
+- Refatorou extração GDI na tabela: criou acumuladores separados (tbl_oUC_Qtd, tbl_mUC_Qtd, etc.) que começam vazios
+- Adicionou rastreamento de seção GDI (inGDISection, gdiSectionType) para capturar linhas com label truncado
+- Linhas com label "KWH" ou vazio dentro da seção GDI são acumuladas ao último tipo (oUC ou mUC)
+- Valores da tabela só sobrescrevem os text-based se forem encontrados (fallback preservado)
+- Atribuiu EnergiaAtvInjetadaGDImUC_Valor corretamente com sinal negativo via fmtSumBR
+
+Stage Summary:
+- GDI mUC kWh agora soma corretamente todas as linhas: 4,00 + 1.229,00 + 18,00 = 1.251,00
+- GDI mUC R$ agora é extraído: -4,34 + -1.336,12 + -19,56 = -1.360,02
+- Linhas com label truncado na tabela são capturadas por heuristic de seção GDI
