@@ -202,7 +202,7 @@ export default function Home() {
       const response = await fetch('/api/export-excel', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ invoices: results.map((r) => r.data) }),
+        body: JSON.stringify({ invoices: results.map((r) => ({ ...r.data, _fileName: r.fileName })) }),
       });
 
       if (!response.ok) {
@@ -220,7 +220,7 @@ export default function Home() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      toast.success('Excel exportado com sucesso! Colunas Gerência e LOCINS estão vazias para preenchimento manual.');
+      toast.success('Excel exportado! Colunas em amarelo são para preenchimento manual.');
     } catch {
       toast.error('Erro ao exportar.');
     }
@@ -669,7 +669,7 @@ export default function Home() {
                       <FileSpreadsheet className="h-5 w-5" />
                       <span>
                         <strong>{results.length}</strong> fatura{results.length !== 1 ? 's' : ''} pronta{results.length !== 1 ? 's' : ''} para exportação.
-                        As colunas <strong>Gerência</strong> e <strong>LOCINS</strong> estarão vazias no Excel para preenchimento manual.
+                        Colunas em amarelo no Excel são para preenchimento manual.
                       </span>
                     </div>
                     <Button onClick={exportToExcel} className="gap-1.5 bg-emerald-600 hover:bg-emerald-700">
@@ -687,7 +687,7 @@ export default function Home() {
       {/* Footer */}
       <footer className="border-t bg-white mt-auto">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 text-center text-xs text-slate-400">
-          Extração de Faturas ENERGISA — Campos Gerência e LOCINS devem ser preenchidos manualmente no Excel exportado.
+          Extração de Faturas ENERGISA — Colunas em amarelo no Excel devem ser preenchidas manualmente.
         </div>
       </footer>
     </div>
