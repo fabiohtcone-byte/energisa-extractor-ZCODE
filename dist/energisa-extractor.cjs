@@ -373,6 +373,13 @@ function extractEnergisaData(rawText, tableExtraction) {
     mUC_Qtd: EnergiaAtvInjetadaGDImUC_Qtd,
     mUC_Valor: EnergiaAtvInjetadaGDImUC_Valor
   } = extractGDI(lines, flat);
+  const SaldoAcumuladoGD = (() => {
+    const m = flat.match(/Saldo\s*Acumulado\s*:\s*([\d.]+,\d{2})/i);
+    if (m) return m[1];
+    const m2 = flat.match(/Saldo\s*Acumulado\s*:\s*(\d[\d.]*)/i);
+    if (m2) return m2[1];
+    return EMPTY;
+  })();
   const ValorTotal = (() => {
     const venTotal = flat.match(/\d{2}\/\d{2}\/\d{4}\s*R\$\s*([\d.]+,\d{2})/);
     if (venTotal) return venTotal[1];
@@ -545,6 +552,7 @@ function extractEnergisaData(rawText, tableExtraction) {
     EnergiaAtvInjetadaGDIoUC_Valor,
     EnergiaAtvInjetadaGDImUC_Qtd,
     EnergiaAtvInjetadaGDImUC_Valor,
+    SaldoAcumuladoGD,
     ValorTotal
   };
 }
@@ -714,6 +722,7 @@ var FIELD_LABELS = {
   EnergiaAtvInjetadaGDIoUC_Valor: "Energia Atv Injetada GDI oUC (R$)",
   EnergiaAtvInjetadaGDImUC_Qtd: "Energia Atv Injetada GDI mUC (kWh)",
   EnergiaAtvInjetadaGDImUC_Valor: "Energia Atv Injetada GDI mUC (R$)",
+  SaldoAcumuladoGD: "Saldo Acumulado GD (kWh)",
   ValorTotal: "Valor Total (R$)"
 };
 var FIELD_CATEGORIES = [
@@ -735,6 +744,7 @@ var FIELD_CATEGORIES = [
   { category: "Tributos e Encargos (R$)", fields: ["PIS", "COFINS", "ICMS", "GDI", "CIP"] },
   { category: "Energia Injetada GDI oUC", fields: ["EnergiaAtvInjetadaGDIoUC_Qtd", "EnergiaAtvInjetadaGDIoUC_Valor"] },
   { category: "Energia Injetada GDI mUC", fields: ["EnergiaAtvInjetadaGDImUC_Qtd", "EnergiaAtvInjetadaGDImUC_Valor"] },
+  { category: "Gera\xE7\xE3o Distribu\xEDda", fields: ["SaldoAcumuladoGD"] },
   { category: "Total", fields: ["ValorTotal"] }
 ];
 // Annotate the CommonJS export names for ESM import in node:

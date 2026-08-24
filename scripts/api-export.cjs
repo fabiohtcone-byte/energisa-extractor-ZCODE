@@ -59,6 +59,7 @@ process.stdin.on('end', () => {
       ['Valor GDI oUC (R$)',                        'EnergiaAtvInjetadaGDIoUC_Valor'],
       ['GDI mUC (kWh)',                             'EnergiaAtvInjetadaGDImUC_Qtd'],
       ['Valor GDI mUC (R$)',                        'EnergiaAtvInjetadaGDImUC_Valor'],
+      ['Saldo Acumulado GD (kWh)',                   'SaldoAcumuladoGD'],
       ['Energia Injetada (kWh)',                    null],  // manual
       ['Energia Compensada (kWh)',                  null],  // manual
       ['CIP (R$)',                                  'CIP'],

@@ -65,6 +65,7 @@ export interface EnergisaInvoiceData {
   EnergiaAtvInjetadaGDIoUC_Valor: string;
   EnergiaAtvInjetadaGDImUC_Qtd: string;
   EnergiaAtvInjetadaGDImUC_Valor: string;
+  SaldoAcumuladoGD: string;
   ValorTotal: string;
 }
 
@@ -477,6 +478,16 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
     mUC_Valor: EnergiaAtvInjetadaGDImUC_Valor,
   } = extractGDI(lines, flat);
 
+  // ===== SALDO ACUMULADO GD =====
+  const SaldoAcumuladoGD = (() => {
+    const m = flat.match(/Saldo\s*Acumulado\s*:\s*([\d.]+,\d{2})/i);
+    if (m) return m[1];
+    // Fallback: integer format like "14.100"
+    const m2 = flat.match(/Saldo\s*Acumulado\s*:\s*(\d[\d.]*)/i);
+    if (m2) return m2[1];
+    return EMPTY;
+  })();
+
   // ===== VALOR TOTAL =====
   // Best pattern: R$ value on same line as vencimento date + mes referência
   // e.g., "21/07/2026R$ 13.356,50Junho / 2026"
@@ -676,6 +687,7 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
     EnergiaReativaTotal,
     EnergiaAtvInjetadaGDIoUC_Qtd, EnergiaAtvInjetadaGDIoUC_Valor,
     EnergiaAtvInjetadaGDImUC_Qtd, EnergiaAtvInjetadaGDImUC_Valor,
+    SaldoAcumuladoGD,
     ValorTotal,
   };
 }
@@ -869,6 +881,7 @@ export const FIELD_LABELS: Record<keyof EnergisaInvoiceData, string> = {
   EnergiaAtvInjetadaGDIoUC_Valor: 'Energia Atv Injetada GDI oUC (R$)',
   EnergiaAtvInjetadaGDImUC_Qtd: 'Energia Atv Injetada GDI mUC (kWh)',
   EnergiaAtvInjetadaGDImUC_Valor: 'Energia Atv Injetada GDI mUC (R$)',
+  SaldoAcumuladoGD: 'Saldo Acumulado GD (kWh)',
   ValorTotal: 'Valor Total (R$)',
 };
 
@@ -891,5 +904,6 @@ export const FIELD_CATEGORIES: { category: string; fields: (keyof EnergisaInvoic
   { category: 'Tributos e Encargos (R$)', fields: ['PIS', 'COFINS', 'ICMS', 'GDI', 'CIP'] },
   { category: 'Energia Injetada GDI oUC', fields: ['EnergiaAtvInjetadaGDIoUC_Qtd', 'EnergiaAtvInjetadaGDIoUC_Valor'] },
   { category: 'Energia Injetada GDI mUC', fields: ['EnergiaAtvInjetadaGDImUC_Qtd', 'EnergiaAtvInjetadaGDImUC_Valor'] },
+  { category: 'Geração Distribuída', fields: ['SaldoAcumuladoGD'] },
   { category: 'Total', fields: ['ValorTotal'] },
 ];
