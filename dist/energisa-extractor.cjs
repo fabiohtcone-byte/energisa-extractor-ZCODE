@@ -59,11 +59,19 @@ function extractEnergisaData(rawText, tableExtraction) {
   const lines = rawText.split(/[\r\n]+/).map((l) => l.trim()).filter((l) => l.length > 0);
   const flat = lines.join(" ");
   const Concessionaria = (() => {
-    for (const line of lines.slice(0, 20)) {
+    for (const line of lines.slice(0, 25)) {
       if (/^ENERGISA/i.test(line) && line.length > 15 && !/\d{2}\s*\/\s*\d{2}/.test(line)) {
         return line.replace(/\s+/g, " ");
       }
     }
+    for (const line of lines.slice(0, 25)) {
+      if (/ENERGISA/i.test(line) && line.length > 20 && !/\d{2}\s*\/\s*\d{2}/.test(line)) {
+        const m = line.match(/ENERGISA[\s\S]{10,}/i);
+        if (m) return m[0].replace(/\s+/g, " ").trim();
+      }
+    }
+    const flatM = flat.match(/(ENERGISA\s+[\w\s.\-]+S\.?A\.?)/i);
+    if (flatM) return flatM[1].replace(/\s+/g, " ").trim();
     return EMPTY;
   })();
   const Tipo = (() => {
@@ -138,6 +146,7 @@ function extractEnergisaData(rawText, tableExtraction) {
     const broad = flat.match(/(\d{1,3}\.\d{3}\.\d{3}-\d{2})/);
     return broad ? broad[1] : EMPTY;
   })();
+  const cleanUC = UC.replace(/[.\-]/g, "");
   const MesReferencia = (() => {
     const meses = "Janeiro|Fevereiro|Mar[\xE7c]o|Abril|Maio|Junho|Julho|Agosto|Setembro|Outubro|Novembro|Dezembro";
     const numToMonth = {
@@ -506,7 +515,7 @@ function extractEnergisaData(rawText, tableExtraction) {
     if (tbl_mUC_Valor) EnergiaAtvInjetadaGDImUC_Valor = tbl_mUC_Valor;
   }
   return {
-    UC,
+    UC: cleanUC,
     Cidade,
     Tipo,
     Mercado,

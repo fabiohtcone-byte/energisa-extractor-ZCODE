@@ -116,11 +116,22 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
 
   // ===== CONCESSIONÁRIA =====
   const Concessionaria = (() => {
-    for (const line of lines.slice(0, 20)) {
+    // Strategy 1: line starting with ENERGISA (most common)
+    for (const line of lines.slice(0, 25)) {
       if (/^ENERGISA/i.test(line) && line.length > 15 && !/\d{2}\s*\/\s*\d{2}/.test(line)) {
         return line.replace(/\s+/g, ' ');
       }
     }
+    // Strategy 2: ENERGISA anywhere in first 25 lines
+    for (const line of lines.slice(0, 25)) {
+      if (/ENERGISA/i.test(line) && line.length > 20 && !/\d{2}\s*\/\s*\d{2}/.test(line)) {
+        const m = line.match(/ENERGISA[\s\S]{10,}/i);
+        if (m) return m[0].replace(/\s+/g, ' ').trim();
+      }
+    }
+    // Strategy 3: find in flat text
+    const flatM = flat.match(/(ENERGISA\s+[\w\s.\-]+S\.?A\.?)/i);
+    if (flatM) return flatM[1].replace(/\s+/g, ' ').trim();
     return EMPTY;
   })();
 
@@ -205,6 +216,9 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
     const broad = flat.match(/(\d{1,3}\.\d{3}\.\d{3}-\d{2})/);
     return broad ? broad[1] : EMPTY;
   })();
+
+  // Clean UC: remove dots and dashes (e.g., "43.210.051-68" → "4321005168")
+  const cleanUC = UC.replace(/[.\-]/g, '');
 
   // ===== MÊS REFERÊNCIA =====
   const MesReferencia = (() => {
@@ -668,7 +682,7 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
   }
 
   return {
-    UC, Cidade, Tipo, Mercado, Concessionaria,
+    UC: cleanUC, Cidade, Tipo, Mercado, Concessionaria,
     MesReferencia, AnoLeitura, Vencimento, NotaFiscal,
     ModalidadeTarifaria, Subgrupo,
     ConsumoPonta, ConsumoForaPonta, ConsumoTotal,
