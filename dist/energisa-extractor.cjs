@@ -56,35 +56,7 @@ function extractEnergisaData(rawText, tableExtraction) {
   const tributosFromTable = tableExtraction ? { pis: tableExtraction.pisTotal, cofins: tableExtraction.cofinsTotal, icms: tableExtraction.icmsTotal } : null;
   const lines = rawText.split(/[\r\n]+/).map((l) => l.trim()).filter((l) => l.length > 0);
   const flat = lines.join(" ");
-  const Concessionaria = (() => {
-    const isUrl = (s) => /\.(com|br|net|org|gov)\b|\/direitos|\/deveres|https?:|www\.|\.com\.br/i.test(s);
-    const stripUrl = (s) => s.replace(/\S*\.com\.br\S*/gi, "").replace(/\S*\.com\b\S*/gi, "").replace(/\S*\.br\b\S*/gi, "").replace(/\s+/g, " ").trim();
-    for (const line of lines.slice(0, 25)) {
-      if (/^ENERGISA/i.test(line) && !/\d{2}\s*\/\s*\d{2}/.test(line)) {
-        const cleaned = stripUrl(line);
-        if (!isUrl(cleaned) && cleaned.length >= 7) {
-          const m = cleaned.match(/^(ENERGISA[\s\S]*?S\.?\s*A\.?)/i);
-          if (m) return m[1].replace(/\s+/g, " ").trim();
-          if (cleaned.length <= 60) return cleaned;
-        }
-      }
-    }
-    for (const line of lines.slice(0, 25)) {
-      if (/ENERGISA/i.test(line) && !/\d{2}\s*\/\s*\d{2}/.test(line)) {
-        const cleaned = stripUrl(line);
-        if (!isUrl(cleaned) && cleaned.length >= 7) {
-          const m = cleaned.match(/(ENERGISA[\s\S]*?S\.?\s*A\.?)/i);
-          if (m) return m[1].replace(/\s+/g, " ").trim();
-          const m2 = cleaned.match(/(ENERGISA\s+[A-ZÀ-Ú][A-ZÀ-Ú\s]{3,40})/i);
-          if (m2) return m2[1].replace(/\s+/g, " ").trim();
-        }
-      }
-    }
-    const flatM = flat.match(/(ENERGISA\s+[\w\s.\-]+S\.?A\.?)/i);
-    if (flatM && !isUrl(flatM[1])) return flatM[1].replace(/\s+/g, " ").trim();
-    if (/ENERGISA/i.test(flat)) return "ENERGISA";
-    return EMPTY;
-  })();
+  const Concessionaria = /ENERGISA/i.test(flat) ? "ENERGISA" : EMPTY;
   const Tipo = (() => {
     const u = flat.toUpperCase();
     if (/SERVI[ÇC]O\s+P[ÚU]BLICO/.test(u)) return "SERVI\xC7O P\xDABLICO";

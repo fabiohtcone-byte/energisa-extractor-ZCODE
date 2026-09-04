@@ -115,42 +115,7 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
   const flat = lines.join(' ');
 
   // ===== CONCESSIONÁRIA =====
-  const Concessionaria = (() => {
-    // Helper: check if a string contains URL patterns (not a company name)
-    const isUrl = (s: string) => /\.(com|br|net|org|gov)\b|\/direitos|\/deveres|https?:|www\.|\.com\.br/i.test(s);
-    // Helper: strip URL segments from a string
-    const stripUrl = (s: string) => s.replace(/\S*\.com\.br\S*/gi, '').replace(/\S*\.com\b\S*/gi, '').replace(/\S*\.br\b\S*/gi, '').replace(/\s+/g, ' ').trim();
-
-    // Strategy 1: line starting with ENERGISA (most common) — strip URLs
-    for (const line of lines.slice(0, 25)) {
-      if (/^ENERGISA/i.test(line) && !/\d{2}\s*\/\s*\d{2}/.test(line)) {
-        const cleaned = stripUrl(line);
-        if (!isUrl(cleaned) && cleaned.length >= 7) {
-          const m = cleaned.match(/^(ENERGISA[\s\S]*?S\.?\s*A\.?)/i);
-          if (m) return m[1].replace(/\s+/g, ' ').trim();
-          if (cleaned.length <= 60) return cleaned;
-        }
-      }
-    }
-    // Strategy 2: ENERGISA anywhere in first 25 lines — strip URLs
-    for (const line of lines.slice(0, 25)) {
-      if (/ENERGISA/i.test(line) && !/\d{2}\s*\/\s*\d{2}/.test(line)) {
-        const cleaned = stripUrl(line);
-        if (!isUrl(cleaned) && cleaned.length >= 7) {
-          const m = cleaned.match(/(ENERGISA[\s\S]*?S\.?\s*A\.?)/i);
-          if (m) return m[1].replace(/\s+/g, ' ').trim();
-          const m2 = cleaned.match(/(ENERGISA\s+[A-ZÀ-Ú][A-ZÀ-Ú\s]{3,40})/i);
-          if (m2) return m2[1].replace(/\s+/g, ' ').trim();
-        }
-      }
-    }
-    // Strategy 3: find in flat text — skip URL segments
-    const flatM = flat.match(/(ENERGISA\s+[\w\s.\-]+S\.?A\.?)/i);
-    if (flatM && !isUrl(flatM[1])) return flatM[1].replace(/\s+/g, ' ').trim();
-    // Strategy 4: fallback — just return "ENERGISA" if the word exists anywhere
-    if (/ENERGISA/i.test(flat)) return 'ENERGISA';
-    return EMPTY;
-  })();
+  const Concessionaria = /ENERGISA/i.test(flat) ? 'ENERGISA' : EMPTY;
 
   // ===== TIPO =====
   const Tipo = (() => {
