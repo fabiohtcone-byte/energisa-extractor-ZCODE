@@ -16,8 +16,6 @@ var __copyProps = (to, from, except, desc) => {
   return to;
 };
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
-
-// src/lib/energisa-extractor.ts
 var energisa_extractor_exports = {};
 __export(energisa_extractor_exports, {
   FIELD_CATEGORIES: () => FIELD_CATEGORIES,
@@ -25,7 +23,7 @@ __export(energisa_extractor_exports, {
   extractEnergisaData: () => extractEnergisaData
 });
 module.exports = __toCommonJS(energisa_extractor_exports);
-var EMPTY = "";
+const EMPTY = "";
 function parseBR(s) {
   const neg = s.startsWith("-");
   const clean = neg ? s.slice(1) : s;
@@ -59,19 +57,32 @@ function extractEnergisaData(rawText, tableExtraction) {
   const lines = rawText.split(/[\r\n]+/).map((l) => l.trim()).filter((l) => l.length > 0);
   const flat = lines.join(" ");
   const Concessionaria = (() => {
+    const isUrl = (s) => /\.(com|br|net|org|gov)\b|\/direitos|\/deveres|https?:|www\.|\.com\.br/i.test(s);
+    const stripUrl = (s) => s.replace(/\S*\.com\.br\S*/gi, "").replace(/\S*\.com\b\S*/gi, "").replace(/\S*\.br\b\S*/gi, "").replace(/\s+/g, " ").trim();
     for (const line of lines.slice(0, 25)) {
-      if (/^ENERGISA/i.test(line) && line.length > 15 && !/\d{2}\s*\/\s*\d{2}/.test(line)) {
-        return line.replace(/\s+/g, " ");
+      if (/^ENERGISA/i.test(line) && !/\d{2}\s*\/\s*\d{2}/.test(line)) {
+        const cleaned = stripUrl(line);
+        if (!isUrl(cleaned) && cleaned.length >= 7) {
+          const m = cleaned.match(/^(ENERGISA[\s\S]*?S\.?\s*A\.?)/i);
+          if (m) return m[1].replace(/\s+/g, " ").trim();
+          if (cleaned.length <= 60) return cleaned;
+        }
       }
     }
     for (const line of lines.slice(0, 25)) {
-      if (/ENERGISA/i.test(line) && line.length > 20 && !/\d{2}\s*\/\s*\d{2}/.test(line)) {
-        const m = line.match(/ENERGISA[\s\S]{10,}/i);
-        if (m) return m[0].replace(/\s+/g, " ").trim();
+      if (/ENERGISA/i.test(line) && !/\d{2}\s*\/\s*\d{2}/.test(line)) {
+        const cleaned = stripUrl(line);
+        if (!isUrl(cleaned) && cleaned.length >= 7) {
+          const m = cleaned.match(/(ENERGISA[\s\S]*?S\.?\s*A\.?)/i);
+          if (m) return m[1].replace(/\s+/g, " ").trim();
+          const m2 = cleaned.match(/(ENERGISA\s+[A-ZÀ-Ú][A-ZÀ-Ú\s]{3,40})/i);
+          if (m2) return m2[1].replace(/\s+/g, " ").trim();
+        }
       }
     }
     const flatM = flat.match(/(ENERGISA\s+[\w\s.\-]+S\.?A\.?)/i);
-    if (flatM) return flatM[1].replace(/\s+/g, " ").trim();
+    if (flatM && !isUrl(flatM[1])) return flatM[1].replace(/\s+/g, " ").trim();
+    if (/ENERGISA/i.test(flat)) return "ENERGISA";
     return EMPTY;
   })();
   const Tipo = (() => {
@@ -684,7 +695,7 @@ function findTributoValue(lines, flat, labelPattern) {
   const flatMatch = flat.match(new RegExp(labelPattern.source + "[^\\d]*?([\\d.]+,\\d{2})", "i"));
   return flatMatch ? flatMatch[1] : EMPTY;
 }
-var FIELD_LABELS = {
+const FIELD_LABELS = {
   UC: "UC (Unidade Consumidora)",
   Cidade: "Cidade",
   Tipo: "Tipo",
@@ -734,7 +745,7 @@ var FIELD_LABELS = {
   SaldoAcumuladoGD: "Saldo Acumulado GD (kWh)",
   ValorTotal: "Valor Total (R$)"
 };
-var FIELD_CATEGORIES = [
+const FIELD_CATEGORIES = [
   { category: "Identifica\xE7\xE3o", fields: ["UC", "Cidade", "Tipo", "Mercado", "Concessionaria"] },
   { category: "Datas e Documentos", fields: ["MesReferencia", "AnoLeitura", "Vencimento", "NotaFiscal"] },
   { category: "Tarifa", fields: ["ModalidadeTarifaria", "Subgrupo"] },
@@ -756,9 +767,3 @@ var FIELD_CATEGORIES = [
   { category: "Gera\xE7\xE3o Distribu\xEDda", fields: ["SaldoAcumuladoGD"] },
   { category: "Total", fields: ["ValorTotal"] }
 ];
-// Annotate the CommonJS export names for ESM import in node:
-0 && (module.exports = {
-  FIELD_CATEGORIES,
-  FIELD_LABELS,
-  extractEnergisaData
-});

@@ -1,5 +1,4 @@
-// src/lib/energisa-extractor.ts
-var EMPTY = "";
+const EMPTY = "";
 function parseBR(s) {
   const neg = s.startsWith("-");
   const clean = neg ? s.slice(1) : s;
@@ -33,11 +32,32 @@ function extractEnergisaData(rawText, tableExtraction) {
   const lines = rawText.split(/[\r\n]+/).map((l) => l.trim()).filter((l) => l.length > 0);
   const flat = lines.join(" ");
   const Concessionaria = (() => {
-    for (const line of lines.slice(0, 20)) {
-      if (/^ENERGISA/i.test(line) && line.length > 15 && !/\d{2}\s*\/\s*\d{2}/.test(line)) {
-        return line.replace(/\s+/g, " ");
+    const isUrl = (s) => /\.(com|br|net|org|gov)\b|\/direitos|\/deveres|https?:|www\.|\.com\.br/i.test(s);
+    const stripUrl = (s) => s.replace(/\S*\.com\.br\S*/gi, "").replace(/\S*\.com\b\S*/gi, "").replace(/\S*\.br\b\S*/gi, "").replace(/\s+/g, " ").trim();
+    for (const line of lines.slice(0, 25)) {
+      if (/^ENERGISA/i.test(line) && !/\d{2}\s*\/\s*\d{2}/.test(line)) {
+        const cleaned = stripUrl(line);
+        if (!isUrl(cleaned) && cleaned.length >= 7) {
+          const m = cleaned.match(/^(ENERGISA[\s\S]*?S\.?\s*A\.?)/i);
+          if (m) return m[1].replace(/\s+/g, " ").trim();
+          if (cleaned.length <= 60) return cleaned;
+        }
       }
     }
+    for (const line of lines.slice(0, 25)) {
+      if (/ENERGISA/i.test(line) && !/\d{2}\s*\/\s*\d{2}/.test(line)) {
+        const cleaned = stripUrl(line);
+        if (!isUrl(cleaned) && cleaned.length >= 7) {
+          const m = cleaned.match(/(ENERGISA[\s\S]*?S\.?\s*A\.?)/i);
+          if (m) return m[1].replace(/\s+/g, " ").trim();
+          const m2 = cleaned.match(/(ENERGISA\s+[A-ZÀ-Ú][A-ZÀ-Ú\s]{3,40})/i);
+          if (m2) return m2[1].replace(/\s+/g, " ").trim();
+        }
+      }
+    }
+    const flatM = flat.match(/(ENERGISA\s+[\w\s.\-]+S\.?A\.?)/i);
+    if (flatM && !isUrl(flatM[1])) return flatM[1].replace(/\s+/g, " ").trim();
+    if (/ENERGISA/i.test(flat)) return "ENERGISA";
     return EMPTY;
   })();
   const Tipo = (() => {
@@ -112,6 +132,7 @@ function extractEnergisaData(rawText, tableExtraction) {
     const broad = flat.match(/(\d{1,3}\.\d{3}\.\d{3}-\d{2})/);
     return broad ? broad[1] : EMPTY;
   })();
+  const cleanUC = UC.replace(/[.\-]/g, "");
   const MesReferencia = (() => {
     const meses = "Janeiro|Fevereiro|Mar[\xE7c]o|Abril|Maio|Junho|Julho|Agosto|Setembro|Outubro|Novembro|Dezembro";
     const numToMonth = {
@@ -253,11 +274,19 @@ function extractEnergisaData(rawText, tableExtraction) {
   let UltrapassagemForaPonta = EMPTY;
   let ValorUltrapassagemPonta = EMPTY;
   let ValorUltrapassagemForaPonta = EMPTY;
+  let DemandaNaoConsumidaPonta = EMPTY;
+  let DemandaNaoConsumidaForaPonta = EMPTY;
+  let ValorNaoConsumidaPonta = EMPTY;
+  let ValorNaoConsumidaForaPonta = EMPTY;
   if (isSplitTariff) {
     UltrapassagemPonta = findQtyNearLine(lines, /Ultrapassagem.*Ponta(?!.*Fora)/i);
     UltrapassagemForaPonta = findQtyNearLine(lines, /Ultrapassagem.*Fora\s*Ponta/i);
     ValorUltrapassagemPonta = findRValueNearLine(lines, flat, /Ultrapassagem.*Ponta(?!.*Fora)/i);
     ValorUltrapassagemForaPonta = findRValueNearLine(lines, flat, /Ultrapassagem.*Fora\s*Ponta/i);
+    DemandaNaoConsumidaPonta = findQtyNearLine(lines, /Não\s*Consumida.*Ponta(?!.*(?:Fora|F\s*Ponta))/i);
+    DemandaNaoConsumidaForaPonta = findQtyNearLine(lines, /Não\s*Consumida.*(?:Fora|F)\s*Ponta/i);
+    ValorNaoConsumidaPonta = findRValueNearLine(lines, flat, /Não\s*Consumida.*Ponta(?!.*(?:Fora|F\s*Ponta))/i);
+    ValorNaoConsumidaForaPonta = findRValueNearLine(lines, flat, /Não\s*Consumida.*(?:Fora|F)\s*Ponta/i);
   }
   let ReativaExcedentePonta = EMPTY;
   let ReativaExcedenteForaPonta = EMPTY;
@@ -339,6 +368,13 @@ function extractEnergisaData(rawText, tableExtraction) {
     mUC_Qtd: EnergiaAtvInjetadaGDImUC_Qtd,
     mUC_Valor: EnergiaAtvInjetadaGDImUC_Valor
   } = extractGDI(lines, flat);
+  const SaldoAcumuladoGD = (() => {
+    const m = flat.match(/Saldo\s*Acumulado\s*:\s*([\d.]+,\d{2})/i);
+    if (m) return m[1];
+    const m2 = flat.match(/Saldo\s*Acumulado\s*:\s*(\d[\d.]*)/i);
+    if (m2) return m2[1];
+    return EMPTY;
+  })();
   const ValorTotal = (() => {
     const venTotal = flat.match(/\d{2}\/\d{2}\/\d{4}\s*R\$\s*([\d.]+,\d{2})/);
     if (venTotal) return venTotal[1];
@@ -365,6 +401,13 @@ function extractEnergisaData(rawText, tableExtraction) {
   let CIP = CIP_text;
   if (tableData && tableData.length > 0) {
     let cipFromTable = EMPTY;
+    let tbl_oUC_Qtd = "";
+    let tbl_oUC_Valor = "";
+    let tbl_mUC_Qtd = "";
+    let tbl_mUC_Valor = "";
+    let inGDISection = false;
+    let gdiSectionType = "";
+    let lastGDILabel = "";
     for (const item of tableData) {
       const lbl = item.label;
       const isFora = /Fora/i.test(lbl) || /F[\s.]*Ponta/i.test(lbl);
@@ -390,13 +433,21 @@ function extractEnergisaData(rawText, tableExtraction) {
           if (item.quantidade) DemandaMedidaForaPonta = item.quantidade;
           if (item.valor) ValorDemandaForaPonta = item.valor;
         }
-      } else if (/(?:Ultrapassagem|Ultrap|Não\s*Consumida)/i.test(lbl) && /Demanda/i.test(lbl)) {
+      } else if (/(?:Ultrapassagem|Ultrap)/i.test(lbl) && /Demanda/i.test(lbl) && !/Não\s*Consumida/i.test(lbl)) {
         if (!isFora) {
           if (item.quantidade) UltrapassagemPonta = item.quantidade;
           if (item.valor) ValorUltrapassagemPonta = item.valor;
         } else {
           if (item.quantidade) UltrapassagemForaPonta = item.quantidade;
           if (item.valor) ValorUltrapassagemForaPonta = item.valor;
+        }
+      } else if (/Não\s*Consumida/i.test(lbl) && /Demanda/i.test(lbl)) {
+        if (!isFora) {
+          if (item.quantidade) DemandaNaoConsumidaPonta = item.quantidade;
+          if (item.valor) ValorNaoConsumidaPonta = item.valor;
+        } else {
+          if (item.quantidade) DemandaNaoConsumidaForaPonta = item.quantidade;
+          if (item.valor) ValorNaoConsumidaForaPonta = item.valor;
         }
       } else if (/Reactiv?a\s*Excedente/i.test(lbl) || /Energia\s*Reativa\s*Exced/i.test(lbl)) {
         if (!isFora && /Ponta/i.test(lbl)) {
@@ -412,21 +463,45 @@ function extractEnergisaData(rawText, tableExtraction) {
       } else if (/CIP\s*MUNICIPAL/i.test(lbl) || /^CONT\.IL\.PUB/i.test(lbl)) {
         if (item.valor) cipFromTable = item.valor;
       } else if (/Energia\s*Atv\s*Injetada\s*GDI\s*oUC/i.test(lbl)) {
-        if (item.quantidade && !EnergiaAtvInjetadaGDIoUC_Qtd) EnergiaAtvInjetadaGDIoUC_Qtd = item.quantidade;
-        if (item.valor && !EnergiaAtvInjetadaGDIoUC_Valor) EnergiaAtvInjetadaGDIoUC_Valor = item.valor;
+        if (item.quantidade && !tbl_oUC_Qtd) tbl_oUC_Qtd = item.quantidade;
+        if (item.valor && !tbl_oUC_Valor) tbl_oUC_Valor = item.valor;
+        inGDISection = true;
+        gdiSectionType = "oUC";
+        lastGDILabel = lbl;
       } else if (/Energia\s*Atv\s*Injetada\s*GDI\s*mUC/i.test(lbl)) {
         if (item.quantidade) {
-          EnergiaAtvInjetadaGDImUC_Qtd = EnergiaAtvInjetadaGDImUC_Qtd ? fmtSumBR(EnergiaAtvInjetadaGDImUC_Qtd, item.quantidade) : item.quantidade;
+          tbl_mUC_Qtd = tbl_mUC_Qtd ? fmtSumBR(tbl_mUC_Qtd, item.quantidade) : item.quantidade;
         }
         if (item.valor) {
-          EnergiaAtvInjetadaGDImUC_Valor = EnergiaAtvInjetadaGDImUC_Valor ? fmtSumBR(EnergiaAtvInjetadaGDImUC_Valor, item.valor) : item.valor;
+          tbl_mUC_Valor = tbl_mUC_Valor ? fmtSumBR(tbl_mUC_Valor, item.valor) : item.valor;
         }
+        inGDISection = true;
+        gdiSectionType = "mUC";
+        lastGDILabel = lbl;
+      } else if (inGDISection && (/^K?WH$/i.test(lbl.trim()) || lbl.trim() === "") && item.quantidade) {
+        if (gdiSectionType === "mUC") {
+          tbl_mUC_Qtd = tbl_mUC_Qtd ? fmtSumBR(tbl_mUC_Qtd, item.quantidade) : item.quantidade;
+          if (item.valor) {
+            tbl_mUC_Valor = tbl_mUC_Valor ? fmtSumBR(tbl_mUC_Valor, item.valor) : item.valor;
+          }
+        } else if (gdiSectionType === "oUC") {
+          tbl_oUC_Qtd = tbl_oUC_Qtd ? fmtSumBR(tbl_oUC_Qtd, item.quantidade) : item.quantidade;
+          if (item.valor) {
+            tbl_oUC_Valor = tbl_oUC_Valor ? fmtSumBR(tbl_oUC_Valor, item.valor) : item.valor;
+          }
+        }
+      } else if (lbl.trim() !== "" && !/^K?WH$/i.test(lbl.trim())) {
+        inGDISection = false;
       }
     }
     if (cipFromTable) CIP = cipFromTable;
+    if (tbl_oUC_Qtd) EnergiaAtvInjetadaGDIoUC_Qtd = tbl_oUC_Qtd;
+    if (tbl_oUC_Valor) EnergiaAtvInjetadaGDIoUC_Valor = tbl_oUC_Valor;
+    if (tbl_mUC_Qtd) EnergiaAtvInjetadaGDImUC_Qtd = tbl_mUC_Qtd;
+    if (tbl_mUC_Valor) EnergiaAtvInjetadaGDImUC_Valor = tbl_mUC_Valor;
   }
   return {
-    UC,
+    UC: cleanUC,
     Cidade,
     Tipo,
     Mercado,
@@ -448,6 +523,10 @@ function extractEnergisaData(rawText, tableExtraction) {
     DemandaFaturadaForaPonta,
     UltrapassagemPonta,
     UltrapassagemForaPonta,
+    DemandaNaoConsumidaPonta,
+    DemandaNaoConsumidaForaPonta,
+    ValorNaoConsumidaPonta,
+    ValorNaoConsumidaForaPonta,
     ReativaExcedentePonta,
     ReativaExcedenteForaPonta,
     ValorConsumoPonta,
@@ -468,6 +547,7 @@ function extractEnergisaData(rawText, tableExtraction) {
     EnergiaAtvInjetadaGDIoUC_Valor,
     EnergiaAtvInjetadaGDImUC_Qtd,
     EnergiaAtvInjetadaGDImUC_Valor,
+    SaldoAcumuladoGD,
     ValorTotal
   };
 }
@@ -590,7 +670,7 @@ function findTributoValue(lines, flat, labelPattern) {
   const flatMatch = flat.match(new RegExp(labelPattern.source + "[^\\d]*?([\\d.]+,\\d{2})", "i"));
   return flatMatch ? flatMatch[1] : EMPTY;
 }
-var FIELD_LABELS = {
+const FIELD_LABELS = {
   UC: "UC (Unidade Consumidora)",
   Cidade: "Cidade",
   Tipo: "Tipo",
@@ -613,6 +693,10 @@ var FIELD_LABELS = {
   DemandaFaturadaForaPonta: "Demanda Faturada Fora Ponta (kW)",
   UltrapassagemPonta: "Ultrapassagem Ponta (kW)",
   UltrapassagemForaPonta: "Ultrapassagem Fora Ponta (kW)",
+  DemandaNaoConsumidaPonta: "Demanda Pot\xEAncia N\xE3o Consumida - Ponta (kW)",
+  DemandaNaoConsumidaForaPonta: "Demanda Pot\xEAncia N\xE3o Consumida - Fora Ponta (kW)",
+  ValorNaoConsumidaPonta: "Valor N\xE3o Consumida Ponta (R$)",
+  ValorNaoConsumidaForaPonta: "Valor N\xE3o Consumida Fora Ponta (R$)",
   ReativaExcedentePonta: "Reativa Excedente Ponta (kWh)",
   ReativaExcedenteForaPonta: "Reativa Excedente Fora Ponta (kWh)",
   ValorConsumoPonta: "Valor Consumo Ponta (R$)",
@@ -633,9 +717,10 @@ var FIELD_LABELS = {
   EnergiaAtvInjetadaGDIoUC_Valor: "Energia Atv Injetada GDI oUC (R$)",
   EnergiaAtvInjetadaGDImUC_Qtd: "Energia Atv Injetada GDI mUC (kWh)",
   EnergiaAtvInjetadaGDImUC_Valor: "Energia Atv Injetada GDI mUC (R$)",
+  SaldoAcumuladoGD: "Saldo Acumulado GD (kWh)",
   ValorTotal: "Valor Total (R$)"
 };
-var FIELD_CATEGORIES = [
+const FIELD_CATEGORIES = [
   { category: "Identifica\xE7\xE3o", fields: ["UC", "Cidade", "Tipo", "Mercado", "Concessionaria"] },
   { category: "Datas e Documentos", fields: ["MesReferencia", "AnoLeitura", "Vencimento", "NotaFiscal"] },
   { category: "Tarifa", fields: ["ModalidadeTarifaria", "Subgrupo"] },
@@ -644,14 +729,17 @@ var FIELD_CATEGORIES = [
   { category: "Demanda Medida (kW)", fields: ["DemandaMedidaPonta", "DemandaMedidaForaPonta"] },
   { category: "Demanda Faturada (kW)", fields: ["DemandaFaturadaPonta", "DemandaFaturadaForaPonta"] },
   { category: "Ultrapassagem (kW)", fields: ["UltrapassagemPonta", "UltrapassagemForaPonta"] },
+  { category: "Demanda N\xE3o Consumida (kW)", fields: ["DemandaNaoConsumidaPonta", "DemandaNaoConsumidaForaPonta"] },
   { category: "Reativa Excedente (kWh)", fields: ["ReativaExcedentePonta", "ReativaExcedenteForaPonta", "EnergiaReativaTotal"] },
   { category: "Valores - Consumo (R$)", fields: ["ValorConsumoPonta", "ValorConsumoForaPonta"] },
   { category: "Valores - Demanda (R$)", fields: ["ValorDemandaPonta", "ValorDemandaForaPonta"] },
   { category: "Valores - Ultrapassagem (R$)", fields: ["ValorUltrapassagemPonta", "ValorUltrapassagemForaPonta"] },
+  { category: "Valores - Demanda N\xE3o Consumida (R$)", fields: ["ValorNaoConsumidaPonta", "ValorNaoConsumidaForaPonta"] },
   { category: "Valores - Reativa Excedente (R$)", fields: ["ValorReativaExcedentePonta", "ValorReativaExcedenteForaPonta"] },
   { category: "Tributos e Encargos (R$)", fields: ["PIS", "COFINS", "ICMS", "GDI", "CIP"] },
   { category: "Energia Injetada GDI oUC", fields: ["EnergiaAtvInjetadaGDIoUC_Qtd", "EnergiaAtvInjetadaGDIoUC_Valor"] },
   { category: "Energia Injetada GDI mUC", fields: ["EnergiaAtvInjetadaGDImUC_Qtd", "EnergiaAtvInjetadaGDImUC_Valor"] },
+  { category: "Gera\xE7\xE3o Distribu\xEDda", fields: ["SaldoAcumuladoGD"] },
   { category: "Total", fields: ["ValorTotal"] }
 ];
 export {
