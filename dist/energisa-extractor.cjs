@@ -98,6 +98,10 @@ function extractEnergisaData(rawText, tableExtraction) {
     return EMPTY;
   })();
   const UC = (() => {
+    const isCnpjCpf = (s) => {
+      const raw = s.replace(/[.\-\/]/g, "");
+      return raw.length === 14 || raw.length === 11;
+    };
     for (const line of lines) {
       const m = line.match(/^(?:\d{1,3}\/)?(\d{4,8})-\d$/);
       if (m) {
@@ -111,23 +115,36 @@ function extractEnergisaData(rawText, tableExtraction) {
       if (num.length >= 3) return num;
     }
     for (const line of lines) {
+      const m = line.match(/^(\d{1,2}\.\d{3}\.\d{3}\.\d{3}-\d{1,2})$/);
+      if (m && !isCnpjCpf(m[1])) return m[1];
+    }
+    for (const line of lines) {
       const m = line.match(/^(\d{1,3}\.\d{3}\.\d{3}-\d{2})$/);
       if (m) return m[1];
+    }
+    for (const line of lines) {
+      const m = line.match(/(\d{1,2}\.\d{3}\.\d{3}\.\d{3}-\d{1,2})/);
+      if (m && line.length < 50 && !/CNPJ|CPF|CEP/i.test(line) && !isCnpjCpf(m[1])) return m[1];
     }
     for (const line of lines) {
       const m = line.match(/(\d{1,3}\.\d{3}\.\d{3}-\d{2})/);
       if (m && line.length < 40 && !/CNPJ|CPF|CEP/i.test(line)) return m[1];
     }
-    const ucMat = flat.match(/MATR[IÍ]CULA\s*:\s*0*(\d{4,10})(?:-\d{4}-\d{2}-\d)?/i);
+    const ucMat = flat.match(/MATR[IÍ]CULA\s*:\s*0*(\d{4,13})(?:-\d{4}-\d{2}-\d)?/i);
     if (ucMat) return ucMat[1];
-    const uc13 = flat.match(/(?:RUA|AV|ESTRADA)[^\d]*(\d{13})\s/);
-    if (uc13) return uc13[1];
-    const uc13b = flat.match(/Instalação\s*:?\s*(\d{7,13})/i);
-    if (uc13b) return uc13b[1];
+    const ucAddr = flat.match(/(?:RUA|AV|ESTRADA)[^\d]*(\d{10,13})\b/);
+    if (ucAddr) return ucAddr[1];
+    const ucInst = flat.match(/Instalação\s*:?\s*(\d{7,13})/i);
+    if (ucInst) return ucInst[1];
     const ucLabel = flat.match(/(?:UC\s*:?|Unid\.?\s*Cons\.?)[^\d]*(\d{4,13})/i);
     if (ucLabel) return ucLabel[1].replace(/^0+/, "") || ucLabel[1];
-    const broad = flat.match(/(\d{1,3}\.\d{3}\.\d{3}-\d{2})/);
-    return broad ? broad[1] : EMPTY;
+    const broad4 = flat.match(/(\d{1,2}\.\d{3}\.\d{3}\.\d{3}-\d{1,2})/);
+    if (broad4 && !isCnpjCpf(broad4[1])) return broad4[1];
+    const broad3 = flat.match(/(\d{1,3}\.\d{3}\.\d{3}-\d{2})/);
+    if (broad3) return broad3[1];
+    const bareLong = flat.match(/\b(\d{10,13})\b/);
+    if (bareLong && !isCnpjCpf(bareLong[1])) return bareLong[1];
+    return EMPTY;
   })();
   const cleanUC = UC.replace(/[.\-]/g, "");
   const MesReferencia = (() => {

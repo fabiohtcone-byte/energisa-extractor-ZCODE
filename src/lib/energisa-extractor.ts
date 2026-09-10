@@ -157,6 +157,12 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
 
   // ===== UC =====
   const UC = (() => {
+    // Helper: check if a number is likely a CNPJ (14 digits raw) or CPF (11 digits raw)
+    const isCnpjCpf = (s: string) => {
+      const raw = s.replace(/[.\-\/]/g, '');
+      return raw.length === 14 || raw.length === 11;
+    };
+
     // Strategy 1: Energisa slash format "NN/NNNNN-N" (e.g., "10/33836-8") — most reliable
     for (const line of lines) {
       const m = line.match(/^(?:\d{1,3}\/)?(\d{4,8})-\d$/);
@@ -171,35 +177,53 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
       const num = slashCtx[2].replace(/^0+/, '') || '0';
       if (num.length >= 3) return num;
     }
-    // Strategy 3: Standard dotted format X.XXX.XXX-XX on its own line
+    // Strategy 3: 4-group dotted format X.XXX.XXX.XXX-XX on its own line (12-digit UC)
+    // e.g., "1.409.407.051-47" → "140940705147"
+    for (const line of lines) {
+      const m = line.match(/^(\d{1,2}\.\d{3}\.\d{3}\.\d{3}-\d{1,2})$/);
+      if (m && !isCnpjCpf(m[1])) return m[1];
+    }
+    // Strategy 4: 3-group dotted format X.XXX.XXX-XX on its own line
     for (const line of lines) {
       const m = line.match(/^(\d{1,3}\.\d{3}\.\d{3}-\d{2})$/);
       if (m) return m[1];
     }
-    // Strategy 4: Dotted format on a short line (not CNPJ/CPF/CEP)
+    // Strategy 5: 4-group dotted format on a short line (not CNPJ/CPF/CEP)
+    for (const line of lines) {
+      const m = line.match(/(\d{1,2}\.\d{3}\.\d{3}\.\d{3}-\d{1,2})/);
+      if (m && line.length < 50 && !/CNPJ|CPF|CEP/i.test(line) && !isCnpjCpf(m[1])) return m[1];
+    }
+    // Strategy 6: 3-group dotted format on a short line (not CNPJ/CPF/CEP)
     for (const line of lines) {
       const m = line.match(/(\d{1,3}\.\d{3}\.\d{3}-\d{2})/);
       if (m && line.length < 40 && !/CNPJ|CPF|CEP/i.test(line)) return m[1];
     }
-    // Strategy 5: MATRÍCULA field (e.g., "MATRÍCULA:0000033836-2025-08-6")
-    // Extracts the UC number from the matrícula, stripping leading zeros
-    const ucMat = flat.match(/MATR[IÍ]CULA\s*:\s*0*(\d{4,10})(?:-\d{4}-\d{2}-\d)?/i);
+    // Strategy 7: MATRÍCULA field — extended to support up to 13 digits
+    // e.g., "MATRÍCULA:0140940705147-2025-08-6"
+    const ucMat = flat.match(/MATR[IÍ]CULA\s*:\s*0*(\d{4,13})(?:-\d{4}-\d{2}-\d)?/i);
     if (ucMat) return ucMat[1];
-    // Strategy 6: 13-digit UC (Energisa MS format) - look in address lines
-    const uc13 = flat.match(/(?:RUA|AV|ESTRADA)[^\d]*(\d{13})\s/);
-    if (uc13) return uc13[1];
-    // Strategy 7: 13-digit standalone or near "Instalação:"
-    const uc13b = flat.match(/Instalação\s*:?\s*(\d{7,13})/i);
-    if (uc13b) return uc13b[1];
-    // Strategy 8: UC label with number
+    // Strategy 8: 10-13 digit UC near address lines (Energisa MS format)
+    const ucAddr = flat.match(/(?:RUA|AV|ESTRADA)[^\d]*(\d{10,13})\b/);
+    if (ucAddr) return ucAddr[1];
+    // Strategy 9: standalone or near "Instalação:" — 7-13 digits
+    const ucInst = flat.match(/Instalação\s*:?\s*(\d{7,13})/i);
+    if (ucInst) return ucInst[1];
+    // Strategy 10: UC label with number — 4-13 digits
     const ucLabel = flat.match(/(?:UC\s*:?|Unid\.?\s*Cons\.?)[^\d]*(\d{4,13})/i);
     if (ucLabel) return ucLabel[1].replace(/^0+/, '') || ucLabel[1];
-    // Strategy 9: broad search for dotted format
-    const broad = flat.match(/(\d{1,3}\.\d{3}\.\d{3}-\d{2})/);
-    return broad ? broad[1] : EMPTY;
+    // Strategy 11: broad search for 4-group dotted format (before 3-group to avoid partial match)
+    const broad4 = flat.match(/(\d{1,2}\.\d{3}\.\d{3}\.\d{3}-\d{1,2})/);
+    if (broad4 && !isCnpjCpf(broad4[1])) return broad4[1];
+    // Strategy 12: broad search for 3-group dotted format
+    const broad3 = flat.match(/(\d{1,3}\.\d{3}\.\d{3}-\d{2})/);
+    if (broad3) return broad3[1];
+    // Strategy 13: standalone 10-13 digit number (not CNPJ/CPF) — as last resort
+    const bareLong = flat.match(/\b(\d{10,13})\b/);
+    if (bareLong && !isCnpjCpf(bareLong[1])) return bareLong[1];
+    return EMPTY;
   })();
 
-  // Clean UC: remove dots and dashes (e.g., "43.210.051-68" → "4321005168")
+  // Clean UC: remove dots and dashes (e.g., "1.409.407.051-47" → "140940705147")
   const cleanUC = UC.replace(/[.\-]/g, '');
 
   // ===== MÊS REFERÊNCIA =====
