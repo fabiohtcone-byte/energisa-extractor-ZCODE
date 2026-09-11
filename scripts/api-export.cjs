@@ -12,33 +12,31 @@ process.stdin.on('end', () => {
     }
     const XLSX = require('xlsx');
 
-    // Column order exactly as requested
-    // Each entry: [headerLabel, dataKey (from invoice object) or null for manual-only]
+    // Column order exactly as requested: [headerLabel, dataKey or null for manual]
     const columns = [
-      ['Nome do Arquivo',           '_fileName'],
-      ['UC',                        'UC'],
-      ['Gerência',                  null],           // manual
-      ['LOCINS',                    null],           // manual
-      ['Cidade',                    'Cidade'],
-      ['Tipo',                      'Tipo'],
-      ['Mercado',                   'Mercado'],
-      ['Concessionária',            'Concessionaria'],
-      ['Mês Referência',            'MesReferencia'],
-      ['Ano Leitura',               'AnoLeitura'],
-      ['Vencimento',                'Vencimento'],
-      ['Nota Fiscal',               'NotaFiscal'],
-      ['Modalidade Tarifária',      'ModalidadeTarifaria'],
-      ['Subgrupo',                  'Subgrupo'],
-      ['Valor Total (R$)',          'ValorTotal'],
+      ['UC',                          'UC'],
+      ['Gerência',                    null],
+      ['LOCINS',                      null],
+      ['Cidade',                      'Cidade'],
+      ['Tipo',                        'Tipo'],
+      ['Mercado',                     'Mercado'],
+      ['Concessionária',              'Concessionaria'],
+      ['Mês Referência',              'MesReferencia'],
+      ['Ano Leitura',                 'AnoLeitura'],
+      ['Vencimento',                  'Vencimento'],
+      ['Nota Fiscal',                 'NotaFiscal'],
+      ['Modalidade Tarifária',        'ModalidadeTarifaria'],
+      ['Subgrupo',                    'Subgrupo'],
+      ['Valor Total (R$)',            'ValorTotal'],
       ['Demanda Contratada Ponta (kW)',           'DemandaContratadaPonta'],
       ['Demanda Contratada Fora Ponta (kW)',       'DemandaContratadaForaPonta'],
-      ['Demanda Todos os Períodos (kW)',           null],  // manual
+      ['Demanda Todos os Períodos (kW)',           null],
       ['Demanda Medida Ponta (kW)',                'DemandaMedidaPonta'],
       ['Valor Demanda Medida Ponta (R$)',          'ValorDemandaPonta'],
       ['Demanda Medida Fora Ponta (kW)',           'DemandaMedidaForaPonta'],
       ['Valor Demanda Medida Fora Ponta (R$)',     'ValorDemandaForaPonta'],
-      ['Consumo Grupo B (kWh)',                    null],  // manual
-      ['Valor Consumo Grupo B (R$)',               null],  // manual
+      ['Consumo Grupo B (kWh)',                    null],
+      ['Valor Consumo Grupo B (R$)',               null],
       ['Consumo Ponta (kWh)',                      'ConsumoPonta'],
       ['Valor Consumo Ponta (R$)',                 'ValorConsumoPonta'],
       ['Consumo Fora Ponta (kWh)',                 'ConsumoForaPonta'],
@@ -60,10 +58,10 @@ process.stdin.on('end', () => {
       ['GDI mUC (kWh)',                             'EnergiaAtvInjetadaGDImUC_Qtd'],
       ['Valor GDI mUC (R$)',                        'EnergiaAtvInjetadaGDImUC_Valor'],
       ['Saldo Acumulado GD (kWh)',                   'SaldoAcumuladoGD'],
-      ['Energia Injetada (kWh)',                    null],  // manual
-      ['Energia Compensada (kWh)',                  null],  // manual
+      ['Energia Injetada (kWh)',                    null],
+      ['Energia Compensada (kWh)',                  null],
       ['CIP (R$)',                                  'CIP'],
-      ['Outros Encargos (R$)',                      null],  // manual
+      ['Outros Encargos (R$)',                      null],
       ['PIS (R$)',                                  'PIS'],
       ['COFINS (R$)',                               'COFINS'],
       ['ICMS (R$)',                                 'ICMS'],
@@ -74,7 +72,6 @@ process.stdin.on('end', () => {
 
     const rows = invoices.map(inv =>
       keys.map(k => {
-        if (k === '_fileName') return inv._fileName || '';
         if (k === null) return '';
         return inv[k] || '';
       })
@@ -82,27 +79,12 @@ process.stdin.on('end', () => {
 
     const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
 
-    // Column widths: wider for labels, narrower for values
+    // Column widths
     ws['!cols'] = columns.map(c => {
       const label = c[0];
-      if (label.includes('Nome')) return { wch: 35 };
       if (label.includes('UC') && !label.includes('GDI')) return { wch: 22 };
       if (label.includes('Gerência') || label.includes('LOCINS')) return { wch: 18 };
       return { wch: 28 };
-    });
-
-    // Highlight manual columns (header only) — light yellow background
-    // Open XML styling for column headers
-    columns.forEach((col, ci) => {
-      if (col[1] === null) {
-        const cell = ws[XLSX.utils.encode_cell({ r: 0, c: ci })];
-        if (cell) {
-          cell.s = {
-            fill: { fgColor: { rgb: 'FFF9C4' } },
-            font: { italic: true }
-          };
-        }
-      }
     });
 
     const wb = XLSX.utils.book_new();
