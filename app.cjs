@@ -18,6 +18,24 @@ function sendFile(res, fp, cache) {
     res.writeHead(200, h); res.end(d);
   } catch { res.writeHead(404); res.end('Not found'); }
 }
+
+// Pre-cache static files to avoid readFileSync blocking under load
+const staticCache = new Map();
+function cacheStaticFile(fp) {
+  if (staticCache.has(fp)) return staticCache.get(fp);
+  try {
+    const d = fs.readFileSync(fp);
+    const entry = { data: d, type: MIME[path.extname(fp)] || 'application/octet-stream' };
+    staticCache.set(fp, entry);
+    return entry;
+  } catch { return null; }
+}
+function sendCachedFile(res, fp) {
+  const entry = cacheStaticFile(fp);
+  if (!entry) { res.writeHead(404); res.end('Not found'); return; }
+  res.writeHead(200, { 'Content-Type': entry.type, 'Cache-Control': 'public, max-age=31536000, immutable' });
+  res.end(entry.data);
+}
 function json(res, data, status) {
   res.writeHead(status || 200, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify(data));
@@ -46,6 +64,20 @@ const pdfParse = require('pdf-parse');
 const { extractEnergisaData } = require('./dist/energisa-extractor.cjs');
 let tableExtractor = null;
 try { tableExtractor = require('./dist/energisa-table-extractor.cjs'); } catch(e) {}
+
+// Pre-warm static file cache with index.html and common assets
+cacheStaticFile(path.join(BUILD, 'server', 'app', 'index.html'));
+try {
+  const walkDir = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walkDir(full);
+      else if (/\.(js|css|woff2?|ico|svg|png)$/.test(entry.name)) cacheStaticFile(full);
+    }
+  };
+  walkDir(path.join(BUILD, 'static'));
+} catch(e) {}
+console.log('Static cache entries:', staticCache.size);
 
 // Keep-alive: track last request time
 let lastReq = Date.now();
@@ -143,8 +175,8 @@ const srv = http.createServer(async (req, res) => {
       const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
       res.writeHead(200, { 'Content-Type': MIME['.xlsx'], 'Content-Disposition': 'attachment; filename="faturas_energisa.xlsx"' }); res.end(buf); return;
     }
-    if (p.startsWith('/_next/')) return sendFile(res, path.join(BUILD, p.replace('/_next', '')), true);
-    if (p === '/' || p === '/index.html') return sendFile(res, path.join(BUILD, 'server', 'app', 'index.html'), false);
+    if (p.startsWith('/_next/')) return sendCachedFile(res, path.join(BUILD, p.replace('/_next', '')));
+    if (p === '/' || p === '/index.html') return sendCachedFile(res, path.join(BUILD, 'server', 'app', 'index.html'));
     res.writeHead(404); res.end('404');
   } catch (e) { if (!res.headersSent) json(res, { error: e.message }, 500); }
 });
