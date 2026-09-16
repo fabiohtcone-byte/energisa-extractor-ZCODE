@@ -128,3 +128,26 @@ Stage Summary:
 - GDI mUC kWh agora soma corretamente todas as linhas: 4,00 + 1.229,00 + 18,00 = 1.251,00
 - GDI mUC R$ agora é extraído: -4,34 + -1.336,12 + -19,56 = -1.360,02
 - Linhas com label truncado na tabela são capturadas por heuristic de seção GDI
+---
+Task ID: 1
+Agent: main
+Task: Fix extraction bugs for Mês Referência, Ano Leitura, and Demanda Contratada in Energisa PDF extractor
+
+Work Log:
+- Identified bug: Mês Referência extracted "Dezembro / 2025" instead of "Fevereiro / 2026" due to fallback strategies matching "Referência: 12/2025" from history table
+- Identified bug: Demanda Contratada values swapped/missing due to pdf-parse column reordering
+- Added Strategy 1b for date+R$+month/year pattern (pdf-parse reordering)
+- Added isConsistentWithVencimento() validation to filter wrong month/year matches
+- Added Strategy 5 (Leitura Atual date) for MesReferencia fallback
+- Improved Strategy 4 to skip "Referência:" and "Ref" contexts
+- Added Strategy 6-7 with consistency validation for numeric MM/YYYY patterns
+- Fixed AnoLeitura to handle garbled pdf-parse text
+- Rewrote Demanda Contratada extraction with 4 strategies: same-line values, reordered bottom-line pattern (Fora Ponta: before KW Ponta:), normal-order pattern, nearby-lines labels
+- Added require cache clearing in app.cjs to always load latest compiled extractor
+- Recompiled CJS with esbuild
+
+Stage Summary:
+- All 20 PDFs now extract correct Mês Referência and Ano Leitura values
+- 9888705108.PDF: DemandaContratadaPonta=15,3, DemandaContratadaForaPonta=30 (was empty/15,3)
+- Mês Referência for 9888705108.PDF: Junho / 2026 (was "Dezembro / 2025" or "Abril / 2026")
+- Updated dist/energisa-extractor.cjs with all fixes

@@ -57,6 +57,12 @@ const srv = http.createServer(async (req, res) => {
       const parts = parseMultipart(body, bm[1]);
       const fp = parts.find(x => x.name === 'file' && x.body.length > 0);
       if (!fp) return json(res, { error: 'no file' }, 400);
+      // Clear require cache to always load the latest compiled extractor
+      for (const key of Object.keys(require.cache)) {
+        if (key.includes('energisa-extractor') || key.includes('energisa-table-extractor')) {
+          delete require.cache[key];
+        }
+      }
       const pdfParse = require('pdf-parse');
       const pd = await pdfParse(fp.body);
       let td = null;

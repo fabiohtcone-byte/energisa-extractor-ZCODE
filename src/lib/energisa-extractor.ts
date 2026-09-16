@@ -251,10 +251,16 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
       return diff >= 1 && diff <= 3; // reference is 1-3 months before vencimento
     };
 
-    // Strategy 1: "Mês / Ano" pattern on the SAME LINE as a date + R$ value (most reliable)
+    // Strategy 1a: "Mês / Ano" pattern BEFORE date + R$ on the SAME LINE (most reliable)
     // Energisa format: "Fevereiro / 202621/03/2026R$ 538,49" or "Junho / 2026  21/07/2026  R$ 13.356,50"
     for (const line of lines) {
       const m = line.match(new RegExp(`(${meses})\\s*/\\s*(\\d{4})\\s*\\d{2}/\\d{2}/\\d{4}\\s*R\\$`, 'i'));
+      if (m) return `${capitalize(m[1])} / ${m[2]}`;
+    }
+    // Strategy 1b: date + R$ pattern BEFORE "Mês / Ano" on the SAME LINE
+    // pdf-parse reordering: "21/07/2026R$ 6.980,48Junho / 2026"
+    for (const line of lines) {
+      const m = line.match(new RegExp(`\\d{2}/\\d{2}/\\d{4}\\s*R\\$\\s*[\\d.,]+\\s*(${meses})\\s*/\\s*(\\d{4})`, 'i'));
       if (m) return `${capitalize(m[1])} / ${m[2]}`;
     }
     // Strategy 2: "Mês / Ano" pattern on the SAME LINE as VENCIMENTO or NOTA FISCAL
@@ -463,11 +469,88 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
   let ValorDemandaForaPonta = EMPTY;
 
   if (isSplitTariff) {
-    // Try to extract demanda contratada from flat text: "KW Ponta:33" or "KW Ponta: 33"
-    const dcMatch = flat.match(/KW\s+Ponta\s*:\s*(\d+(?:[.,]\d+)?)/i);
-    if (dcMatch) DemandaContratadaPonta = dcMatch[1].replace('.', ',');
-    const dcFpMatch = flat.match(/Fora\s+Ponta\s*:\s*(\d+(?:[.,]\d+)?)/i);
-    if (dcFpMatch) DemandaContratadaForaPonta = dcFpMatch[1].replace('.', ',');
+    // ===== DEMANDA CONTRATADA EXTRACTION =====
+    // Energisa PDFs show contracted demand in two locations:
+    // 1) "Grandezas Contratadas" section: "Demanda ponta - kW  15,3" / "Demanda fora ponta - kW  30"
+    // 2) Bottom line: "KW Ponta: 15,3  Fora Ponta: 30  TUSDG:"
+    //
+    // pdf-parse often garbles the column order, producing:
+    //   "Demanda ponta - kW Demanda fora ponta - kW 30 15,3"  (values reversed)
+    //   "30 Fora Ponta: 15,3 KW Ponta:"  (values before labels, or between labels)
+    //
+    // We try multiple strategies and use the first one that gives both values.
+
+    // Strategy 1: "Demanda ponta - kW <value>" on the SAME LINE (pdftotext-like format)
+    const dpSameLine = flat.match(/Demanda\s+ponta\s*-\s*kW\s+(\d+(?:[.,]\d+)?)/i);
+    const dfpSameLine = flat.match(/Demanda\s+fora\s+ponta\s*-\s*kW\s+(\d+(?:[.,]\d+)?)/i);
+    if (dpSameLine && dfpSameLine) {
+      DemandaContratadaPonta = dpSameLine[1].replace('.', ',');
+      DemandaContratadaForaPonta = dfpSameLine[1].replace('.', ',');
+    }
+
+    // Strategy 2: Detect pdf-parse column reordering in bottom line
+    // When "Fora Ponta:" appears BEFORE "KW Ponta:" in the text, the values are
+    // rearranged: "<fora_val> Fora Ponta: <ponta_val> KW Ponta:"
+    // - Number BEFORE "Fora Ponta:" = Fora Ponta value
+    // - Number BETWEEN "Fora Ponta:" and "KW Ponta:" = Ponta value
+    if (!DemandaContratadaPonta || !DemandaContratadaForaPonta) {
+      const foraIdx = flat.search(/Fora\s+Ponta\s*:/i);
+      const kwIdx = flat.search(/KW\s+Ponta\s*:/i);
+      if (foraIdx >= 0 && kwIdx >= 0 && foraIdx < kwIdx) {
+        // "Fora Ponta:" appears before "KW Ponta:" — this is the reordered pattern
+        // Number between "Fora Ponta:" and "KW Ponta:" → Ponta value
+        const between = flat.slice(foraIdx, kwIdx);
+        const betweenMatch = between.match(/:\s*(\d+(?:[.,]\d+)?)/);
+        if (betweenMatch && !DemandaContratadaPonta) {
+          DemandaContratadaPonta = betweenMatch[1].replace('.', ',');
+        }
+        // Number before "Fora Ponta:" (within 25 chars) → Fora Ponta value
+        const before = flat.slice(Math.max(0, foraIdx - 25), foraIdx);
+        const beforeMatch = before.match(/(\d+(?:[.,]\d+)?)\s*$/);
+        if (beforeMatch && !DemandaContratadaForaPonta) {
+          DemandaContratadaForaPonta = beforeMatch[1].replace('.', ',');
+        }
+      } else if (kwIdx >= 0 && foraIdx >= 0 && kwIdx < foraIdx) {
+        // Normal order: "KW Ponta:" appears before "Fora Ponta:" — values follow labels
+        const kwAfter = flat.slice(kwIdx).match(/KW\s+Ponta\s*:\s*(\d+(?:[.,]\d+)?)/i);
+        const fpAfter = flat.slice(foraIdx).match(/Fora\s+Ponta\s*:\s*(\d+(?:[.,]\d+)?)/i);
+        if (kwAfter && !DemandaContratadaPonta) DemandaContratadaPonta = kwAfter[1].replace('.', ',');
+        if (fpAfter && !DemandaContratadaForaPonta) DemandaContratadaForaPonta = fpAfter[1].replace('.', ',');
+      }
+    }
+
+    // Strategy 3: "Demanda ponta/fora ponta - kW" labels with values on nearby lines
+    // (pdf-parse puts labels and values on separate lines)
+    if (!DemandaContratadaPonta || !DemandaContratadaForaPonta) {
+      const dpLineIdx = lines.findIndex(l => /Demanda\s+ponta\s*-\s*kW/i.test(l));
+      const dfpLineIdx = lines.findIndex(l => /Demanda\s+fora\s+ponta\s*-\s*kW/i.test(l));
+      if (dpLineIdx >= 0 && dfpLineIdx >= 0) {
+        // Collect numeric values from the lines after both labels
+        const startLine = Math.max(dpLineIdx, dfpLineIdx) + 1;
+        const numVal = /^(\d+(?:[.,]\d+)?)$/;
+        const values: string[] = [];
+        for (let i = startLine; i < Math.min(startLine + 5, lines.length); i++) {
+          const m = lines[i].match(numVal);
+          if (m) values.push(m[1].replace('.', ','));
+          if (values.length >= 2) break;
+        }
+        if (values.length === 2) {
+          // Use already-found values to disambiguate, or assume reverse order
+          if (DemandaContratadaForaPonta && !DemandaContratadaPonta) {
+            if (values[0] === DemandaContratadaForaPonta) DemandaContratadaPonta = values[1];
+            else if (values[1] === DemandaContratadaForaPonta) DemandaContratadaPonta = values[0];
+          } else if (DemandaContratadaPonta && !DemandaContratadaForaPonta) {
+            if (values[0] === DemandaContratadaPonta) DemandaContratadaForaPonta = values[1];
+            else if (values[1] === DemandaContratadaPonta) DemandaContratadaForaPonta = values[0];
+          } else {
+            // No disambiguation; assume pdf-parse reverse column order:
+            // values[0] = Fora Ponta, values[1] = Ponta
+            if (!DemandaContratadaForaPonta) DemandaContratadaForaPonta = values[0];
+            if (!DemandaContratadaPonta) DemandaContratadaPonta = values[1];
+          }
+        }
+      }
+    }
 
     DemandaMedidaPonta = findQtyNearLine(lines, /Demanda\s+Medida.*Ponta(?!.*Fora)/i);
     DemandaMedidaForaPonta = findQtyNearLine(lines, /Demanda\s+Medida.*Fora\s*Ponta/i);
