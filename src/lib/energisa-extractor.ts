@@ -236,6 +236,21 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
     };
     const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
 
+    // Helper: get Vencimento date components for sanity checks
+    const venMoneyMatch = flat.match(/(\d{2})\/(\d{2})\/(\d{4})\s*R\$/);
+    const venMonth = venMoneyMatch ? parseInt(venMoneyMatch[2], 10) : 0;
+    const venYear = venMoneyMatch ? parseInt(venMoneyMatch[3], 10) : 0;
+
+    // Helper: check if a month/year is consistent with the Vencimento date
+    // (reference month is typically 1-2 months before the vencimento month)
+    const isConsistentWithVencimento = (month: number, year: number): boolean => {
+      if (!venMonth || !venYear) return true; // no vencimento to compare
+      const venTotal = venYear * 12 + venMonth;
+      const refTotal = year * 12 + month;
+      const diff = venTotal - refTotal;
+      return diff >= 1 && diff <= 3; // reference is 1-3 months before vencimento
+    };
+
     // Strategy 1: "Mês / Ano" pattern on the SAME LINE as a date + R$ value (most reliable)
     // Energisa format: "Fevereiro / 202621/03/2026R$ 538,49" or "Junho / 2026  21/07/2026  R$ 13.356,50"
     for (const line of lines) {
@@ -253,42 +268,83 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
     for (const line of lines) {
       const m = line.match(new RegExp(`(${meses})\\s*/\\s*(\\d{4})`, 'i'));
       if (m && /\d{2}\/\d{2}\/\d{4}/.test(line)) {
-        return `${capitalize(m[1])} / ${m[2]}`;
+        const monthIdx = Object.values(numToMonth).indexOf(capitalize(m[1]));
+        const monthNum = monthIdx + 1;
+        if (isConsistentWithVencimento(monthNum, parseInt(m[2], 10))) {
+          return `${capitalize(m[1])} / ${m[2]}`;
+        }
       }
     }
-    // Strategy 4: "Mês / Ano" anywhere in flat text — but skip "Desde mês/ano" (informative text)
+    // Strategy 4: "Mês / Ano" anywhere in flat text — skip "Desde mês/ano", "Referência:" history, etc.
     const allNameMatches = [...flat.matchAll(new RegExp(`(${meses})\\s*/\\s*(\\d{4})`, 'gi'))];
     for (const m of allNameMatches) {
-      // Check context: skip if preceded by "Desde" or other informative words
-      const start = Math.max(0, m.index! - 15);
+      // Check context: skip if preceded by "Desde", "Referência:", "Ref", or other informative words
+      const start = Math.max(0, m.index! - 20);
       const context = flat.slice(start, m.index! + m[0].length).toLowerCase();
-      if (/desde|até|a partir|inform|dispon/.test(context)) continue;
+      if (/desde|até|a partir|inform|dispon|referência|ref\b/.test(context)) continue;
+      // Also validate against Vencimento date
+      const monthIdx = Object.values(numToMonth).indexOf(capitalize(m[1]));
+      const monthNum = monthIdx + 1;
+      if (!isConsistentWithVencimento(monthNum, parseInt(m[2], 10))) continue;
       return `${capitalize(m[1])} / ${m[2]}`;
     }
-    // Strategy 5: numeric MM/YYYY — prefer the one near Vencimento date
-    const venDate = flat.match(/(\d{2})\/(\d{2})\/(\d{4})\s*R\$/);
-    if (venDate) {
-      const venYear = venDate[3];
-      // Look for MM/YYYY near the vencimento
-      const venIdx = flat.indexOf(venDate[0]);
-      const region = flat.slice(Math.max(0, venIdx - 100), venIdx + 50);
-      const numM = region.match(/(\d{2})\s*\/\s*(\d{4})/);
-      if (numM && numToMonth[numM[1]] && numM[2] === venYear) {
-        return `${numToMonth[numM[1]]} / ${numM[2]}`;
+    // Strategy 5: Use Leitura Atual date to derive the reference month
+    // pdf-parse sometimes garbles text, so try multiple patterns
+    const leituraPatterns = [
+      /Leitura\s+Atual\s*:\s*\d{2}\s*\/\s*(\d{2})\s*\/\s*(\d{4})/i,
+      /Leitura\s+Atual\s*:?\s*\d{2,4}\/?\s*(\d{2})\s*\/\s*(\d{4})/i,
+    ];
+    for (const pat of leituraPatterns) {
+      const lm = flat.match(pat);
+      if (lm && numToMonth[lm[1]]) {
+        const monthNum = parseInt(lm[1], 10);
+        const year = parseInt(lm[2], 10);
+        if (isConsistentWithVencimento(monthNum, year)) {
+          return `${numToMonth[lm[1]]} / ${lm[2]}`;
+        }
       }
     }
-    // Strategy 6: first valid MM/YYYY that is a month
-    const numMatch = flat.match(/(\d{2})\s*[\/]\s*(\d{4})/);
-    if (numMatch && numToMonth[numMatch[1]]) {
-      return `${numToMonth[numMatch[1]]} / ${numMatch[2]}`;
+    // Strategy 6: numeric MM/YYYY near Vencimento date — with consistency check
+    if (venMoneyMatch) {
+      const venIdx = flat.indexOf(venMoneyMatch[0]);
+      const region = flat.slice(Math.max(0, venIdx - 150), venIdx + 50);
+      const numMatches = [...region.matchAll(/(\d{2})\s*\/\s*(\d{4})/g)];
+      for (const nm of numMatches) {
+        if (numToMonth[nm[1]]) {
+          const monthNum = parseInt(nm[1], 10);
+          const year = parseInt(nm[2], 10);
+          if (isConsistentWithVencimento(monthNum, year)) {
+            return `${numToMonth[nm[1]]} / ${nm[2]}`;
+          }
+        }
+      }
+    }
+    // Strategy 7: first valid MM/YYYY that is a month and consistent with Vencimento
+    const allNumMatches = [...flat.matchAll(/(\d{2})\s*[\/]\s*(\d{4})/g)];
+    for (const nm of allNumMatches) {
+      if (numToMonth[nm[1]]) {
+        const monthNum = parseInt(nm[1], 10);
+        const year = parseInt(nm[2], 10);
+        if (isConsistentWithVencimento(monthNum, year)) {
+          return `${numToMonth[nm[1]]} / ${nm[2]}`;
+        }
+      }
     }
     return EMPTY;
   })();
 
   // ===== ANO LEITURA =====
   const AnoLeitura = (() => {
-    const m = flat.match(/Leitura\s+Atual\s*:\s*\d{2}\s*\/\s*\d{2}\s*\/\s*(\d{4})/i);
-    if (m) return m[1];
+    // Try multiple patterns for Leitura Atual date (pdf-parse can garble text)
+    const leituraYearPatterns = [
+      /Leitura\s+Atual\s*:\s*\d{2}\s*\/\s*\d{2}\s*\/\s*(\d{4})/i,
+      /Leitura\s+Atual\s*:?\s*\d{2,4}\/?\s*\d{2}\s*\/\s*(\d{4})/i,
+    ];
+    for (const pat of leituraYearPatterns) {
+      const m = flat.match(pat);
+      if (m) return m[1];
+    }
+    // Fallback: extract year from MesReferencia
     if (MesReferencia) {
       const ym = MesReferencia.match(/(\d{4})/);
       if (ym) return ym[1];
