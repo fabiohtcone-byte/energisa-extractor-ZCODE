@@ -138,12 +138,41 @@ function extractEnergisaData(rawText, tableExtraction) {
       "11": "Novembro",
       "12": "Dezembro"
     };
-    const nameMatch = flat.match(new RegExp(`(${meses})\\s*[\\/\\-]\\s*(\\d{4})`, "i"));
-    if (nameMatch) {
-      const month = nameMatch[1].charAt(0).toUpperCase() + nameMatch[1].slice(1).toLowerCase();
-      return `${month} / ${nameMatch[2]}`;
+    const capitalize = (s) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+    for (const line of lines) {
+      const m = line.match(new RegExp(`(${meses})\\s*/\\s*(\\d{4})\\s*\\d{2}/\\d{2}/\\d{4}\\s*R\\$`, "i"));
+      if (m) return `${capitalize(m[1])} / ${m[2]}`;
     }
-    const numMatch = flat.match(/(\d{2})\s*[\\/]\s*(\d{4})/);
+    for (const line of lines) {
+      if (/VENCIMENTO|NOTA FISCAL|Nº FATURA/i.test(line)) {
+        const m = line.match(new RegExp(`(${meses})\\s*/\\s*(\\d{4})`, "i"));
+        if (m) return `${capitalize(m[1])} / ${m[2]}`;
+      }
+    }
+    for (const line of lines) {
+      const m = line.match(new RegExp(`(${meses})\\s*/\\s*(\\d{4})`, "i"));
+      if (m && /\d{2}\/\d{2}\/\d{4}/.test(line)) {
+        return `${capitalize(m[1])} / ${m[2]}`;
+      }
+    }
+    const allNameMatches = [...flat.matchAll(new RegExp(`(${meses})\\s*/\\s*(\\d{4})`, "gi"))];
+    for (const m of allNameMatches) {
+      const start = Math.max(0, m.index - 15);
+      const context = flat.slice(start, m.index + m[0].length).toLowerCase();
+      if (/desde|até|a partir|inform|dispon/.test(context)) continue;
+      return `${capitalize(m[1])} / ${m[2]}`;
+    }
+    const venDate = flat.match(/(\d{2})\/(\d{2})\/(\d{4})\s*R\$/);
+    if (venDate) {
+      const venYear = venDate[3];
+      const venIdx = flat.indexOf(venDate[0]);
+      const region = flat.slice(Math.max(0, venIdx - 100), venIdx + 50);
+      const numM = region.match(/(\d{2})\s*\/\s*(\d{4})/);
+      if (numM && numToMonth[numM[1]] && numM[2] === venYear) {
+        return `${numToMonth[numM[1]]} / ${numM[2]}`;
+      }
+    }
+    const numMatch = flat.match(/(\d{2})\s*[\/]\s*(\d{4})/);
     if (numMatch && numToMonth[numMatch[1]]) {
       return `${numToMonth[numMatch[1]]} / ${numMatch[2]}`;
     }

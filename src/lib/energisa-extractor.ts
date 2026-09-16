@@ -234,12 +234,51 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
       '05': 'Maio', '06': 'Junho', '07': 'Julho', '08': 'Agosto',
       '09': 'Setembro', '10': 'Outubro', '11': 'Novembro', '12': 'Dezembro',
     };
-    const nameMatch = flat.match(new RegExp(`(${meses})\\s*[\\/\\-]\\s*(\\d{4})`, 'i'));
-    if (nameMatch) {
-      const month = nameMatch[1].charAt(0).toUpperCase() + nameMatch[1].slice(1).toLowerCase();
-      return `${month} / ${nameMatch[2]}`;
+    const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+
+    // Strategy 1: "Mês / Ano" pattern on the SAME LINE as a date + R$ value (most reliable)
+    // Energisa format: "Fevereiro / 202621/03/2026R$ 538,49" or "Junho / 2026  21/07/2026  R$ 13.356,50"
+    for (const line of lines) {
+      const m = line.match(new RegExp(`(${meses})\\s*/\\s*(\\d{4})\\s*\\d{2}/\\d{2}/\\d{4}\\s*R\\$`, 'i'));
+      if (m) return `${capitalize(m[1])} / ${m[2]}`;
     }
-    const numMatch = flat.match(/(\d{2})\s*[\\/]\s*(\d{4})/);
+    // Strategy 2: "Mês / Ano" pattern on the SAME LINE as VENCIMENTO or NOTA FISCAL
+    for (const line of lines) {
+      if (/VENCIMENTO|NOTA FISCAL|Nº FATURA/i.test(line)) {
+        const m = line.match(new RegExp(`(${meses})\\s*/\\s*(\\d{4})`, 'i'));
+        if (m) return `${capitalize(m[1])} / ${m[2]}`;
+      }
+    }
+    // Strategy 3: "Mês / Ano" on a line that also contains a date DD/MM/YYYY (likely the billing line)
+    for (const line of lines) {
+      const m = line.match(new RegExp(`(${meses})\\s*/\\s*(\\d{4})`, 'i'));
+      if (m && /\d{2}\/\d{2}\/\d{4}/.test(line)) {
+        return `${capitalize(m[1])} / ${m[2]}`;
+      }
+    }
+    // Strategy 4: "Mês / Ano" anywhere in flat text — but skip "Desde mês/ano" (informative text)
+    const allNameMatches = [...flat.matchAll(new RegExp(`(${meses})\\s*/\\s*(\\d{4})`, 'gi'))];
+    for (const m of allNameMatches) {
+      // Check context: skip if preceded by "Desde" or other informative words
+      const start = Math.max(0, m.index! - 15);
+      const context = flat.slice(start, m.index! + m[0].length).toLowerCase();
+      if (/desde|até|a partir|inform|dispon/.test(context)) continue;
+      return `${capitalize(m[1])} / ${m[2]}`;
+    }
+    // Strategy 5: numeric MM/YYYY — prefer the one near Vencimento date
+    const venDate = flat.match(/(\d{2})\/(\d{2})\/(\d{4})\s*R\$/);
+    if (venDate) {
+      const venYear = venDate[3];
+      // Look for MM/YYYY near the vencimento
+      const venIdx = flat.indexOf(venDate[0]);
+      const region = flat.slice(Math.max(0, venIdx - 100), venIdx + 50);
+      const numM = region.match(/(\d{2})\s*\/\s*(\d{4})/);
+      if (numM && numToMonth[numM[1]] && numM[2] === venYear) {
+        return `${numToMonth[numM[1]]} / ${numM[2]}`;
+      }
+    }
+    // Strategy 6: first valid MM/YYYY that is a month
+    const numMatch = flat.match(/(\d{2})\s*[\/]\s*(\d{4})/);
     if (numMatch && numToMonth[numMatch[1]]) {
       return `${numToMonth[numMatch[1]]} / ${numMatch[2]}`;
     }
