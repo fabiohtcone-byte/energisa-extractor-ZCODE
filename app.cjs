@@ -26,7 +26,6 @@ function readBody(req) {
   return new Promise((ok, fail) => {
     const c = []; req.on('data', chunk => c.push(chunk));
     req.on('end', () => ok(Buffer.concat(c))); req.on('error', fail);
-    req.socket.setTimeout(120000);
   });
 }
 function parseMultipart(buf, boundary) {
@@ -42,14 +41,20 @@ function parseMultipart(buf, boundary) {
   return parts;
 }
 
-// Keep-alive: respond to health checks so container stays alive
+// Pre-load modules once (avoid clearing require.cache which can cause crashes)
+const pdfParse = require('pdf-parse');
+const { extractEnergisaData } = require('./dist/energisa-extractor.cjs');
+let tableExtractor = null;
+try { tableExtractor = require('./dist/energisa-table-extractor.cjs'); } catch(e) {}
+
+// Keep-alive: track last request time
 let lastReq = Date.now();
-setInterval(() => { if (Date.now() - lastReq > 300000) process.exit(1); }, 60000);
 
 const srv = http.createServer(async (req, res) => {
   lastReq = Date.now();
   try {
     const p = new URL(req.url, 'http://x').pathname;
+    if (p === '/api/health') return json(res, { status: 'ok', uptime: process.uptime() });
     if (p === '/api/extract-pdf' && req.method === 'POST') {
       const body = await readBody(req);
       const bm = (req.headers['content-type'] || '').match(/boundary=([\w\-]+)/);
@@ -57,18 +62,10 @@ const srv = http.createServer(async (req, res) => {
       const parts = parseMultipart(body, bm[1]);
       const fp = parts.find(x => x.name === 'file' && x.body.length > 0);
       if (!fp) return json(res, { error: 'no file' }, 400);
-      // Clear require cache to always load the latest compiled extractor
-      for (const key of Object.keys(require.cache)) {
-        if (key.includes('energisa-extractor') || key.includes('energisa-table-extractor')) {
-          delete require.cache[key];
-        }
-      }
-      const pdfParse = require('pdf-parse');
       const pd = await pdfParse(fp.body);
       let td = null;
-      try { const m = require('./dist/energisa-table-extractor.cjs'); td = await Promise.race([m.extractTableFromPDF(fp.body), new Promise((_,r) => setTimeout(() => r(new Error('t')), 10000))]); } catch(e) {}
+      try { if (tableExtractor) td = await Promise.race([tableExtractor.extractTableFromPDF(fp.body), new Promise((_,r) => setTimeout(() => r(new Error('t')), 10000))]); } catch(e) {}
       if (!pd.text || !pd.text.trim()) return json(res, { error: 'Sem texto' }, 422);
-      const { extractEnergisaData } = require('./dist/energisa-extractor.cjs');
       const ext = extractEnergisaData(pd.text, td);
       const vals = Object.values(ext), cnt = vals.filter(v => v !== '').length;
       return json(res, { success: true, data: ext, stats: { extractedCount: cnt, totalFields: vals.length, extractionRate: Math.round(cnt/vals.length*100), pageCount: pd.numpages, tableItems: td?.items?.length ?? 0 } });
@@ -152,11 +149,16 @@ const srv = http.createServer(async (req, res) => {
   } catch (e) { if (!res.headersSent) json(res, { error: e.message }, 500); }
 });
 
-// Ignore all signals - never exit
-['SIGTERM','SIGHUP','SIGINT','SIGUSR1','SIGUSR2'].forEach(s => process.on(s, () => {}));
+// Ignore SIGTERM/SIGHUP to stay alive in container
+try { process.on('SIGTERM', () => console.log('Ignored SIGTERM')); } catch(e) {}
+try { process.on('SIGHUP', () => console.log('Ignored SIGHUP')); } catch(e) {}
 
 srv.listen(3000, '0.0.0.0', () => console.log('> Ready on :3000'));
 
 // Global error handlers to prevent crashes
-process.on('uncaughtException', (err) => { console.error('uncaught:', err.message); });
+process.on('uncaughtException', (err) => {
+  console.error('uncaught:', err.message);
+  // Don't exit on signal registration errors in container
+  if (err.message && err.message.includes('uv_signal_start')) return;
+});
 process.on('unhandledRejection', (err) => { console.error('unhandled:', err?.message || err); });
