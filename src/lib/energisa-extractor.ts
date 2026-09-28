@@ -33,6 +33,8 @@ export interface EnergisaInvoiceData {
   ConsumoPonta: string;
   ConsumoForaPonta: string;
   ConsumoTotal: string;
+  ConsumoGrupoB_kWh: string;
+  ConsumoGrupoB_Valor: string;
   DemandaContratadaPonta: string;
   DemandaContratadaForaPonta: string;
   DemandaMedidaPonta: string;
@@ -77,6 +79,17 @@ function parseBR(s: string): number {
   const neg = s.startsWith('-');
   const clean = neg ? s.slice(1) : s;
   return parseFloat(clean.replace('.', '').replace(',', '.')) * (neg ? -1 : 1);
+}
+
+function formatBR(n: number): string {
+  if (n === 0) return '0,00';
+  const neg = n < 0;
+  const abs = Math.abs(n);
+  const rounded = Math.round(abs * 100) / 100;
+  const parts = rounded.toFixed(2).split('.');
+  const intPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  const result = intPart + ',' + parts[1];
+  return neg ? '-' + result : result;
 }
 
 function findLine(lines: string[], pattern: RegExp): number {
@@ -428,8 +441,13 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
   let ConsumoPonta = EMPTY;
   let ConsumoForaPonta = EMPTY;
   let ConsumoTotal = EMPTY;
+  let ConsumoGrupoB_kWh = EMPTY;
+  let ConsumoGrupoB_Valor = EMPTY;
   let ValorConsumoPonta = EMPTY;
   let ValorConsumoForaPonta = EMPTY;
+  // Accumulators for Grupo B consumption
+  let grupoB_consumoKWh_total = 0;
+  let grupoB_consumoValor_total = 0;
 
   if (isSplitTariff) {
     const pontaIdx = findLine(lines, /Consumo\s+em\s+kWh.*Ponta(?!.*Fora)/i);
@@ -743,6 +761,15 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
 
       // Consumo - check Convencional (no Ponta/Fora) first, then split
       if (/Consumo\s+em\s+kWh/i.test(lbl) && !/Reativ/i.test(lbl) && !/Injetada/i.test(lbl)) {
+        // Accumulate for Grupo B (regardless of Ponta/Fora/Intermediária)
+        if (item.quantidade) {
+          const qtd = parseBR(item.quantidade);
+          if (qtd > 0) grupoB_consumoKWh_total += qtd;
+        }
+        if (item.valor) {
+          const val = parseBR(item.valor);
+          if (val > 0) grupoB_consumoValor_total += val;
+        }
         // Convencional: label is exactly "Consumo em kWh" without Ponta/Fora
         if (!/Ponta/i.test(lbl) && !/Fora/i.test(lbl) && !/Intermedi/i.test(lbl)) {
           if (item.quantidade) ConsumoTotal = item.quantidade;
@@ -865,11 +892,38 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
     if (tbl_mUC_Valor) EnergiaAtvInjetadaGDImUC_Valor = tbl_mUC_Valor;
   }
 
+  // ===== Grupo B: calculate dedicated fields =====
+  // For Subgrupo B (B1, B2, B3, B4), fill ConsumoGrupoB_kWh and ConsumoGrupoB_Valor
+  const isGrupoB = /^B/i.test(Subgrupo);
+  if (isGrupoB) {
+    // ConsumoGrupoB_kWh: total consumption in kWh
+    if (grupoB_consumoKWh_total > 0) {
+      ConsumoGrupoB_kWh = formatBR(grupoB_consumoKWh_total);
+    } else if (ConsumoTotal) {
+      // Fallback: use ConsumoTotal if no table accumulation
+      ConsumoGrupoB_kWh = ConsumoTotal;
+    } else {
+      // Fallback: sum ConsumoPonta + ConsumoForaPonta
+      const p = ConsumoPonta ? parseBR(ConsumoPonta) : 0;
+      const f = ConsumoForaPonta ? parseBR(ConsumoForaPonta) : 0;
+      if (p + f > 0) ConsumoGrupoB_kWh = formatBR(p + f);
+    }
+    // ConsumoGrupoB_Valor: total consumption value in R$
+    if (grupoB_consumoValor_total > 0) {
+      ConsumoGrupoB_Valor = formatBR(grupoB_consumoValor_total);
+    } else {
+      // Fallback: sum ValorConsumoPonta + ValorConsumoForaPonta
+      const vp = ValorConsumoPonta ? parseBR(ValorConsumoPonta) : 0;
+      const vf = ValorConsumoForaPonta ? parseBR(ValorConsumoForaPonta) : 0;
+      if (vp + vf > 0) ConsumoGrupoB_Valor = formatBR(vp + vf);
+    }
+  }
+
   return {
     UC: cleanUC, Cidade, Tipo, Mercado, Concessionaria,
     MesReferencia, AnoLeitura, Vencimento, NotaFiscal,
     ModalidadeTarifaria, Subgrupo,
-    ConsumoPonta, ConsumoForaPonta, ConsumoTotal,
+    ConsumoPonta, ConsumoForaPonta, ConsumoTotal, ConsumoGrupoB_kWh, ConsumoGrupoB_Valor,
     DemandaContratadaPonta, DemandaContratadaForaPonta,
     DemandaMedidaPonta, DemandaMedidaForaPonta,
     DemandaFaturadaPonta, DemandaFaturadaForaPonta,
@@ -1047,6 +1101,8 @@ export const FIELD_LABELS: Record<keyof EnergisaInvoiceData, string> = {
   ConsumoPonta: 'Consumo Ponta (kWh)',
   ConsumoForaPonta: 'Consumo Fora Ponta (kWh)',
   ConsumoTotal: 'Consumo Total (kWh)',
+  ConsumoGrupoB_kWh: 'Consumo em kWh (Grupo B)',
+  ConsumoGrupoB_Valor: 'Consumo (R$) (Grupo B)',
   DemandaContratadaPonta: 'Demanda Contratada Ponta (kW)',
   DemandaContratadaForaPonta: 'Demanda Contratada Fora Ponta (kW)',
   DemandaMedidaPonta: 'Demanda Medida Ponta (kW)',
@@ -1087,14 +1143,14 @@ export const FIELD_CATEGORIES: { category: string; fields: (keyof EnergisaInvoic
   { category: 'Identificação', fields: ['UC', 'Cidade', 'Tipo', 'Mercado', 'Concessionaria'] },
   { category: 'Datas e Documentos', fields: ['MesReferencia', 'AnoLeitura', 'Vencimento', 'NotaFiscal'] },
   { category: 'Tarifa', fields: ['ModalidadeTarifaria', 'Subgrupo'] },
-  { category: 'Consumo (kWh)', fields: ['ConsumoPonta', 'ConsumoForaPonta', 'ConsumoTotal'] },
+  { category: 'Consumo (kWh)', fields: ['ConsumoPonta', 'ConsumoForaPonta', 'ConsumoTotal', 'ConsumoGrupoB_kWh'] },
   { category: 'Demanda Contratada (kW)', fields: ['DemandaContratadaPonta', 'DemandaContratadaForaPonta'] },
   { category: 'Demanda Medida (kW)', fields: ['DemandaMedidaPonta', 'DemandaMedidaForaPonta'] },
   { category: 'Demanda Faturada (kW)', fields: ['DemandaFaturadaPonta', 'DemandaFaturadaForaPonta'] },
   { category: 'Ultrapassagem (kW)', fields: ['UltrapassagemPonta', 'UltrapassagemForaPonta'] },
   { category: 'Demanda Não Consumida (kW)', fields: ['DemandaNaoConsumidaPonta', 'DemandaNaoConsumidaForaPonta'] },
   { category: 'Reativa Excedente (kWh)', fields: ['ReativaExcedentePonta', 'ReativaExcedenteForaPonta', 'EnergiaReativaTotal'] },
-  { category: 'Valores - Consumo (R$)', fields: ['ValorConsumoPonta', 'ValorConsumoForaPonta'] },
+  { category: 'Valores - Consumo (R$)', fields: ['ValorConsumoPonta', 'ValorConsumoForaPonta', 'ConsumoGrupoB_Valor'] },
   { category: 'Valores - Demanda (R$)', fields: ['ValorDemandaPonta', 'ValorDemandaForaPonta'] },
   { category: 'Valores - Ultrapassagem (R$)', fields: ['ValorUltrapassagemPonta', 'ValorUltrapassagemForaPonta'] },
   { category: 'Valores - Demanda Não Consumida (R$)', fields: ['ValorNaoConsumidaPonta', 'ValorNaoConsumidaForaPonta'] },

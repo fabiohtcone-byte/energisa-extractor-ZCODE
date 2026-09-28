@@ -1,8 +1,19 @@
-const EMPTY = "";
+// src/lib/energisa-extractor.ts
+var EMPTY = "";
 function parseBR(s) {
   const neg = s.startsWith("-");
   const clean = neg ? s.slice(1) : s;
   return parseFloat(clean.replace(".", "").replace(",", ".")) * (neg ? -1 : 1);
+}
+function formatBR(n) {
+  if (n === 0) return "0,00";
+  const neg = n < 0;
+  const abs = Math.abs(n);
+  const rounded = Math.round(abs * 100) / 100;
+  const parts = rounded.toFixed(2).split(".");
+  const intPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  const result = intPart + "," + parts[1];
+  return neg ? "-" + result : result;
 }
 function findLine(lines, pattern) {
   return lines.findIndex((l) => pattern.test(l));
@@ -139,8 +150,22 @@ function extractEnergisaData(rawText, tableExtraction) {
       "12": "Dezembro"
     };
     const capitalize = (s) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+    const venMoneyMatch = flat.match(/(\d{2})\/(\d{2})\/(\d{4})\s*R\$/);
+    const venMonth = venMoneyMatch ? parseInt(venMoneyMatch[2], 10) : 0;
+    const venYear = venMoneyMatch ? parseInt(venMoneyMatch[3], 10) : 0;
+    const isConsistentWithVencimento = (month, year) => {
+      if (!venMonth || !venYear) return true;
+      const venTotal = venYear * 12 + venMonth;
+      const refTotal = year * 12 + month;
+      const diff = venTotal - refTotal;
+      return diff >= 1 && diff <= 3;
+    };
     for (const line of lines) {
       const m = line.match(new RegExp(`(${meses})\\s*/\\s*(\\d{4})\\s*\\d{2}/\\d{2}/\\d{4}\\s*R\\$`, "i"));
+      if (m) return `${capitalize(m[1])} / ${m[2]}`;
+    }
+    for (const line of lines) {
+      const m = line.match(new RegExp(`\\d{2}/\\d{2}/\\d{4}\\s*R\\$\\s*[\\d.,]+\\s*(${meses})\\s*/\\s*(\\d{4})`, "i"));
       if (m) return `${capitalize(m[1])} / ${m[2]}`;
     }
     for (const line of lines) {
@@ -152,35 +177,72 @@ function extractEnergisaData(rawText, tableExtraction) {
     for (const line of lines) {
       const m = line.match(new RegExp(`(${meses})\\s*/\\s*(\\d{4})`, "i"));
       if (m && /\d{2}\/\d{2}\/\d{4}/.test(line)) {
-        return `${capitalize(m[1])} / ${m[2]}`;
+        const monthIdx = Object.values(numToMonth).indexOf(capitalize(m[1]));
+        const monthNum = monthIdx + 1;
+        if (isConsistentWithVencimento(monthNum, parseInt(m[2], 10))) {
+          return `${capitalize(m[1])} / ${m[2]}`;
+        }
       }
     }
     const allNameMatches = [...flat.matchAll(new RegExp(`(${meses})\\s*/\\s*(\\d{4})`, "gi"))];
     for (const m of allNameMatches) {
-      const start = Math.max(0, m.index - 15);
+      const start = Math.max(0, m.index - 20);
       const context = flat.slice(start, m.index + m[0].length).toLowerCase();
-      if (/desde|até|a partir|inform|dispon/.test(context)) continue;
+      if (/desde|até|a partir|inform|dispon|referência|ref\b/.test(context)) continue;
+      const monthIdx = Object.values(numToMonth).indexOf(capitalize(m[1]));
+      const monthNum = monthIdx + 1;
+      if (!isConsistentWithVencimento(monthNum, parseInt(m[2], 10))) continue;
       return `${capitalize(m[1])} / ${m[2]}`;
     }
-    const venDate = flat.match(/(\d{2})\/(\d{2})\/(\d{4})\s*R\$/);
-    if (venDate) {
-      const venYear = venDate[3];
-      const venIdx = flat.indexOf(venDate[0]);
-      const region = flat.slice(Math.max(0, venIdx - 100), venIdx + 50);
-      const numM = region.match(/(\d{2})\s*\/\s*(\d{4})/);
-      if (numM && numToMonth[numM[1]] && numM[2] === venYear) {
-        return `${numToMonth[numM[1]]} / ${numM[2]}`;
+    const leituraPatterns = [
+      /Leitura\s+Atual\s*:\s*\d{2}\s*\/\s*(\d{2})\s*\/\s*(\d{4})/i,
+      /Leitura\s+Atual\s*:?\s*\d{2,4}\/?\s*(\d{2})\s*\/\s*(\d{4})/i
+    ];
+    for (const pat of leituraPatterns) {
+      const lm = flat.match(pat);
+      if (lm && numToMonth[lm[1]]) {
+        const monthNum = parseInt(lm[1], 10);
+        const year = parseInt(lm[2], 10);
+        if (isConsistentWithVencimento(monthNum, year)) {
+          return `${numToMonth[lm[1]]} / ${lm[2]}`;
+        }
       }
     }
-    const numMatch = flat.match(/(\d{2})\s*[\/]\s*(\d{4})/);
-    if (numMatch && numToMonth[numMatch[1]]) {
-      return `${numToMonth[numMatch[1]]} / ${numMatch[2]}`;
+    if (venMoneyMatch) {
+      const venIdx = flat.indexOf(venMoneyMatch[0]);
+      const region = flat.slice(Math.max(0, venIdx - 150), venIdx + 50);
+      const numMatches = [...region.matchAll(/(\d{2})\s*\/\s*(\d{4})/g)];
+      for (const nm of numMatches) {
+        if (numToMonth[nm[1]]) {
+          const monthNum = parseInt(nm[1], 10);
+          const year = parseInt(nm[2], 10);
+          if (isConsistentWithVencimento(monthNum, year)) {
+            return `${numToMonth[nm[1]]} / ${nm[2]}`;
+          }
+        }
+      }
+    }
+    const allNumMatches = [...flat.matchAll(/(\d{2})\s*[\/]\s*(\d{4})/g)];
+    for (const nm of allNumMatches) {
+      if (numToMonth[nm[1]]) {
+        const monthNum = parseInt(nm[1], 10);
+        const year = parseInt(nm[2], 10);
+        if (isConsistentWithVencimento(monthNum, year)) {
+          return `${numToMonth[nm[1]]} / ${nm[2]}`;
+        }
+      }
     }
     return EMPTY;
   })();
   const AnoLeitura = (() => {
-    const m = flat.match(/Leitura\s+Atual\s*:\s*\d{2}\s*\/\s*\d{2}\s*\/\s*(\d{4})/i);
-    if (m) return m[1];
+    const leituraYearPatterns = [
+      /Leitura\s+Atual\s*:\s*\d{2}\s*\/\s*\d{2}\s*\/\s*(\d{4})/i,
+      /Leitura\s+Atual\s*:?\s*\d{2,4}\/?\s*\d{2}\s*\/\s*(\d{4})/i
+    ];
+    for (const pat of leituraYearPatterns) {
+      const m = flat.match(pat);
+      if (m) return m[1];
+    }
     if (MesReferencia) {
       const ym = MesReferencia.match(/(\d{4})/);
       if (ym) return ym[1];
@@ -234,8 +296,12 @@ function extractEnergisaData(rawText, tableExtraction) {
   let ConsumoPonta = EMPTY;
   let ConsumoForaPonta = EMPTY;
   let ConsumoTotal = EMPTY;
+  let ConsumoGrupoB_kWh = EMPTY;
+  let ConsumoGrupoB_Valor = EMPTY;
   let ValorConsumoPonta = EMPTY;
   let ValorConsumoForaPonta = EMPTY;
+  let grupoB_consumoKWh_total = 0;
+  let grupoB_consumoValor_total = 0;
   if (isSplitTariff) {
     const pontaIdx = findLine(lines, /Consumo\s+em\s+kWh.*Ponta(?!.*Fora)/i);
     const fpIdx = findLine(lines, /Consumo\s+em\s+kWh.*Fora\s*Ponta/i);
@@ -277,10 +343,59 @@ function extractEnergisaData(rawText, tableExtraction) {
   let ValorDemandaPonta = EMPTY;
   let ValorDemandaForaPonta = EMPTY;
   if (isSplitTariff) {
-    const dcMatch = flat.match(/KW\s+Ponta\s*:\s*(\d+(?:[.,]\d+)?)/i);
-    if (dcMatch) DemandaContratadaPonta = dcMatch[1].replace(".", ",");
-    const dcFpMatch = flat.match(/Fora\s+Ponta\s*:\s*(\d+(?:[.,]\d+)?)/i);
-    if (dcFpMatch) DemandaContratadaForaPonta = dcFpMatch[1].replace(".", ",");
+    const dpSameLine = flat.match(/Demanda\s+ponta\s*-\s*kW\s+(\d+(?:[.,]\d+)?)/i);
+    const dfpSameLine = flat.match(/Demanda\s+fora\s+ponta\s*-\s*kW\s+(\d+(?:[.,]\d+)?)/i);
+    if (dpSameLine && dfpSameLine) {
+      DemandaContratadaPonta = dpSameLine[1].replace(".", ",");
+      DemandaContratadaForaPonta = dfpSameLine[1].replace(".", ",");
+    }
+    if (!DemandaContratadaPonta || !DemandaContratadaForaPonta) {
+      const foraIdx = flat.search(/Fora\s+Ponta\s*:/i);
+      const kwIdx = flat.search(/KW\s+Ponta\s*:/i);
+      if (foraIdx >= 0 && kwIdx >= 0 && foraIdx < kwIdx) {
+        const between = flat.slice(foraIdx, kwIdx);
+        const betweenMatch = between.match(/:\s*(\d+(?:[.,]\d+)?)/);
+        if (betweenMatch && !DemandaContratadaPonta) {
+          DemandaContratadaPonta = betweenMatch[1].replace(".", ",");
+        }
+        const before = flat.slice(Math.max(0, foraIdx - 25), foraIdx);
+        const beforeMatch = before.match(/(\d+(?:[.,]\d+)?)\s*$/);
+        if (beforeMatch && !DemandaContratadaForaPonta) {
+          DemandaContratadaForaPonta = beforeMatch[1].replace(".", ",");
+        }
+      } else if (kwIdx >= 0 && foraIdx >= 0 && kwIdx < foraIdx) {
+        const kwAfter = flat.slice(kwIdx).match(/KW\s+Ponta\s*:\s*(\d+(?:[.,]\d+)?)/i);
+        const fpAfter = flat.slice(foraIdx).match(/Fora\s+Ponta\s*:\s*(\d+(?:[.,]\d+)?)/i);
+        if (kwAfter && !DemandaContratadaPonta) DemandaContratadaPonta = kwAfter[1].replace(".", ",");
+        if (fpAfter && !DemandaContratadaForaPonta) DemandaContratadaForaPonta = fpAfter[1].replace(".", ",");
+      }
+    }
+    if (!DemandaContratadaPonta || !DemandaContratadaForaPonta) {
+      const dpLineIdx = lines.findIndex((l) => /Demanda\s+ponta\s*-\s*kW/i.test(l));
+      const dfpLineIdx = lines.findIndex((l) => /Demanda\s+fora\s+ponta\s*-\s*kW/i.test(l));
+      if (dpLineIdx >= 0 && dfpLineIdx >= 0) {
+        const startLine = Math.max(dpLineIdx, dfpLineIdx) + 1;
+        const numVal = /^(\d+(?:[.,]\d+)?)$/;
+        const values = [];
+        for (let i = startLine; i < Math.min(startLine + 5, lines.length); i++) {
+          const m = lines[i].match(numVal);
+          if (m) values.push(m[1].replace(".", ","));
+          if (values.length >= 2) break;
+        }
+        if (values.length === 2) {
+          if (DemandaContratadaForaPonta && !DemandaContratadaPonta) {
+            if (values[0] === DemandaContratadaForaPonta) DemandaContratadaPonta = values[1];
+            else if (values[1] === DemandaContratadaForaPonta) DemandaContratadaPonta = values[0];
+          } else if (DemandaContratadaPonta && !DemandaContratadaForaPonta) {
+            if (values[0] === DemandaContratadaPonta) DemandaContratadaForaPonta = values[1];
+            else if (values[1] === DemandaContratadaPonta) DemandaContratadaForaPonta = values[0];
+          } else {
+            if (!DemandaContratadaForaPonta) DemandaContratadaForaPonta = values[0];
+            if (!DemandaContratadaPonta) DemandaContratadaPonta = values[1];
+          }
+        }
+      }
+    }
     DemandaMedidaPonta = findQtyNearLine(lines, /Demanda\s+Medida.*Ponta(?!.*Fora)/i);
     DemandaMedidaForaPonta = findQtyNearLine(lines, /Demanda\s+Medida.*Fora\s*Ponta/i);
     DemandaFaturadaPonta = findQtyNearLine(lines, /Demanda\s+Fatur[ae]da.*Ponta(?!.*Fora)/i) || DemandaMedidaPonta;
@@ -431,6 +546,14 @@ function extractEnergisaData(rawText, tableExtraction) {
       const isFora = /Fora/i.test(lbl) || /F[\s.]*Ponta/i.test(lbl);
       const isPonta = /Ponta/i.test(lbl) && !isFora;
       if (/Consumo\s+em\s+kWh/i.test(lbl) && !/Reativ/i.test(lbl) && !/Injetada/i.test(lbl)) {
+        if (item.quantidade) {
+          const qtd = parseBR(item.quantidade);
+          if (qtd > 0) grupoB_consumoKWh_total += qtd;
+        }
+        if (item.valor) {
+          const val = parseBR(item.valor);
+          if (val > 0) grupoB_consumoValor_total += val;
+        }
         if (!/Ponta/i.test(lbl) && !/Fora/i.test(lbl) && !/Intermedi/i.test(lbl)) {
           if (item.quantidade) ConsumoTotal = item.quantidade;
           if (item.valor) ValorConsumoForaPonta = item.valor;
@@ -518,6 +641,25 @@ function extractEnergisaData(rawText, tableExtraction) {
     if (tbl_mUC_Qtd) EnergiaAtvInjetadaGDImUC_Qtd = tbl_mUC_Qtd;
     if (tbl_mUC_Valor) EnergiaAtvInjetadaGDImUC_Valor = tbl_mUC_Valor;
   }
+  const isGrupoB = /^B/i.test(Subgrupo);
+  if (isGrupoB) {
+    if (grupoB_consumoKWh_total > 0) {
+      ConsumoGrupoB_kWh = formatBR(grupoB_consumoKWh_total);
+    } else if (ConsumoTotal) {
+      ConsumoGrupoB_kWh = ConsumoTotal;
+    } else {
+      const p = ConsumoPonta ? parseBR(ConsumoPonta) : 0;
+      const f = ConsumoForaPonta ? parseBR(ConsumoForaPonta) : 0;
+      if (p + f > 0) ConsumoGrupoB_kWh = formatBR(p + f);
+    }
+    if (grupoB_consumoValor_total > 0) {
+      ConsumoGrupoB_Valor = formatBR(grupoB_consumoValor_total);
+    } else {
+      const vp = ValorConsumoPonta ? parseBR(ValorConsumoPonta) : 0;
+      const vf = ValorConsumoForaPonta ? parseBR(ValorConsumoForaPonta) : 0;
+      if (vp + vf > 0) ConsumoGrupoB_Valor = formatBR(vp + vf);
+    }
+  }
   return {
     UC: cleanUC,
     Cidade,
@@ -533,6 +675,8 @@ function extractEnergisaData(rawText, tableExtraction) {
     ConsumoPonta,
     ConsumoForaPonta,
     ConsumoTotal,
+    ConsumoGrupoB_kWh,
+    ConsumoGrupoB_Valor,
     DemandaContratadaPonta,
     DemandaContratadaForaPonta,
     DemandaMedidaPonta,
@@ -688,7 +832,7 @@ function findTributoValue(lines, flat, labelPattern) {
   const flatMatch = flat.match(new RegExp(labelPattern.source + "[^\\d]*?([\\d.]+,\\d{2})", "i"));
   return flatMatch ? flatMatch[1] : EMPTY;
 }
-const FIELD_LABELS = {
+var FIELD_LABELS = {
   UC: "UC (Unidade Consumidora)",
   Cidade: "Cidade",
   Tipo: "Tipo",
@@ -703,6 +847,8 @@ const FIELD_LABELS = {
   ConsumoPonta: "Consumo Ponta (kWh)",
   ConsumoForaPonta: "Consumo Fora Ponta (kWh)",
   ConsumoTotal: "Consumo Total (kWh)",
+  ConsumoGrupoB_kWh: "Consumo em kWh (Grupo B)",
+  ConsumoGrupoB_Valor: "Consumo (R$) (Grupo B)",
   DemandaContratadaPonta: "Demanda Contratada Ponta (kW)",
   DemandaContratadaForaPonta: "Demanda Contratada Fora Ponta (kW)",
   DemandaMedidaPonta: "Demanda Medida Ponta (kW)",
@@ -738,18 +884,18 @@ const FIELD_LABELS = {
   SaldoAcumuladoGD: "Saldo Acumulado GD (kWh)",
   ValorTotal: "Valor Total (R$)"
 };
-const FIELD_CATEGORIES = [
+var FIELD_CATEGORIES = [
   { category: "Identifica\xE7\xE3o", fields: ["UC", "Cidade", "Tipo", "Mercado", "Concessionaria"] },
   { category: "Datas e Documentos", fields: ["MesReferencia", "AnoLeitura", "Vencimento", "NotaFiscal"] },
   { category: "Tarifa", fields: ["ModalidadeTarifaria", "Subgrupo"] },
-  { category: "Consumo (kWh)", fields: ["ConsumoPonta", "ConsumoForaPonta", "ConsumoTotal"] },
+  { category: "Consumo (kWh)", fields: ["ConsumoPonta", "ConsumoForaPonta", "ConsumoTotal", "ConsumoGrupoB_kWh"] },
   { category: "Demanda Contratada (kW)", fields: ["DemandaContratadaPonta", "DemandaContratadaForaPonta"] },
   { category: "Demanda Medida (kW)", fields: ["DemandaMedidaPonta", "DemandaMedidaForaPonta"] },
   { category: "Demanda Faturada (kW)", fields: ["DemandaFaturadaPonta", "DemandaFaturadaForaPonta"] },
   { category: "Ultrapassagem (kW)", fields: ["UltrapassagemPonta", "UltrapassagemForaPonta"] },
   { category: "Demanda N\xE3o Consumida (kW)", fields: ["DemandaNaoConsumidaPonta", "DemandaNaoConsumidaForaPonta"] },
   { category: "Reativa Excedente (kWh)", fields: ["ReativaExcedentePonta", "ReativaExcedenteForaPonta", "EnergiaReativaTotal"] },
-  { category: "Valores - Consumo (R$)", fields: ["ValorConsumoPonta", "ValorConsumoForaPonta"] },
+  { category: "Valores - Consumo (R$)", fields: ["ValorConsumoPonta", "ValorConsumoForaPonta", "ConsumoGrupoB_Valor"] },
   { category: "Valores - Demanda (R$)", fields: ["ValorDemandaPonta", "ValorDemandaForaPonta"] },
   { category: "Valores - Ultrapassagem (R$)", fields: ["ValorUltrapassagemPonta", "ValorUltrapassagemForaPonta"] },
   { category: "Valores - Demanda N\xE3o Consumida (R$)", fields: ["ValorNaoConsumidaPonta", "ValorNaoConsumidaForaPonta"] },

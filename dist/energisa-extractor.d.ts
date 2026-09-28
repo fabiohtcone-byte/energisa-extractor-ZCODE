@@ -31,6 +31,8 @@ export interface EnergisaInvoiceData {
     ConsumoPonta: string;
     ConsumoForaPonta: string;
     ConsumoTotal: string;
+    ConsumoGrupoB_kWh: string;
+    ConsumoGrupoB_Valor: string;
     DemandaContratadaPonta: string;
     DemandaContratadaForaPonta: string;
     DemandaMedidaPonta: string;
