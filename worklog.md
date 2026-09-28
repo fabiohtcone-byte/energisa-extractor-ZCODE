@@ -151,3 +151,27 @@ Stage Summary:
 - 9888705108.PDF: DemandaContratadaPonta=15,3, DemandaContratadaForaPonta=30 (was empty/15,3)
 - Mês Referência for 9888705108.PDF: Junho / 2026 (was "Dezembro / 2025" or "Abril / 2026")
 - Updated dist/energisa-extractor.cjs with all fixes
+---
+Task ID: fix-grupob-ui-visibility
+Agent: main
+Task: Fix ConsumoGrupoB_kWh and ConsumoGrupoB_Valor fields not appearing in the web UI
+
+Work Log:
+- Investigated why new Grupo B fields were not visible in the app
+- Confirmed the fields ARE in energisa-fields.ts (FIELD_LABELS and FIELD_CATEGORIES)
+- Confirmed the Next.js build includes the new fields in the JavaScript chunk
+- Confirmed the API endpoint returns correct values for Grupo B PDFs
+- Identified root cause: HTML page was served with Cache-Control: public, max-age=31536000, immutable
+- This caused browsers to cache the HTML for 1 year, never picking up the new JS chunk references
+- Fixed app.cjs: sendCachedFile now accepts isHtml parameter
+- HTML pages now use Cache-Control: no-cache, no-store, must-revalidate + Pragma: no-cache
+- JS/CSS/font assets still use immutable caching (content-hashed filenames)
+- Rebuilt Next.js app and restarted server
+- Verified API returns ConsumoGrupoB_kWh=4.546,00 and ConsumoGrupoB_Valor=5.936,87 for B3 PDFs
+- Verified Grupo A PDFs correctly return empty Grupo B fields
+
+Stage Summary:
+- Fixed browser caching issue that prevented new fields from appearing
+- HTML pages no longer cached immutably — browser will always fetch fresh HTML
+- Server restarted with correct cache headers
+- Grupo B extraction verified working for all test PDFs

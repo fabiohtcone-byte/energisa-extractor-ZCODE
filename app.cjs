@@ -30,10 +30,19 @@ function cacheStaticFile(fp) {
     return entry;
   } catch { return null; }
 }
-function sendCachedFile(res, fp) {
+function sendCachedFile(res, fp, isHtml) {
   const entry = cacheStaticFile(fp);
   if (!entry) { res.writeHead(404); res.end('Not found'); return; }
-  res.writeHead(200, { 'Content-Type': entry.type, 'Cache-Control': 'public, max-age=31536000, immutable' });
+  const headers = { 'Content-Type': entry.type };
+  if (isHtml) {
+    // HTML must NOT be cached immutably — browser needs fresh HTML to pick up new JS chunk hashes
+    headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+    headers['Pragma'] = 'no-cache';
+  } else {
+    // JS/CSS/fonts have content-hashed filenames, safe to cache immutably
+    headers['Cache-Control'] = 'public, max-age=31536000, immutable';
+  }
+  res.writeHead(200, headers);
   res.end(entry.data);
 }
 function json(res, data, status) {
@@ -177,7 +186,7 @@ const srv = http.createServer(async (req, res) => {
       res.writeHead(200, { 'Content-Type': MIME['.xlsx'], 'Content-Disposition': 'attachment; filename="faturas_energisa.xlsx"' }); res.end(buf); return;
     }
     if (p.startsWith('/_next/')) return sendCachedFile(res, path.join(BUILD, p.replace('/_next', '')));
-    if (p === '/' || p === '/index.html') return sendCachedFile(res, path.join(BUILD, 'server', 'app', 'index.html'));
+    if (p === '/' || p === '/index.html') return sendCachedFile(res, path.join(BUILD, 'server', 'app', 'index.html'), true);
     res.writeHead(404); res.end('404');
   } catch (e) { if (!res.headersSent) json(res, { error: e.message }, 500); }
 });
