@@ -187,10 +187,10 @@ export default function Home() {
      RENDER
      ═══════════════════════════════════════════════ */
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white flex flex-col">
+    <div className="min-h-screen bg-[#141420] text-white flex flex-col">
 
       {/* ══════════ HEADER ══════════ */}
-      <header className="sticky top-0 z-50 border-b border-white/[0.06] bg-[#0a0a0f]/80 backdrop-blur-xl">
+      <header className="sticky top-0 z-50 border-b border-white/[0.10] bg-[#141420]/80 backdrop-blur-xl">
         <div className="max-w-[1400px] mx-auto px-6 h-14 flex items-center justify-between">
           {/* Logo */}
           <div className="flex items-center gap-3">
@@ -199,18 +199,18 @@ export default function Home() {
             </div>
             <div className="flex items-baseline gap-2">
               <span className="text-sm font-semibold tracking-tight text-white">ENERGISA</span>
-              <span className="text-[11px] text-white/40 font-medium">Extractor</span>
+              <span className="text-[11px] text-white/50 font-medium">Extractor</span>
             </div>
           </div>
 
           {/* Nav pills */}
-          <nav className="flex items-center gap-1 bg-white/[0.04] rounded-lg p-0.5 border border-white/[0.06]">
+          <nav className="flex items-center gap-1 bg-white/[0.08] rounded-lg p-0.5 border border-white/[0.10]">
             <button
               onClick={() => setActiveTab('upload')}
               className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
                 activeTab === 'upload'
-                  ? 'bg-white/[0.12] text-white shadow-sm'
-                  : 'text-white/50 hover:text-white/80'
+                  ? 'bg-white/[0.15] text-white shadow-sm'
+                  : 'text-white/65 hover:text-white/90'
               }`}
             >
               Upload
@@ -220,8 +220,8 @@ export default function Home() {
               disabled={results.length === 0}
               className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
                 activeTab === 'results'
-                  ? 'bg-white/[0.12] text-white shadow-sm'
-                  : 'text-white/50 hover:text-white/80 disabled:opacity-30 disabled:cursor-not-allowed'
+                  ? 'bg-white/[0.15] text-white shadow-sm'
+                  : 'text-white/65 hover:text-white/90 disabled:opacity-30 disabled:cursor-not-allowed'
               }`}
             >
               Resultados {results.length > 0 && <span className="ml-1 text-emerald-400">({results.length})</span>}
@@ -259,7 +259,7 @@ export default function Home() {
                 Extraia dados de faturas<br />
                 <span className="bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">ENERGISA</span> em segundos
               </h1>
-              <p className="text-sm text-white/40 leading-relaxed">
+              <p className="text-sm text-white/50 leading-relaxed">
                 Arraste PDFs de faturas de energia e obtenha consumo, demanda, tributos e mais — pronto para Excel.
               </p>
             </div>
@@ -272,7 +272,7 @@ export default function Home() {
               onClick={() => fileInputRef.current?.click()}
               className={`
                 relative group cursor-pointer rounded-2xl border border-dashed transition-all duration-300
-                ${isProcessing ? 'pointer-events-none opacity-50 border-white/10' : isDragging ? 'border-emerald-500/60 bg-emerald-500/5 scale-[1.01]' : 'border-white/10 bg-white/[0.02] hover:border-emerald-500/30 hover:bg-white/[0.04]'}
+                ${isProcessing ? 'pointer-events-none opacity-50 border-white/[0.14]' : isDragging ? 'border-emerald-500/60 bg-emerald-500/5 scale-[1.01]' : 'border-white/[0.14] bg-white/[0.04] hover:border-emerald-500/30 hover:bg-white/[0.06]'}
               `}
             >
               <input ref={fileInputRef} type="file" accept="application/pdf" multiple onChange={handleFileChange} className="hidden" />
@@ -283,16 +283,16 @@ export default function Home() {
                       <Upload className="h-6 w-6 text-emerald-400" />
                     </div>
                     <div className="text-center">
-                      <p className="text-sm font-medium text-white/80">Arraste faturas PDF aqui</p>
-                      <p className="text-xs text-white/30 mt-1">ou clique para selecionar</p>
+                      <p className="text-sm font-medium text-white/85">Arraste faturas PDF aqui</p>
+                      <p className="text-xs text-white/40 mt-1">ou clique para selecionar</p>
                     </div>
                     <label
                       onClick={(e) => e.stopPropagation()}
                       className="flex items-center gap-2 mt-2 cursor-pointer select-none"
                     >
-                      <input type="checkbox" checked={debugMode} onChange={(e) => setDebugMode(e.target.checked)} className="rounded border-white/20 bg-white/5 text-emerald-500 focus:ring-emerald-500/30" />
-                      <Bug className="h-3 w-3 text-white/30" />
-                      <span className="text-[11px] text-white/30">Debug</span>
+                      <input type="checkbox" checked={debugMode} onChange={(e) => setDebugMode(e.target.checked)} className="rounded border-white/30 bg-white/5 text-emerald-500 focus:ring-emerald-500/30" />
+                      <Bug className="h-3 w-3 text-white/40" />
+                      <span className="text-[11px] text-white/40">Debug</span>
                     </label>
                   </>
                 )}
@@ -301,29 +301,29 @@ export default function Home() {
                 {isProcessing && fileProgress.length > 0 && (
                   <div className="w-full max-w-lg mx-auto space-y-4">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-white/60 font-medium">Processando faturas</span>
+                      <span className="text-white/65 font-medium">Processando faturas</span>
                       <span className="text-emerald-400 font-mono">
                         {fileProgress.filter((p) => p.status === 'done' || p.status === 'error').length}/{fileProgress.length}
                       </span>
                     </div>
                     <Progress
                       value={(fileProgress.filter((p) => p.status === 'done' || p.status === 'error').length / fileProgress.length) * 100}
-                      className="h-1 bg-white/[0.06] [&>div]:bg-gradient-to-r [&>div]:from-emerald-400 [&>div]:to-cyan-400 [&>div]:rounded-full"
+                      className="h-1 bg-white/[0.08] [&>div]:bg-gradient-to-r [&>div]:from-emerald-400 [&>div]:to-cyan-400 [&>div]:rounded-full"
                     />
                     <div className="space-y-2 max-h-56 overflow-y-auto">
                       {fileProgress.map((fp, i) => (
                         <div key={i} className={`flex items-center gap-3 px-3 py-2 rounded-lg text-xs ${
                           fp.status === 'processing' ? 'bg-emerald-500/10 border border-emerald-500/20' :
                           fp.status === 'error' ? 'bg-red-500/10 border border-red-500/20' :
-                          fp.status === 'done' ? 'bg-white/[0.04]' : 'bg-white/[0.02]'
+                          fp.status === 'done' ? 'bg-white/[0.06]' : 'bg-white/[0.04]'
                         }`}>
                           <div className="flex-shrink-0">
-                            {fp.status === 'pending' && <div className="h-4 w-4 rounded-full border border-white/20" />}
+                            {fp.status === 'pending' && <div className="h-4 w-4 rounded-full border border-white/30" />}
                             {fp.status === 'processing' && <Loader2 className="h-4 w-4 text-emerald-400 animate-spin" />}
                             {fp.status === 'done' && <CheckCircle2 className="h-4 w-4 text-emerald-400" />}
                             {fp.status === 'error' && <AlertCircle className="h-4 w-4 text-red-400" />}
                           </div>
-                          <span className={`flex-1 truncate ${fp.status === 'processing' ? 'text-emerald-300' : fp.status === 'error' ? 'text-red-300' : 'text-white/60'}`}>
+                          <span className={`flex-1 truncate ${fp.status === 'processing' ? 'text-emerald-300' : fp.status === 'error' ? 'text-red-300' : 'text-white/65'}`}>
                             {fp.fileName}
                           </span>
                           {fp.status === 'done' && fp.result && (
@@ -344,11 +344,11 @@ export default function Home() {
                 { icon: <FileSpreadsheet className="h-3.5 w-3.5" />, label: 'Exportar Excel', desc: 'Com Gerência e LOCINS' },
                 { icon: <Sparkles className="h-3.5 w-3.5" />, label: 'Multi-modelo', desc: 'Conv., Azul, Verde, GDI' },
               ].map((f, i) => (
-                <div key={i} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-                  <div className="text-white/40">{f.icon}</div>
+                <div key={i} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/[0.05] border border-white/[0.08]">
+                  <div className="text-white/50">{f.icon}</div>
                   <div>
-                    <p className="text-xs font-medium text-white/80">{f.label}</p>
-                    <p className="text-[10px] text-white/30">{f.desc}</p>
+                    <p className="text-xs font-medium text-white/85">{f.label}</p>
+                    <p className="text-[10px] text-white/40">{f.desc}</p>
                   </div>
                 </div>
               ))}
@@ -356,8 +356,8 @@ export default function Home() {
 
             {/* Existing results quick bar */}
             {results.length > 0 && (
-              <div className="flex items-center justify-between px-5 py-3 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-                <span className="text-xs text-white/50">{results.length} fatura{results.length !== 1 ? 's' : ''} processada{results.length !== 1 ? 's' : ''}</span>
+              <div className="flex items-center justify-between px-5 py-3 rounded-xl bg-white/[0.05] border border-white/[0.08]">
+                <span className="text-xs text-white/60">{results.length} fatura{results.length !== 1 ? 's' : ''} processada{results.length !== 1 ? 's' : ''}</span>
                 <div className="flex gap-2">
                   <button onClick={clearAll} className="text-xs text-red-400/70 hover:text-red-400 transition-colors flex items-center gap-1">
                     <Trash2 className="h-3 w-3" /> Limpar
@@ -376,8 +376,8 @@ export default function Home() {
           <div className="space-y-8">
             {results.length === 0 ? (
               <div className="text-center py-20">
-                <FileText className="h-10 w-10 text-white/10 mx-auto mb-3" />
-                <p className="text-sm text-white/30">Nenhuma fatura processada.</p>
+                <FileText className="h-10 w-10 text-white/15 mx-auto mb-3" />
+                <p className="text-sm text-white/40">Nenhuma fatura processada.</p>
               </div>
             ) : (
               results.map((result, idx) => {
@@ -390,7 +390,7 @@ export default function Home() {
                   <div key={`${result.fileName}-${idx}`} className="space-y-5">
 
                     {/* ─── INVOICE HEADER ─── */}
-                    <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] overflow-hidden">
+                    <div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] overflow-hidden">
                       {/* Top accent line */}
                       <div className={`h-0.5 w-full ${
                         isGood ? 'bg-gradient-to-r from-emerald-500 to-cyan-500' :
@@ -402,8 +402,8 @@ export default function Home() {
                         {/* Row 1: file + key info */}
                         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                           <div className="flex items-start gap-4 min-w-0">
-                            <div className="h-10 w-10 rounded-xl bg-white/[0.06] border border-white/[0.08] flex items-center justify-center flex-shrink-0">
-                              <FileText className="h-5 w-5 text-white/40" />
+                            <div className="h-10 w-10 rounded-xl bg-white/[0.08] border border-white/[0.10] flex items-center justify-center flex-shrink-0">
+                              <FileText className="h-5 w-5 text-white/50" />
                             </div>
                             <div className="min-w-0">
                               <h2 className="text-sm font-semibold text-white/90 truncate">{result.fileName}</h2>
@@ -414,7 +414,7 @@ export default function Home() {
                                     <span className="font-mono">{d.UC}</span>
                                   </span>
                                 )}
-                                {d.Cidade && <span className="text-xs text-white/40">{d.Cidade}</span>}
+                                {d.Cidade && <span className="text-xs text-white/50">{d.Cidade}</span>}
                                 {d.MesReferencia && (
                                   <span className="inline-flex items-center gap-1 text-xs text-violet-400">
                                     <Calendar className="h-3 w-3" />{d.MesReferencia}
@@ -438,16 +438,16 @@ export default function Home() {
                           <div className="flex items-center gap-5 flex-shrink-0">
                             {d.ValorTotal && (
                               <div className="text-right">
-                                <p className="text-[10px] uppercase tracking-wider text-white/30 mb-0.5">Valor Total</p>
+                                <p className="text-[10px] uppercase tracking-wider text-white/40 mb-0.5">Valor Total</p>
                                 <p className="text-xl font-bold font-mono bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
                                   R$ {d.ValorTotal}
                                 </p>
                               </div>
                             )}
                             <div className="text-right">
-                              <p className="text-[10px] uppercase tracking-wider text-white/30 mb-0.5">Extração</p>
+                              <p className="text-[10px] uppercase tracking-wider text-white/40 mb-0.5">Extração</p>
                               <div className="flex items-center gap-2">
-                                <div className="h-1.5 w-16 rounded-full bg-white/[0.06] overflow-hidden">
+                                <div className="h-1.5 w-16 rounded-full bg-white/[0.08] overflow-hidden">
                                   <div
                                     className={`h-full rounded-full ${
                                       isGood ? 'bg-emerald-400' : isMid ? 'bg-amber-400' : 'bg-red-400'
@@ -464,7 +464,7 @@ export default function Home() {
                             </div>
                             <button
                               onClick={() => removeResult(idx)}
-                              className="h-8 w-8 rounded-lg flex items-center justify-center text-white/20 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                              className="h-8 w-8 rounded-lg flex items-center justify-center text-white/30 hover:text-red-400 hover:bg-red-500/10 transition-all"
                             >
                               <X className="h-3.5 w-3.5" />
                             </button>
@@ -472,21 +472,21 @@ export default function Home() {
                         </div>
 
                         {/* Quick stats strip */}
-                        <div className="flex flex-wrap gap-4 mt-5 pt-4 border-t border-white/[0.06]">
+                        <div className="flex flex-wrap gap-4 mt-5 pt-4 border-t border-white/[0.08]">
                           {[
                             { v: d.ConsumoTotal, l: 'Consumo', u: 'kWh', icon: <Zap className="h-3 w-3 text-emerald-400" /> },
                             { v: d.ConsumoPonta, l: 'Ponta', u: 'kWh', icon: null },
                             { v: d.ConsumoForaPonta, l: 'FP', u: 'kWh', icon: null },
                             { v: d.Vencimento, l: 'Vencimento', u: '', icon: <Clock className="h-3 w-3 text-violet-400" /> },
-                            { v: d.NotaFiscal, l: 'NF', u: '', icon: <Hash className="h-3 w-3 text-white/30" /> },
+                            { v: d.NotaFiscal, l: 'NF', u: '', icon: <Hash className="h-3 w-3 text-white/40" /> },
                           ].filter(x => x.v).map((s, i) => (
                             <div key={i} className="flex items-center gap-1.5 text-xs">
                               {s.icon}
-                              <span className="text-white/30">{s.l}:</span>
-                              <span className="font-mono text-white/70">{s.v}{s.u && <span className="text-white/30 ml-0.5">{s.u}</span>}</span>
+                              <span className="text-white/40">{s.l}:</span>
+                              <span className="font-mono text-white/75">{s.v}{s.u && <span className="text-white/40 ml-0.5">{s.u}</span>}</span>
                             </div>
                           ))}
-                          <div className="flex items-center gap-1.5 text-xs text-white/30">
+                          <div className="flex items-center gap-1.5 text-xs text-white/40">
                             <FileText className="h-3 w-3" />{result.stats.pageCount} pág.
                           </div>
                         </div>
@@ -507,8 +507,8 @@ export default function Home() {
                             key={cat.category}
                             className={`rounded-xl border p-4 transition-all duration-200 ${
                               hasData
-                                ? `bg-white/[0.03] border-white/[0.08] hover:border-white/[0.14] hover:bg-white/[0.05]`
-                                : `bg-white/[0.01] border-white/[0.04] opacity-40`
+                                ? `bg-white/[0.05] border-white/[0.10] hover:border-white/[0.16] hover:bg-white/[0.07]`
+                                : `bg-white/[0.02] border-white/[0.06] opacity-40`
                             }`}
                           >
                             {/* Cat header */}
@@ -520,7 +520,7 @@ export default function Home() {
                               <span className={`text-[10px] font-bold font-mono px-1.5 py-0.5 rounded-md ${
                                 catRate === 100 ? 'bg-emerald-500/15 text-emerald-400' :
                                 catRate > 0 ? 'bg-amber-500/15 text-amber-400' :
-                                'bg-white/[0.06] text-white/30'
+                                'bg-white/[0.08] text-white/40'
                               }`}>
                                 {extracted}/{total}
                               </span>
@@ -536,16 +536,16 @@ export default function Home() {
                                   <div
                                     key={fk}
                                     className={`flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-xs ${
-                                      empty ? 'bg-white/[0.01]' : 'bg-white/[0.04]'
+                                      empty ? 'bg-white/[0.02]' : 'bg-white/[0.06]'
                                     }`}
                                   >
-                                    <span className={`truncate ${empty ? 'text-white/20' : 'text-white/60'}`}>
+                                    <span className={`truncate ${empty ? 'text-white/30' : 'text-white/65'}`}>
                                       {label}
                                     </span>
                                     {empty ? (
-                                      <span className="text-white/10 flex-shrink-0">—</span>
+                                      <span className="text-white/15 flex-shrink-0">—</span>
                                     ) : (
-                                      <span className="font-mono text-[11px] font-medium text-white/90 bg-white/[0.06] px-1.5 py-0.5 rounded border border-white/[0.08] flex-shrink-0">
+                                      <span className="font-mono text-[11px] font-medium text-white/90 bg-white/[0.08] px-1.5 py-0.5 rounded border border-white/[0.10] flex-shrink-0">
                                         {val}
                                       </span>
                                     )}
@@ -576,7 +576,7 @@ export default function Home() {
                         <p className="text-xs font-medium text-amber-400 mb-2 flex items-center gap-1.5">
                           <Bug className="h-3 w-3" /> Texto Bruto
                         </p>
-                        <pre className="text-[10px] leading-tight text-white/50 bg-black/30 rounded-lg p-3 overflow-auto max-h-72 font-mono whitespace-pre-wrap break-all border border-white/[0.06]">
+                        <pre className="text-[10px] leading-tight text-white/60 bg-black/25 rounded-lg p-3 overflow-auto max-h-72 font-mono whitespace-pre-wrap break-all border border-white/[0.08]">
                           {result.rawText}
                         </pre>
                       </div>
@@ -588,10 +588,10 @@ export default function Home() {
 
             {/* Export bar */}
             {results.length > 0 && (
-              <div className="flex items-center justify-between px-5 py-3 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-                <div className="flex items-center gap-2 text-xs text-white/40">
+              <div className="flex items-center justify-between px-5 py-3 rounded-xl bg-white/[0.05] border border-white/[0.08]">
+                <div className="flex items-center gap-2 text-xs text-white/50">
                   <FileSpreadsheet className="h-4 w-4" />
-                  <span><strong className="text-white/60">{results.length}</strong> fatura{results.length !== 1 ? 's' : ''} pronta{results.length !== 1 ? 's' : ''} para exportação</span>
+                  <span><strong className="text-white/65">{results.length}</strong> fatura{results.length !== 1 ? 's' : ''} pronta{results.length !== 1 ? 's' : ''} para exportação</span>
                 </div>
                 <button
                   onClick={exportToExcel}
@@ -607,10 +607,10 @@ export default function Home() {
       </main>
 
       {/* ══════════ FOOTER ══════════ */}
-      <footer className="border-t border-white/[0.04] mt-auto">
+      <footer className="border-t border-white/[0.06] mt-auto">
         <div className="max-w-[1400px] mx-auto px-6 py-3 flex items-center justify-between">
-          <span className="text-[10px] text-white/20">ENERGISA Extractor</span>
-          <span className="text-[10px] text-white/20">Colunas em amarelo no Excel devem ser preenchidas manualmente</span>
+          <span className="text-[10px] text-white/30">ENERGISA Extractor</span>
+          <span className="text-[10px] text-white/30">Colunas em amarelo no Excel devem ser preenchidas manualmente</span>
         </div>
       </footer>
     </div>
