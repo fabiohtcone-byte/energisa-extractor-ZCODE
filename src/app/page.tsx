@@ -8,14 +8,6 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import {
   Upload,
   FileText,
   Download,
@@ -27,6 +19,14 @@ import {
   FileSpreadsheet,
   Bug,
   Loader2,
+  CalendarDays,
+  Receipt,
+  DollarSign,
+  MapPin,
+  Tag,
+  TrendingUp,
+  ShieldCheck,
+  ArrowDownUp,
 } from 'lucide-react';
 import { FIELD_LABELS, FIELD_CATEGORIES, type EnergisaInvoiceData } from '@/lib/energisa-fields';
 
@@ -49,6 +49,32 @@ interface ExtractionResult {
   rawText?: string;
 }
 
+// Category icon & color mapping
+const CATEGORY_META: Record<string, { icon: React.ReactNode; color: string; bg: string; border: string }> = {
+  'Identificação': { icon: <Tag className="h-4 w-4" />, color: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-200' },
+  'Datas e Documentos': { icon: <CalendarDays className="h-4 w-4" />, color: 'text-violet-700', bg: 'bg-violet-50', border: 'border-violet-200' },
+  'Tarifa': { icon: <Receipt className="h-4 w-4" />, color: 'text-indigo-700', bg: 'bg-indigo-50', border: 'border-indigo-200' },
+  'Consumo (kWh)': { icon: <Zap className="h-4 w-4" />, color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200' },
+  'Demanda Contratada (kW)': { icon: <ShieldCheck className="h-4 w-4" />, color: 'text-sky-700', bg: 'bg-sky-50', border: 'border-sky-200' },
+  'Demanda Medida (kW)': { icon: <TrendingUp className="h-4 w-4" />, color: 'text-teal-700', bg: 'bg-teal-50', border: 'border-teal-200' },
+  'Demanda Faturada (kW)': { icon: <DollarSign className="h-4 w-4" />, color: 'text-cyan-700', bg: 'bg-cyan-50', border: 'border-cyan-200' },
+  'Ultrapassagem (kW)': { icon: <ArrowDownUp className="h-4 w-4" />, color: 'text-orange-700', bg: 'bg-orange-50', border: 'border-orange-200' },
+  'Demanda Não Consumida (kW)': { icon: <AlertCircle className="h-4 w-4" />, color: 'text-rose-700', bg: 'bg-rose-50', border: 'border-rose-200' },
+  'Reativa Excedente (kWh)': { icon: <Zap className="h-4 w-4" />, color: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-200' },
+  'Valores - Consumo (R$)': { icon: <DollarSign className="h-4 w-4" />, color: 'text-green-700', bg: 'bg-green-50', border: 'border-green-200' },
+  'Valores - Demanda (R$)': { icon: <DollarSign className="h-4 w-4" />, color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200' },
+  'Valores - Ultrapassagem (R$)': { icon: <DollarSign className="h-4 w-4" />, color: 'text-orange-700', bg: 'bg-orange-50', border: 'border-orange-200' },
+  'Valores - Demanda Não Consumida (R$)': { icon: <DollarSign className="h-4 w-4" />, color: 'text-rose-700', bg: 'bg-rose-50', border: 'border-rose-200' },
+  'Valores - Reativa Excedente (R$)': { icon: <DollarSign className="h-4 w-4" />, color: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-200' },
+  'Tributos e Encargos (R$)': { icon: <Receipt className="h-4 w-4" />, color: 'text-red-700', bg: 'bg-red-50', border: 'border-red-200' },
+  'Energia Injetada GDI oUC': { icon: <Zap className="h-4 w-4" />, color: 'text-lime-700', bg: 'bg-lime-50', border: 'border-lime-200' },
+  'Energia Injetada GDI mUC': { icon: <Zap className="h-4 w-4" />, color: 'text-lime-700', bg: 'bg-lime-50', border: 'border-lime-200' },
+  'Geração Distribuída': { icon: <Zap className="h-4 w-4" />, color: 'text-green-700', bg: 'bg-green-50', border: 'border-green-200' },
+  'Total': { icon: <DollarSign className="h-4 w-4" />, color: 'text-slate-800', bg: 'bg-slate-100', border: 'border-slate-300' },
+};
+
+const DEFAULT_CAT_META = { icon: <Tag className="h-4 w-4" />, color: 'text-slate-700', bg: 'bg-slate-50', border: 'border-slate-200' };
+
 export default function Home() {
   const [results, setResults] = useState<ExtractionResult[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -68,18 +94,15 @@ export default function Home() {
     setIsProcessing(true);
     const newResults: ExtractionResult[] = [];
 
-    // Initialize progress for all files
     const initialProgress: FileProgress[] = pdfFiles.map((f) => ({
       fileName: f.name,
       status: 'pending',
     }));
     setFileProgress(initialProgress);
 
-    // Process files sequentially with per-file progress
     for (let i = 0; i < pdfFiles.length; i++) {
       const file = pdfFiles[i];
 
-      // Mark current file as processing
       setFileProgress((prev) =>
         prev.map((p, idx) =>
           idx === i ? { ...p, status: 'processing' as const } : p
@@ -319,7 +342,6 @@ export default function Home() {
                         </p>
                       </div>
                     )}
-                    {/* Debug toggle - only when not processing */}
                     {!isProcessing && (
                       <label className="flex items-center gap-2 mt-4 cursor-pointer select-none">
                         <input
@@ -334,10 +356,8 @@ export default function Home() {
                     )}
                   </div>
 
-                  {/* Processing progress panel */}
                   {isProcessing && fileProgress.length > 0 && (
                     <div className="w-full max-w-md mx-auto text-left">
-                      {/* Overall progress bar */}
                       <div className="mb-4">
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-sm font-semibold text-slate-700">
@@ -353,7 +373,6 @@ export default function Home() {
                         />
                       </div>
 
-                      {/* Per-file list */}
                       <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                         {fileProgress.map((fp, idx) => (
                           <div
@@ -368,7 +387,6 @@ export default function Home() {
                                     : 'bg-slate-50/50'
                             }`}
                           >
-                            {/* Status icon */}
                             <div className="flex-shrink-0">
                               {fp.status === 'pending' && (
                                 <div className="h-5 w-5 rounded-full border-2 border-slate-300" />
@@ -383,8 +401,6 @@ export default function Home() {
                                 <AlertCircle className="h-5 w-5 text-red-500" />
                               )}
                             </div>
-
-                            {/* File name + stats */}
                             <div className="flex-1 min-w-0">
                               <p className={`truncate text-sm ${
                                 fp.status === 'processing' ? 'font-medium text-emerald-800' :
@@ -405,8 +421,6 @@ export default function Home() {
                                 <p className="text-xs text-red-500 mt-0.5">{fp.errorMsg}</p>
                               )}
                             </div>
-
-                            {/* Extraction rate badge for done */}
                             {fp.status === 'done' && fp.result && (
                               <span className={`flex-shrink-0 text-xs font-medium px-2 py-0.5 rounded-full ${
                                 fp.result.stats.extractionRate >= 70
@@ -489,7 +503,7 @@ export default function Home() {
             </div>
           </TabsContent>
 
-          {/* Results Tab */}
+          {/* Results Tab - NEW LAYOUT */}
           <TabsContent value="results">
             {results.length === 0 ? (
               <Card>
@@ -499,168 +513,243 @@ export default function Home() {
                 </CardContent>
               </Card>
             ) : (
-              <div className="space-y-4">
-                {results.map((result, idx) => (
-                  <>
-                  <Card key={`${result.fileName}-${idx}`}>
-                    <CardHeader className="pb-3">
-                      <div className="flex items-center justify-between flex-wrap gap-2">
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 rounded-lg bg-slate-100">
-                            <FileText className="h-5 w-5 text-slate-600" />
+              <div className="space-y-6">
+                {results.map((result, idx) => {
+                  const d = result.data;
+                  const rate = result.stats.extractionRate;
+                  const rateColor = rate >= 70 ? 'emerald' : rate >= 40 ? 'amber' : 'red';
+
+                  // Count extracted per category
+                  const catStats = FIELD_CATEGORIES.map((cat) => {
+                    const extracted = cat.fields.filter((f) => d[f]).length;
+                    return { cat, extracted, total: cat.fields.length, rate: Math.round((extracted / cat.fields.length) * 100) };
+                  }).filter((cs) => cs.total > 0);
+
+                  return (
+                    <div key={`${result.fileName}-${idx}`} className="space-y-4">
+                      {/* ===== HEADER CARD ===== */}
+                      <Card className="overflow-hidden">
+                        <div className={`h-1.5 ${rateColor === 'emerald' ? 'bg-emerald-500' : rateColor === 'amber' ? 'bg-amber-500' : 'bg-red-500'}`} />
+                        <CardContent className="p-5">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                            {/* Left: file info + key fields */}
+                            <div className="flex items-start gap-4">
+                              <div className="p-2.5 rounded-xl bg-slate-100 text-slate-600 flex-shrink-0">
+                                <FileText className="h-6 w-6" />
+                              </div>
+                              <div className="space-y-1">
+                                <h3 className="text-base font-semibold text-slate-900">{result.fileName}</h3>
+                                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-600">
+                                  {d.UC && (
+                                    <span className="flex items-center gap-1">
+                                      <MapPin className="h-3.5 w-3.5 text-blue-500" />
+                                      <span className="font-mono font-medium text-slate-800">{d.UC}</span>
+                                    </span>
+                                  )}
+                                  {d.Cidade && (
+                                    <span>{d.Cidade}</span>
+                                  )}
+                                  {d.MesReferencia && (
+                                    <span className="flex items-center gap-1">
+                                      <CalendarDays className="h-3.5 w-3.5 text-violet-500" />
+                                      {d.MesReferencia}
+                                    </span>
+                                  )}
+                                  {d.ModalidadeTarifaria && (
+                                    <span className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 text-xs font-medium">
+                                      {d.ModalidadeTarifaria}
+                                    </span>
+                                  )}
+                                  {d.Subgrupo && (
+                                    <span className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 text-xs font-medium">
+                                      {d.Subgrupo}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Right: extraction rate + key value */}
+                            <div className="flex items-center gap-4 flex-shrink-0">
+                              {d.ValorTotal && (
+                                <div className="text-right">
+                                  <p className="text-xs text-slate-500">Valor Total</p>
+                                  <p className="text-lg font-bold text-slate-900 font-mono">R$ {d.ValorTotal}</p>
+                                </div>
+                              )}
+                              <div className="text-right">
+                                <p className="text-xs text-slate-500">Extração</p>
+                                <div className="flex items-center gap-2">
+                                  <Progress
+                                    value={rate}
+                                    className={`h-2 w-20 ${
+                                      rateColor === 'emerald' ? '[&>div]:bg-emerald-500' :
+                                      rateColor === 'amber' ? '[&>div]:bg-amber-500' :
+                                      '[&>div]:bg-red-500'
+                                    }`}
+                                  />
+                                  <span className={`text-sm font-bold ${
+                                    rateColor === 'emerald' ? 'text-emerald-700' :
+                                    rateColor === 'amber' ? 'text-amber-700' :
+                                    'text-red-700'
+                                  }`}>
+                                    {rate}%
+                                  </span>
+                                </div>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => removeResult(idx)}
+                                className="h-8 w-8 text-slate-400 hover:text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </div>
-                          <div>
-                            <CardTitle className="text-base">{result.fileName}</CardTitle>
-                            <CardDescription className="text-xs">
-                              {result.stats.pageCount} página{result.stats.pageCount !== 1 ? 's' : ''} | {result.stats.extractedCount}/{result.stats.totalFields} campos extraídos
-                            </CardDescription>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <div className="flex items-center gap-2 w-40">
-                            <Progress
-                              value={result.stats.extractionRate}
-                              className={`h-2 ${
-                                result.stats.extractionRate >= 70
-                                  ? '[&>div]:bg-emerald-500'
-                                  : result.stats.extractionRate >= 40
-                                    ? '[&>div]:bg-amber-500'
-                                    : '[&>div]:bg-red-500'
-                              }`}
-                            />
-                            <span className="text-xs font-medium text-slate-600 w-10 text-right">
-                              {result.stats.extractionRate}%
-                            </span>
-                          </div>
-                          <Badge
-                            variant={
-                              result.stats.extractionRate >= 70
-                                ? 'default'
-                                : result.stats.extractionRate >= 40
-                                  ? 'secondary'
-                                  : 'destructive'
-                            }
-                            className={
-                              result.stats.extractionRate >= 70
-                                ? 'bg-emerald-100 text-emerald-700'
-                                : ''
-                            }
-                          >
-                            {result.stats.extractionRate >= 70 ? (
-                              <CheckCircle2 className="h-3 w-3 mr-1" />
-                            ) : (
-                              <AlertCircle className="h-3 w-3 mr-1" />
+
+                          {/* Quick stats row */}
+                          <div className="flex flex-wrap gap-3 mt-4 pt-3 border-t border-slate-100">
+                            {d.ConsumoTotal && (
+                              <div className="flex items-center gap-1.5 text-sm">
+                                <Zap className="h-3.5 w-3.5 text-emerald-500" />
+                                <span className="text-slate-500">Consumo:</span>
+                                <span className="font-mono font-medium text-slate-800">{d.ConsumoTotal} kWh</span>
+                              </div>
                             )}
-                            {result.stats.extractionRate >= 70 ? 'Boa extração' : 'Revisar manualmente'}
-                          </Badge>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => removeResult(idx)}
-                            className="h-8 w-8 text-slate-400 hover:text-destructive"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="overflow-x-auto">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead className="w-[300px]">Campo</TableHead>
-                              <TableHead>Valor Extraído</TableHead>
-                              <TableHead className="w-[60px] text-center">Status</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {FIELD_CATEGORIES.map((cat) => (
-                              <>
-                                <TableRow key={`cat-${cat.category}-${idx}`}>
-                                  <TableCell
-                                    colSpan={3}
-                                    className="bg-slate-50 font-semibold text-xs text-slate-600 uppercase tracking-wider"
-                                  >
-                                    {cat.category}
-                                  </TableCell>
-                                </TableRow>
+                            {d.ConsumoPonta && (
+                              <div className="flex items-center gap-1.5 text-sm">
+                                <span className="text-slate-500">Ponta:</span>
+                                <span className="font-mono text-slate-700">{d.ConsumoPonta}</span>
+                              </div>
+                            )}
+                            {d.ConsumoForaPonta && (
+                              <div className="flex items-center gap-1.5 text-sm">
+                                <span className="text-slate-500">FP:</span>
+                                <span className="font-mono text-slate-700">{d.ConsumoForaPonta}</span>
+                              </div>
+                            )}
+                            {d.Vencimento && (
+                              <div className="flex items-center gap-1.5 text-sm">
+                                <CalendarDays className="h-3.5 w-3.5 text-violet-500" />
+                                <span className="text-slate-500">Venc:</span>
+                                <span className="font-mono text-slate-700">{d.Vencimento}</span>
+                              </div>
+                            )}
+                            {d.NotaFiscal && (
+                              <div className="flex items-center gap-1.5 text-sm">
+                                <Receipt className="h-3.5 w-3.5 text-slate-400" />
+                                <span className="text-slate-500">NF:</span>
+                                <span className="font-mono text-slate-700">{d.NotaFiscal}</span>
+                              </div>
+                            )}
+                            <div className="flex items-center gap-1.5 text-sm">
+                              <FileText className="h-3.5 w-3.5 text-slate-400" />
+                              <span className="text-slate-500">{result.stats.pageCount} pág.</span>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      {/* ===== CATEGORY CARDS GRID ===== */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                        {catStats.map(({ cat, extracted, total, rate: catRate }) => {
+                          const meta = CATEGORY_META[cat.category] || DEFAULT_CAT_META;
+                          const hasData = extracted > 0;
+
+                          return (
+                            <div
+                              key={cat.category}
+                              className={`rounded-xl border p-4 transition-all ${meta.bg} ${meta.border} ${hasData ? 'shadow-sm' : 'opacity-60'}`}
+                            >
+                              {/* Category header */}
+                              <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center gap-2">
+                                  <span className={meta.color}>{meta.icon}</span>
+                                  <h4 className={`text-sm font-semibold ${meta.color}`}>{cat.category}</h4>
+                                </div>
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                  catRate === 100 ? 'bg-emerald-200 text-emerald-800' :
+                                  catRate > 0 ? 'bg-amber-200 text-amber-800' :
+                                  'bg-slate-200 text-slate-600'
+                                }`}>
+                                  {extracted}/{total}
+                                </span>
+                              </div>
+
+                              {/* Fields */}
+                              <div className="space-y-1.5">
                                 {cat.fields.map((fieldKey) => {
-                                  const value = result.data[fieldKey];
+                                  const value = d[fieldKey];
                                   const isEmpty = !value;
+                                  const label = FIELD_LABELS[fieldKey];
+                                  // Simplify label by removing category prefix
+                                  const shortLabel = label
+                                    .replace(/.*Ponta.*/, 'Ponta')
+                                    .replace(/.*Fora Ponta.*/, 'Fora Ponta')
+                                    .replace(/.*Total.*/, 'Total')
+                                    .replace(/\(kWh\)/, '')
+                                    .replace(/\(kW\)/, '')
+                                    .replace(/\(R\$\)/, '')
+                                    .trim();
+
                                   return (
-                                    <TableRow key={`${fieldKey}-${idx}`}>
-                                      <TableCell className="text-sm text-slate-700 font-medium">
-                                        {FIELD_LABELS[fieldKey]}
-                                      </TableCell>
-                                      <TableCell className="text-sm">
-                                        {isEmpty ? (
-                                          <span className="text-slate-400 italic">Não extraído</span>
-                                        ) : (
-                                          <span className="text-slate-800 font-mono text-xs bg-slate-50 px-2 py-1 rounded">
-                                            {value}
-                                          </span>
-                                        )}
-                                      </TableCell>
-                                      <TableCell className="text-center">
-                                        {isEmpty ? (
-                                          <AlertCircle className="h-4 w-4 text-slate-300 mx-auto" />
-                                        ) : (
-                                          <CheckCircle2 className="h-4 w-4 text-emerald-500 mx-auto" />
-                                        )}
-                                      </TableCell>
-                                    </TableRow>
+                                    <div
+                                      key={fieldKey}
+                                      className={`flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-sm ${
+                                        isEmpty ? 'bg-white/40' : 'bg-white/80'
+                                      }`}
+                                    >
+                                      <span className={`truncate ${isEmpty ? 'text-slate-400' : 'text-slate-700'}`}>
+                                        {shortLabel}
+                                      </span>
+                                      {isEmpty ? (
+                                        <span className="text-[11px] text-slate-300 italic flex-shrink-0">—</span>
+                                      ) : (
+                                        <span className="font-mono text-xs font-semibold text-slate-900 bg-white px-1.5 py-0.5 rounded border border-slate-200 flex-shrink-0">
+                                          {value}
+                                        </span>
+                                      )}
+                                    </div>
                                   );
                                 })}
-                              </>
-                            ))}
-                            {/* Gerência e LOCINS - manual */}
-                            <TableRow>
-                              <TableCell
-                                colSpan={3}
-                                className="bg-amber-50 font-semibold text-xs text-amber-700 uppercase tracking-wider"
-                              >
-                                Campos Manuais (Preencher no Excel)
-                              </TableCell>
-                            </TableRow>
-                            <TableRow>
-                              <TableCell className="text-sm text-slate-700 font-medium">Gerência</TableCell>
-                              <TableCell className="text-sm text-slate-400 italic">Preencher manualmente no Excel</TableCell>
-                              <TableCell className="text-center">
-                                <AlertCircle className="h-4 w-4 text-amber-400 mx-auto" />
-                              </TableCell>
-                            </TableRow>
-                            <TableRow>
-                              <TableCell className="text-sm text-slate-700 font-medium">LOCINS</TableCell>
-                              <TableCell className="text-sm text-slate-400 italic">Preencher manualmente no Excel</TableCell>
-                              <TableCell className="text-center">
-                                <AlertCircle className="h-4 w-4 text-amber-400 mx-auto" />
-                              </TableCell>
-                            </TableRow>
-                          </TableBody>
-                        </Table>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
-                    </CardContent>
-                  </Card>
 
-                  {/* Debug: Raw Text */}
-                  {result.rawText && (
-                    <Card className="mt-2 border-amber-200 bg-amber-50/50">
-                      <CardHeader className="py-2 px-4">
-                        <CardTitle className="text-sm flex items-center gap-2 text-amber-800">
-                          <Bug className="h-4 w-4" />
-                          Texto Bruto Extraído do PDF
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="px-4 pb-3">
-                        <pre className="text-[10px] leading-tight text-slate-700 bg-white border border-amber-200 rounded p-3 overflow-auto max-h-80 font-mono whitespace-pre-wrap break-all">
-                          {result.rawText}
-                        </pre>
-                      </CardContent>
-                    </Card>
-                  )}
-                  </>
-                ))}
+                      {/* ===== CAMPOS MANUAIS ===== */}
+                      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                        <div className="flex items-center gap-2 mb-3">
+                          <AlertCircle className="h-4 w-4 text-amber-600" />
+                          <h4 className="text-sm font-semibold text-amber-700">Campos Manuais (Preencher no Excel)</h4>
+                        </div>
+                        <div className="flex flex-wrap gap-3">
+                          <span className="text-sm text-amber-600 bg-amber-100 px-3 py-1.5 rounded-lg border border-amber-200">Gerência</span>
+                          <span className="text-sm text-amber-600 bg-amber-100 px-3 py-1.5 rounded-lg border border-amber-200">LOCINS</span>
+                        </div>
+                      </div>
+
+                      {/* Debug: Raw Text */}
+                      {debugMode && result.rawText && (
+                        <Card className="border-amber-200 bg-amber-50/50">
+                          <CardHeader className="py-2 px-4">
+                            <CardTitle className="text-sm flex items-center gap-2 text-amber-800">
+                              <Bug className="h-4 w-4" />
+                              Texto Bruto Extraído do PDF
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="px-4 pb-3">
+                            <pre className="text-[10px] leading-tight text-slate-700 bg-white border border-amber-200 rounded p-3 overflow-auto max-h-80 font-mono whitespace-pre-wrap break-all">
+                              {result.rawText}
+                            </pre>
+                          </CardContent>
+                        </Card>
+                      )}
+                    </div>
+                  );
+                })}
 
                 {/* Export bar */}
                 <Card>
