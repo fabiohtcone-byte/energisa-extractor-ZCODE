@@ -34,6 +34,7 @@ export interface EnergisaInvoiceData {
   ModalidadeTarifaria: string;
   Subgrupo: string;
   ConsumoPonta: string;
+  ConsumoIntermediaria: string;
   ConsumoForaPonta: string;
   ConsumoTotal: string;
   ConsumoGrupoB_kWh: string;
@@ -53,6 +54,7 @@ export interface EnergisaInvoiceData {
   ReativaExcedentePonta: string;
   ReativaExcedenteForaPonta: string;
   ValorConsumoPonta: string;
+  ValorConsumoIntermediaria: string;
   ValorConsumoForaPonta: string;
   ValorDemandaPonta: string;
   ValorDemandaForaPonta: string;
@@ -87,6 +89,7 @@ export const FIELD_LABELS: Record<keyof EnergisaInvoiceData, string> = {
   ModalidadeTarifaria: 'Modalidade Tarifária',
   Subgrupo: 'Subgrupo',
   ConsumoPonta: 'Consumo Ponta (kWh)',
+  ConsumoIntermediaria: 'Consumo Intermediária (kWh)',
   ConsumoForaPonta: 'Consumo Fora Ponta (kWh)',
   ConsumoTotal: 'Consumo Total (kWh)',
   ConsumoGrupoB_kWh: 'Consumo em kWh (Grupo B)',
@@ -106,6 +109,7 @@ export const FIELD_LABELS: Record<keyof EnergisaInvoiceData, string> = {
   ReativaExcedentePonta: 'Reativa Excedente Ponta (kWh)',
   ReativaExcedenteForaPonta: 'Reativa Excedente Fora Ponta (kWh)',
   ValorConsumoPonta: 'Valor Consumo Ponta (R$)',
+  ValorConsumoIntermediaria: 'Valor Consumo Intermediária (R$)',
   ValorConsumoForaPonta: 'Valor Consumo Fora Ponta (R$)',
   ValorDemandaPonta: 'Valor Demanda Ponta (R$)',
   ValorDemandaForaPonta: 'Valor Demanda Fora Ponta (R$)',
@@ -131,14 +135,14 @@ export const FIELD_CATEGORIES: { category: string; fields: (keyof EnergisaInvoic
   { category: 'Identificação', fields: ['UC', 'Cidade', 'Tipo', 'Mercado', 'Concessionaria'] },
   { category: 'Datas e Documentos', fields: ['MesReferencia', 'AnoLeitura', 'Vencimento', 'NotaFiscal'] },
   { category: 'Tarifa', fields: ['ModalidadeTarifaria', 'Subgrupo'] },
-  { category: 'Consumo (kWh)', fields: ['ConsumoPonta', 'ConsumoForaPonta', 'ConsumoTotal', 'ConsumoGrupoB_kWh'] },
+  { category: 'Consumo (kWh)', fields: ['ConsumoPonta', 'ConsumoIntermediaria', 'ConsumoForaPonta', 'ConsumoTotal', 'ConsumoGrupoB_kWh'] },
   { category: 'Demanda Contratada (kW)', fields: ['DemandaContratadaPonta', 'DemandaContratadaForaPonta'] },
   { category: 'Demanda Medida (kW)', fields: ['DemandaMedidaPonta', 'DemandaMedidaForaPonta'] },
   { category: 'Demanda Faturada (kW)', fields: ['DemandaFaturadaPonta', 'DemandaFaturadaForaPonta'] },
   { category: 'Ultrapassagem (kW)', fields: ['UltrapassagemPonta', 'UltrapassagemForaPonta'] },
   { category: 'Demanda Não Consumida (kW)', fields: ['DemandaNaoConsumidaPonta', 'DemandaNaoConsumidaForaPonta'] },
   { category: 'Reativa Excedente (kWh)', fields: ['ReativaExcedentePonta', 'ReativaExcedenteForaPonta', 'EnergiaReativaTotal'] },
-  { category: 'Valores - Consumo (R$)', fields: ['ValorConsumoPonta', 'ValorConsumoForaPonta', 'ConsumoGrupoB_Valor'] },
+  { category: 'Valores - Consumo (R$)', fields: ['ValorConsumoPonta', 'ValorConsumoIntermediaria', 'ValorConsumoForaPonta', 'ConsumoGrupoB_Valor'] },
   { category: 'Valores - Demanda (R$)', fields: ['ValorDemandaPonta', 'ValorDemandaForaPonta'] },
   { category: 'Valores - Ultrapassagem (R$)', fields: ['ValorUltrapassagemPonta', 'ValorUltrapassagemForaPonta'] },
   { category: 'Valores - Demanda Não Consumida (R$)', fields: ['ValorNaoConsumidaPonta', 'ValorNaoConsumidaForaPonta'] },
