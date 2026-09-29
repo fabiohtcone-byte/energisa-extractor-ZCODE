@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
 
     const XLSX = await import('xlsx');
 
-    // Column order exactly as requested by user: [headerLabel, dataKey | null for empty | '__consumo_medio__' for computed]
+    // Column order EXACTLY as requested by user, then Consumo Médio at the end
     const cols: [string, string][] = [
       ['UC',                                      'UC'],
       ['Gerência',                                '__empty__'],
@@ -129,7 +129,6 @@ export async function POST(request: NextRequest) {
       ['Consumo Grupo B (kWh)',                   'ConsumoGrupoB_kWh'],
       ['Valor Consumo Grupo B (R$)',              'ConsumoGrupoB_Valor'],
       ['Consumo em kWh - Intermediária',          'ConsumoIntermediaria'],
-      ['Consumo Médio',                           '__consumo_medio__'],
       ['Demanda Contratada Ponta (kW)',           'DemandaContratadaPonta'],
       ['Demanda Contratada Fora Ponta (kW)',      'DemandaContratadaForaPonta'],
       ['Demanda Todos os Períodos (kW)',          '__empty__'],
@@ -165,6 +164,7 @@ export async function POST(request: NextRequest) {
       ['PIS (R$)',                                'PIS'],
       ['COFINS (R$)',                             'COFINS'],
       ['ICMS (R$)',                               'ICMS'],
+      ['Consumo Médio',                           '__consumo_medio__'],
     ];
 
     const headers = cols.map(c => c[0]);
