@@ -34,14 +34,11 @@ function sendCachedFile(res, fp, isHtml) {
   const entry = cacheStaticFile(fp);
   if (!entry) { res.writeHead(404); res.end('Not found'); return; }
   const headers = { 'Content-Type': entry.type };
-  if (isHtml) {
-    // HTML must NOT be cached immutably — browser needs fresh HTML to pick up new JS chunk hashes
-    headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
-    headers['Pragma'] = 'no-cache';
-  } else {
-    // JS/CSS/fonts have content-hashed filenames, safe to cache immutably
-    headers['Cache-Control'] = 'public, max-age=31536000, immutable';
-  }
+  // Force no-cache on ALL files to prevent stale JS from being served.
+  // Next.js Turbopack chunk hashes are NOT content-based, so immutable caching
+  // can serve outdated JS even after a rebuild with new fields.
+  headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+  headers['Pragma'] = 'no-cache';
   res.writeHead(200, headers);
   res.end(entry.data);
 }
