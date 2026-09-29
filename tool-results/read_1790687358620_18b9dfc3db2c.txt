@@ -1,0 +1,696 @@
+     1→     1→'use client'
+     2→     2→
+     3→     3→import { useState, useCallback, useRef } from 'react';
+     4→     4→import { toast } from 'sonner';
+     5→     5→import { Button } from '@/components/ui/button';
+     6→     6→import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+     7→     7→import { Badge } from '@/components/ui/badge';
+     8→     8→import { Progress } from '@/components/ui/progress';
+     9→     9→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+    10→    10→import {
+    11→    11→  Table,
+    12→    12→  TableBody,
+    13→    13→  TableCell,
+    14→    14→  TableHead,
+    15→    15→  TableHeader,
+    16→    16→  TableRow,
+    17→    17→} from '@/components/ui/table';
+    18→    18→import {
+    19→    19→  Upload,
+    20→    20→  FileText,
+    21→    21→  Download,
+    22→    22→  Trash2,
+    23→    23→  CheckCircle2,
+    24→    24→  AlertCircle,
+    25→    25→  Zap,
+    26→    26→  BarChart3,
+    27→    27→  FileSpreadsheet,
+    28→    28→  Bug,
+    29→    29→  Loader2,
+    30→    30→} from 'lucide-react';
+    31→    31→import { FIELD_LABELS, FIELD_CATEGORIES, type EnergisaInvoiceData } from '@/lib/energisa-fields';
+    32→    32→
+    33→    33→interface FileProgress {
+    34→    34→  fileName: string;
+    35→    35→  status: 'pending' | 'processing' | 'done' | 'error';
+    36→    36→  result?: ExtractionResult;
+    37→    37→  errorMsg?: string;
+    38→    38→}
+    39→    39→
+    40→    40→interface ExtractionResult {
+    41→    41→  fileName: string;
+    42→    42→  data: EnergisaInvoiceData;
+    43→    43→  stats: {
+    44→    44→    extractedCount: number;
+    45→    45→    totalFields: number;
+    46→    46→    extractionRate: number;
+    47→    47→    pageCount: number;
+    48→    48→  };
+    49→    49→  rawText?: string;
+    50→    50→}
+    51→    51→
+    52→    52→export default function Home() {
+    53→    53→  const [results, setResults] = useState<ExtractionResult[]>([]);
+    54→    54→  const [isProcessing, setIsProcessing] = useState(false);
+    55→    55→  const [isDragging, setIsDragging] = useState(false);
+    56→    56→  const [activeTab, setActiveTab] = useState('upload');
+    57→    57→  const [debugMode, setDebugMode] = useState(false);
+    58→    58→  const [fileProgress, setFileProgress] = useState<FileProgress[]>([]);
+    59→    59→  const fileInputRef = useRef<HTMLInputElement>(null);
+    60→    60→
+    61→    61→  const processFiles = useCallback(async (files: FileList | File[]) => {
+    62→    62→    const pdfFiles = Array.from(files).filter((f) => f.type === 'application/pdf');
+    63→    63→    if (pdfFiles.length === 0) {
+    64→    64→      toast.error('Selecione ao menos um arquivo PDF.');
+    65→    65→      return;
+    66→    66→    }
+    67→    67→
+    68→    68→    setIsProcessing(true);
+    69→    69→    const newResults: ExtractionResult[] = [];
+    70→    70→
+    71→    71→    // Initialize progress for all files
+    72→    72→    const initialProgress: FileProgress[] = pdfFiles.map((f) => ({
+    73→    73→      fileName: f.name,
+    74→    74→      status: 'pending',
+    75→    75→    }));
+    76→    76→    setFileProgress(initialProgress);
+    77→    77→
+    78→    78→    // Process files sequentially with per-file progress
+    79→    79→    for (let i = 0; i < pdfFiles.length; i++) {
+    80→    80→      const file = pdfFiles[i];
+    81→    81→
+    82→    82→      // Mark current file as processing
+    83→    83→      setFileProgress((prev) =>
+    84→    84→        prev.map((p, idx) =>
+    85→    85→          idx === i ? { ...p, status: 'processing' as const } : p
+    86→    86→        )
+    87→    87→      );
+    88→    88→
+    89→    89→      try {
+    90→    90→        const formData = new FormData();
+    91→    91→        formData.append('file', file);
+    92→    92→        const response = await fetch('/api/extract-pdf', {
+    93→    93→          method: 'POST',
+    94→    94→          body: formData,
+    95→    95→        });
+    96→    96→        const result = await response.json();
+    97→    97→
+    98→    98→        if (!response.ok) {
+    99→    99→          setFileProgress((prev) =>
+   100→   100→            prev.map((p, idx) =>
+   101→   101→              idx === i ? { ...p, status: 'error' as const, errorMsg: result.error } : p
+   102→   102→            )
+   103→   103→          );
+   104→   104→          toast.error(`${file.name}: ${result.error}`);
+   105→   105→        } else {
+   106→   106→          const extractionResult: ExtractionResult = {
+   107→   107→            fileName: file.name,
+   108→   108→            data: result.data,
+   109→   109→            stats: result.stats,
+   110→   110→            rawText: result.rawText,
+   111→   111→          };
+   112→   112→          newResults.push(extractionResult);
+   113→   113→          setFileProgress((prev) =>
+   114→   114→            prev.map((p, idx) =>
+   115→   115→              idx === i ? { ...p, status: 'done' as const, result: extractionResult } : p
+   116→   116→            )
+   117→   117→          );
+   118→   118→          toast.success(`${file.name}: ${result.stats.extractedCount}/${result.stats.totalFields} campos (${result.stats.extractionRate}%)`);
+   119→   119→        }
+   120→   120→      } catch {
+   121→   121→        setFileProgress((prev) =>
+   122→   122→          prev.map((p, idx) =>
+   123→   123→            idx === i ? { ...p, status: 'error' as const, errorMsg: 'Erro ao processar' } : p
+   124→   124→          )
+   125→   125→        );
+   126→   126→        toast.error(`${file.name}: Erro ao processar.`);
+   127→   127→      }
+   128→   128→    }
+   129→   129→
+   130→   130→    setResults((prev) => {
+   131→   131→      const updated = [...newResults];
+   132→   132→      for (const existing of prev) {
+   133→   133→        const existingUC = existing.data.UC.replace(/[^0-9]/g, '');
+   134→   134→        const alreadyAdded = updated.some(
+   135→   135→          (r) => r.data.UC.replace(/[^0-9]/g, '') === existingUC && existingUC !== ''
+   136→   136→        );
+   137→   137→        if (!alreadyAdded) updated.push(existing);
+   138→   138→      }
+   139→   139→      for (const nr of newResults) {
+   140→   140→        const nrUC = nr.data.UC.replace(/[^0-9]/g, '');
+   141→   141→        if (nrUC && prev.some((r) => r.data.UC.replace(/[^0-9]/g, '') === nrUC)) {
+   142→   142→          toast.info(`UC ${nr.data.UC} atualizada com nova extração.`);
+   143→   143→        }
+   144→   144→      }
+   145→   145→      return updated;
+   146→   146→    });
+   147→   147→    setIsProcessing(false);
+   148→   148→    setFileProgress([]);
+   149→   149→
+   150→   150→    if (newResults.length > 0) {
+   151→   151→      setActiveTab('results');
+   152→   152→    }
+   153→   153→  }, []);
+   154→   154→  const handleDrop = useCallback(
+   155→   155→    (e: React.DragEvent) => {
+   156→   156→      e.preventDefault();
+   157→   157→      setIsDragging(false);
+   158→   158→      if (e.dataTransfer.files.length > 0) {
+   159→   159→        processFiles(e.dataTransfer.files);
+   160→   160→      }
+   161→   161→    },
+   162→   162→    [processFiles]
+   163→   163→  );
+   164→   164→
+   165→   165→  const handleDragOver = useCallback((e: React.DragEvent) => {
+   166→   166→    e.preventDefault();
+   167→   167→    setIsDragging(true);
+   168→   168→  }, []);
+   169→   169→
+   170→   170→  const handleDragLeave = useCallback(() => {
+   171→   171→    setIsDragging(false);
+   172→   172→  }, []);
+   173→   173→
+   174→   174→  const handleFileChange = useCallback(
+   175→   175→    (e: React.ChangeEvent<HTMLInputElement>) => {
+   176→   176→      if (e.target.files && e.target.files.length > 0) {
+   177→   177→        processFiles(e.target.files);
+   178→   178→        e.target.value = '';
+   179→   179→      }
+   180→   180→    },
+   181→   181→    [processFiles]
+   182→   182→  );
+   183→   183→
+   184→   184→  const clearAll = useCallback(() => {
+   185→   185→    setResults([]);
+   186→   186→    setActiveTab('upload');
+   187→   187→    toast.info('Todas as faturas foram removidas.');
+   188→   188→  }, []);
+   189→   189→
+   190→   190→  const removeResult = useCallback((index: number) => {
+   191→   191→    setResults((prev) => prev.filter((_, i) => i !== index));
+   192→   192→    toast.info('Fatura removida.');
+   193→   193→  }, []);
+   194→   194→
+   195→   195→  const exportToExcel = useCallback(async () => {
+   196→   196→    if (results.length === 0) {
+   197→   197→      toast.error('Nenhuma fatura para exportar.');
+   198→   198→      return;
+   199→   199→    }
+   200→   200→
+   201→   201→    try {
+   202→   202→      const response = await fetch('/api/export-excel', {
+   203→   203→        method: 'POST',
+   204→   204→        headers: { 'Content-Type': 'application/json' },
+   205→   205→        body: JSON.stringify({ invoices: results.map((r) => ({ ...r.data, _fileName: r.fileName })) }),
+   206→   206→      });
+   207→   207→
+   208→   208→      if (!response.ok) {
+   209→   209→        toast.error('Erro ao gerar Excel.');
+   210→   210→        return;
+   211→   211→      }
+   212→   212→
+   213→   213→      const blob = await response.blob();
+   214→   214→      const url = URL.createObjectURL(blob);
+   215→   215→      const a = document.createElement('a');
+   216→   216→      a.href = url;
+   217→   217→      a.download = 'faturas_energisa.xlsx';
+   218→   218→      document.body.appendChild(a);
+   219→   219→      a.click();
+   220→   220→      document.body.removeChild(a);
+   221→   221→      URL.revokeObjectURL(url);
+   222→   222→
+   223→   223→      toast.success('Excel exportado! Colunas em amarelo são para preenchimento manual.');
+   224→   224→    } catch {
+   225→   225→      toast.error('Erro ao exportar.');
+   226→   226→    }
+   227→   227→  }, [results]);
+   228→   228→
+   229→   229→  return (
+   230→   230→    <div className="min-h-screen flex flex-col bg-gradient-to-b from-slate-50 to-slate-100">
+   231→   231→      {/* Header */}
+   232→   232→      <header className="border-b bg-white shadow-sm sticky top-0 z-50">
+   233→   233→        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
+   234→   234→          <div className="flex items-center gap-3">
+   235→   235→            <div className="p-2 rounded-lg bg-emerald-100 text-emerald-700">
+   236→   236→              <Zap className="h-6 w-6" />
+   237→   237→            </div>
+   238→   238→            <div>
+   239→   239→              <h1 className="text-lg sm:text-xl font-bold text-slate-900">Extração de Faturas ENERGISA</h1>
+   240→   240→              <p className="text-xs sm:text-sm text-slate-500">Extraia 40+ campos automaticamente de faturas de energia</p>
+   241→   241→            </div>
+   242→   242→          </div>
+   243→   243→          <div className="flex items-center gap-2">
+   244→   244→            {results.length > 0 && (
+   245→   245→              <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 hidden sm:flex gap-1">
+   246→   246→                <FileText className="h-3 w-3" />
+   247→   247→                {results.length} fatura{results.length !== 1 ? 's' : ''}
+   248→   248→              </Badge>
+   249→   249→            )}
+   250→   250→            {results.length > 0 && (
+   251→   251→              <Button variant="outline" size="sm" onClick={exportToExcel} className="gap-1.5">
+   252→   252→                <FileSpreadsheet className="h-4 w-4" />
+   253→   253→                <span className="hidden sm:inline">Exportar Excel</span>
+   254→   254→              </Button>
+   255→   255→            )}
+   256→   256→          </div>
+   257→   257→        </div>
+   258→   258→      </header>
+   259→   259→
+   260→   260→      {/* Main */}
+   261→   261→      <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-6">
+   262→   262→        <Tabs value={activeTab} onValueChange={setActiveTab}>
+   263→   263→          <TabsList className="mb-6">
+   264→   264→            <TabsTrigger value="upload" className="gap-1.5">
+   265→   265→              <Upload className="h-4 w-4" />
+   266→   266→              Upload
+   267→   267→            </TabsTrigger>
+   268→   268→            <TabsTrigger value="results" disabled={results.length === 0} className="gap-1.5">
+   269→   269→              <BarChart3 className="h-4 w-4" />
+   270→   270→              Resultados ({results.length})
+   271→   271→            </TabsTrigger>
+   272→   272→          </TabsList>
+   273→   273→
+   274→   274→          {/* Upload Tab */}
+   275→   275→          <TabsContent value="upload">
+   276→   276→            <Card>
+   277→   277→              <CardHeader>
+   278→   278→                <CardTitle className="flex items-center gap-2">
+   279→   279→                  <Upload className="h-5 w-5" />
+   280→   280→                  Enviar Faturas em PDF
+   281→   281→                </CardTitle>
+   282→   282→                <CardDescription>
+   283→   283→                  Arraste e solte faturas ENERGISA em PDF ou clique para selecionar. Múltiplos arquivos permitidos.
+   284→   284→                </CardDescription>
+   285→   285→              </CardHeader>
+   286→   286→              <CardContent>
+   287→   287→                <div
+   288→   288→                  onDrop={handleDrop}
+   289→   289→                  onDragOver={handleDragOver}
+   290→   290→                  onDragLeave={handleDragLeave}
+   291→   291→                  onClick={() => fileInputRef.current?.click()}
+   292→   292→                  className={`
+   293→   293→                    border-2 border-dashed rounded-xl p-8 sm:p-12 text-center cursor-pointer transition-all duration-200
+   294→   294→                    ${isDragging ? 'border-emerald-500 bg-emerald-50 scale-[1.01]' : 'border-slate-300 bg-slate-50 hover:border-emerald-400 hover:bg-emerald-50/50'}
+   295→   295→                    ${isProcessing ? 'pointer-events-none opacity-60' : ''}
+   296→   296→                  `}
+   297→   297→                >
+   298→   298→                  <input
+   299→   299→                    ref={fileInputRef}
+   300→   300→                    type="file"
+   301→   301→                    accept="application/pdf"
+   302→   302→                    multiple
+   303→   303→                    onChange={handleFileChange}
+   304→   304→                    className="hidden"
+   305→   305→                  />
+   306→   306→                  <div className="flex flex-col items-center gap-3">
+   307→   307→                    {!isProcessing && (
+   308→   308→                      <div className="p-3 rounded-full bg-emerald-100 text-emerald-600">
+   309→   309→                        <FileText className="h-8 w-8" />
+   310→   310→                      </div>
+   311→   311→                    )}
+   312→   312→                    {!isProcessing && (
+   313→   313→                      <div>
+   314→   314→                        <p className="text-base font-semibold text-slate-700">
+   315→   315→                          Arraste faturas PDF aqui
+   316→   316→                        </p>
+   317→   317→                        <p className="text-sm text-slate-500 mt-1">
+   318→   318→                          ou clique para selecionar os arquivos
+   319→   319→                        </p>
+   320→   320→                      </div>
+   321→   321→                    )}
+   322→   322→                    {/* Debug toggle - only when not processing */}
+   323→   323→                    {!isProcessing && (
+   324→   324→                      <label className="flex items-center gap-2 mt-4 cursor-pointer select-none">
+   325→   325→                        <input
+   326→   326→                          type="checkbox"
+   327→   327→                          checked={debugMode}
+   328→   328→                          onChange={(e) => setDebugMode(e.target.checked)}
+   329→   329→                          className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+   330→   330→                        />
+   331→   331→                        <Bug className="h-4 w-4 text-slate-500" />
+   332→   332→                        <span className="text-xs text-slate-500">Modo Debug (mostra texto bruto do PDF)</span>
+   333→   333→                      </label>
+   334→   334→                    )}
+   335→   335→                  </div>
+   336→   336→
+   337→   337→                  {/* Processing progress panel */}
+   338→   338→                  {isProcessing && fileProgress.length > 0 && (
+   339→   339→                    <div className="w-full max-w-md mx-auto text-left">
+   340→   340→                      {/* Overall progress bar */}
+   341→   341→                      <div className="mb-4">
+   342→   342→                        <div className="flex items-center justify-between mb-2">
+   343→   343→                          <span className="text-sm font-semibold text-slate-700">
+   344→   344→                            Processando faturas
+   345→   345→                          </span>
+   346→   346→                          <span className="text-sm font-medium text-emerald-700">
+   347→   347→                            {fileProgress.filter((p) => p.status === 'done' || p.status === 'error').length}/{fileProgress.length}
+   348→   348→                          </span>
+   349→   349→                        </div>
+   350→   350→                        <Progress
+   351→   351→                          value={(fileProgress.filter((p) => p.status === 'done' || p.status === 'error').length / fileProgress.length) * 100}
+   352→   352→                          className="h-2.5 [&>div]:bg-emerald-500"
+   353→   353→                        />
+   354→   354→                      </div>
+   355→   355→
+   356→   356→                      {/* Per-file list */}
+   357→   357→                      <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+   358→   358→                        {fileProgress.map((fp, idx) => (
+   359→   359→                          <div
+   360→   360→                            key={idx}
+   361→   361→                            className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all ${
+   362→   362→                              fp.status === 'processing'
+   363→   363→                                ? 'bg-emerald-50 border border-emerald-200'
+   364→   364→                                : fp.status === 'done'
+   365→   365→                                  ? 'bg-slate-50'
+   366→   366→                                  : fp.status === 'error'
+   367→   367→                                    ? 'bg-red-50 border border-red-100'
+   368→   368→                                    : 'bg-slate-50/50'
+   369→   369→                            }`}
+   370→   370→                          >
+   371→   371→                            {/* Status icon */}
+   372→   372→                            <div className="flex-shrink-0">
+   373→   373→                              {fp.status === 'pending' && (
+   374→   374→                                <div className="h-5 w-5 rounded-full border-2 border-slate-300" />
+   375→   375→                              )}
+   376→   376→                              {fp.status === 'processing' && (
+   377→   377→                                <Loader2 className="h-5 w-5 text-emerald-600 animate-spin" />
+   378→   378→                              )}
+   379→   379→                              {fp.status === 'done' && (
+   380→   380→                                <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+   381→   381→                              )}
+   382→   382→                              {fp.status === 'error' && (
+   383→   383→                                <AlertCircle className="h-5 w-5 text-red-500" />
+   384→   384→                              )}
+   385→   385→                            </div>
+   386→   386→
+   387→   387→                            {/* File name + stats */}
+   388→   388→                            <div className="flex-1 min-w-0">
+   389→   389→                              <p className={`truncate text-sm ${
+   390→   390→                                fp.status === 'processing' ? 'font-medium text-emerald-800' :
+   391→   391→                                fp.status === 'error' ? 'text-red-700' :
+   392→   392→                                fp.status === 'done' ? 'text-slate-700' : 'text-slate-400'
+   393→   393→                              }`}>
+   394→   394→                                {fp.fileName}
+   395→   395→                              </p>
+   396→   396→                              {fp.status === 'processing' && (
+   397→   397→                                <p className="text-xs text-emerald-600 mt-0.5">Extraindo dados...</p>
+   398→   398→                              )}
+   399→   399→                              {fp.status === 'done' && fp.result && (
+   400→   400→                                <p className="text-xs text-slate-500 mt-0.5">
+   401→   401→                                  {fp.result.stats.extractedCount}/{fp.result.stats.totalFields} campos ({fp.result.stats.extractionRate}%) — {fp.result.data.UC || 'UC não encontrada'}
+   402→   402→                                </p>
+   403→   403→                              )}
+   404→   404→                              {fp.status === 'error' && (
+   405→   405→                                <p className="text-xs text-red-500 mt-0.5">{fp.errorMsg}</p>
+   406→   406→                              )}
+   407→   407→                            </div>
+   408→   408→
+   409→   409→                            {/* Extraction rate badge for done */}
+   410→   410→                            {fp.status === 'done' && fp.result && (
+   411→   411→                              <span className={`flex-shrink-0 text-xs font-medium px-2 py-0.5 rounded-full ${
+   412→   412→                                fp.result.stats.extractionRate >= 70
+   413→   413→                                  ? 'bg-emerald-100 text-emerald-700'
+   414→   414→                                  : fp.result.stats.extractionRate >= 40
+   415→   415→                                    ? 'bg-amber-100 text-amber-700'
+   416→   416→                                    : 'bg-red-100 text-red-700'
+   417→   417→                              }`}>
+   418→   418→                                {fp.result.stats.extractionRate}%
+   419→   419→                              </span>
+   420→   420→                            )}
+   421→   421→                          </div>
+   422→   422→                        ))}
+   423→   423→                      </div>
+   424→   424→                    </div>
+   425→   425→                  )}
+   426→   426→                </div>
+   427→   427→
+   428→   428→                {results.length > 0 && (
+   429→   429→                  <div className="mt-6 flex items-center justify-between">
+   430→   430→                    <p className="text-sm text-slate-500">
+   431→   431→                      {results.length} fatura{results.length !== 1 ? 's' : ''} processada{results.length !== 1 ? 's' : ''}
+   432→   432→                    </p>
+   433→   433→                    <div className="flex gap-2">
+   434→   434→                      <Button variant="outline" size="sm" onClick={clearAll} className="gap-1.5 text-destructive hover:text-destructive">
+   435→   435→                        <Trash2 className="h-4 w-4" />
+   436→   436→                        Limpar Tudo
+   437→   437→                      </Button>
+   438→   438→                      <Button size="sm" onClick={exportToExcel} className="gap-1.5 bg-emerald-600 hover:bg-emerald-700">
+   439→   439→                        <Download className="h-4 w-4" />
+   440→   440→                        Exportar Excel
+   441→   441→                      </Button>
+   442→   442→                    </div>
+   443→   443→                  </div>
+   444→   444→                )}
+   445→   445→              </CardContent>
+   446→   446→            </Card>
+   447→   447→
+   448→   448→            {/* Info Cards */}
+   449→   449→            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
+   450→   450→              <Card>
+   451→   451→                <CardContent className="p-4">
+   452→   452→                  <div className="flex items-center gap-3">
+   453→   453→                    <div className="p-2 rounded-lg bg-blue-100 text-blue-700">
+   454→   454→                      <FileText className="h-5 w-5" />
+   455→   455→                    </div>
+   456→   456→                    <div>
+   457→   457→                      <p className="text-sm font-medium text-slate-700">40+ Campos</p>
+   458→   458→                      <p className="text-xs text-slate-500">UC, consumo, demanda, tributos e mais</p>
+   459→   459→                    </div>
+   460→   460→                  </div>
+   461→   461→                </CardContent>
+   462→   462→              </Card>
+   463→   463→              <Card>
+   464→   464→                <CardContent className="p-4">
+   465→   465→                  <div className="flex items-center gap-3">
+   466→   466→                    <div className="p-2 rounded-lg bg-amber-100 text-amber-700">
+   467→   467→                      <FileSpreadsheet className="h-5 w-5" />
+   468→   468→                    </div>
+   469→   469→                    <div>
+   470→   470→                      <p className="text-sm font-medium text-slate-700">Exportar Excel</p>
+   471→   471→                      <p className="text-xs text-slate-500">Gerência e LOCINS para preenchimento manual</p>
+   472→   472→                    </div>
+   473→   473→                  </div>
+   474→   474→                </CardContent>
+   475→   475→              </Card>
+   476→   476→              <Card>
+   477→   477→                <CardContent className="p-4">
+   478→   478→                  <div className="flex items-center gap-3">
+   479→   479→                    <div className="p-2 rounded-lg bg-emerald-100 text-emerald-700">
+   480→   480→                      <Zap className="h-5 w-5" />
+   481→   481→                    </div>
+   482→   482→                    <div>
+   483→   483→                      <p className="text-sm font-medium text-slate-700">Múltiplos Modelos</p>
+   484→   484→                      <p className="text-xs text-slate-500">Compatível com diferentes formatos ENERGISA</p>
+   485→   485→                    </div>
+   486→   486→                  </div>
+   487→   487→                </CardContent>
+   488→   488→              </Card>
+   489→   489→            </div>
+   490→   490→          </TabsContent>
+   491→   491→
+   492→   492→          {/* Results Tab */}
+   493→   493→          <TabsContent value="results">
+   494→   494→            {results.length === 0 ? (
+   495→   495→              <Card>
+   496→   496→                <CardContent className="p-12 text-center">
+   497→   497→                  <FileText className="h-12 w-12 text-slate-300 mx-auto mb-3" />
+   498→   498→                  <p className="text-slate-500">Nenhuma fatura processada ainda.</p>
+   499→   499→                </CardContent>
+   500→   500→              </Card>
+   501→   501→            ) : (
+   502→   502→              <div className="space-y-4">
+   503→   503→                {results.map((result, idx) => (
+   504→   504→                  <>
+   505→   505→                  <Card key={`${result.fileName}-${idx}`}>
+   506→   506→                    <CardHeader className="pb-3">
+   507→   507→                      <div className="flex items-center justify-between flex-wrap gap-2">
+   508→   508→                        <div className="flex items-center gap-3">
+   509→   509→                          <div className="p-2 rounded-lg bg-slate-100">
+   510→   510→                            <FileText className="h-5 w-5 text-slate-600" />
+   511→   511→                          </div>
+   512→   512→                          <div>
+   513→   513→                            <CardTitle className="text-base">{result.fileName}</CardTitle>
+   514→   514→                            <CardDescription className="text-xs">
+   515→   515→                              {result.stats.pageCount} página{result.stats.pageCount !== 1 ? 's' : ''} | {result.stats.extractedCount}/{result.stats.totalFields} campos extraídos
+   516→   516→                            </CardDescription>
+   517→   517→                          </div>
+   518→   518→                        </div>
+   519→   519→                        <div className="flex items-center gap-3">
+   520→   520→                          <div className="flex items-center gap-2 w-40">
+   521→   521→                            <Progress
+   522→   522→                              value={result.stats.extractionRate}
+   523→   523→                              className={`h-2 ${
+   524→   524→                                result.stats.extractionRate >= 70
+   525→   525→                                  ? '[&>div]:bg-emerald-500'
+   526→   526→                                  : result.stats.extractionRate >= 40
+   527→   527→                                    ? '[&>div]:bg-amber-500'
+   528→   528→                                    : '[&>div]:bg-red-500'
+   529→   529→                              }`}
+   530→   530→                            />
+   531→   531→                            <span className="text-xs font-medium text-slate-600 w-10 text-right">
+   532→   532→                              {result.stats.extractionRate}%
+   533→   533→                            </span>
+   534→   534→                          </div>
+   535→   535→                          <Badge
+   536→   536→                            variant={
+   537→   537→                              result.stats.extractionRate >= 70
+   538→   538→                                ? 'default'
+   539→   539→                                : result.stats.extractionRate >= 40
+   540→   540→                                  ? 'secondary'
+   541→   541→                                  : 'destructive'
+   542→   542→                            }
+   543→   543→                            className={
+   544→   544→                              result.stats.extractionRate >= 70
+   545→   545→                                ? 'bg-emerald-100 text-emerald-700'
+   546→   546→                                : ''
+   547→   547→                            }
+   548→   548→                          >
+   549→   549→                            {result.stats.extractionRate >= 70 ? (
+   550→   550→                              <CheckCircle2 className="h-3 w-3 mr-1" />
+   551→   551→                            ) : (
+   552→   552→                              <AlertCircle className="h-3 w-3 mr-1" />
+   553→   553→                            )}
+   554→   554→                            {result.stats.extractionRate >= 70 ? 'Boa extração' : 'Revisar manualmente'}
+   555→   555→                          </Badge>
+   556→   556→                          <Button
+   557→   557→                            variant="ghost"
+   558→   558→                            size="icon"
+   559→   559→                            onClick={() => removeResult(idx)}
+   560→   560→                            className="h-8 w-8 text-slate-400 hover:text-destructive"
+   561→   561→                          >
+   562→   562→                            <Trash2 className="h-4 w-4" />
+   563→   563→                          </Button>
+   564→   564→                        </div>
+   565→   565→                      </div>
+   566→   566→                    </CardHeader>
+   567→   567→                    <CardContent>
+   568→   568→                      <div className="overflow-x-auto">
+   569→   569→                        <Table>
+   570→   570→                          <TableHeader>
+   571→   571→                            <TableRow>
+   572→   572→                              <TableHead className="w-[300px]">Campo</TableHead>
+   573→   573→                              <TableHead>Valor Extraído</TableHead>
+   574→   574→                              <TableHead className="w-[60px] text-center">Status</TableHead>
+   575→   575→                            </TableRow>
+   576→   576→                          </TableHeader>
+   577→   577→                          <TableBody>
+   578→   578→                            {FIELD_CATEGORIES.map((cat) => (
+   579→   579→                              <>
+   580→   580→                                <TableRow key={`cat-${cat.category}-${idx}`}>
+   581→   581→                                  <TableCell
+   582→   582→                                    colSpan={3}
+   583→   583→                                    className="bg-slate-50 font-semibold text-xs text-slate-600 uppercase tracking-wider"
+   584→   584→                                  >
+   585→   585→                                    {cat.category}
+   586→   586→                                  </TableCell>
+   587→   587→                                </TableRow>
+   588→   588→                                {cat.fields.map((fieldKey) => {
+   589→   589→                                  const value = result.data[fieldKey];
+   590→   590→                                  const isEmpty = !value;
+   591→   591→                                  return (
+   592→   592→                                    <TableRow key={`${fieldKey}-${idx}`}>
+   593→   593→                                      <TableCell className="text-sm text-slate-700 font-medium">
+   594→   594→                                        {FIELD_LABELS[fieldKey]}
+   595→   595→                                      </TableCell>
+   596→   596→                                      <TableCell className="text-sm">
+   597→   597→                                        {isEmpty ? (
+   598→   598→                                          <span className="text-slate-400 italic">Não extraído</span>
+   599→   599→                                        ) : (
+   600→   600→                                          <span className="text-slate-800 font-mono text-xs bg-slate-50 px-2 py-1 rounded">
+   601→   601→                                            {value}
+   602→   602→                                          </span>
+   603→   603→                                        )}
+   604→   604→                                      </TableCell>
+   605→   605→                                      <TableCell className="text-center">
+   606→   606→                                        {isEmpty ? (
+   607→   607→                                          <AlertCircle className="h-4 w-4 text-slate-300 mx-auto" />
+   608→   608→                                        ) : (
+   609→   609→                                          <CheckCircle2 className="h-4 w-4 text-emerald-500 mx-auto" />
+   610→   610→                                        )}
+   611→   611→                                      </TableCell>
+   612→   612→                                    </TableRow>
+   613→   613→                                  );
+   614→   614→                                })}
+   615→   615→                              </>
+   616→   616→                            ))}
+   617→   617→                            {/* Gerência e LOCINS - manual */}
+   618→   618→                            <TableRow>
+   619→   619→                              <TableCell
+   620→   620→                                colSpan={3}
+   621→   621→                                className="bg-amber-50 font-semibold text-xs text-amber-700 uppercase tracking-wider"
+   622→   622→                              >
+   623→   623→                                Campos Manuais (Preencher no Excel)
+   624→   624→                              </TableCell>
+   625→   625→                            </TableRow>
+   626→   626→                            <TableRow>
+   627→   627→                              <TableCell className="text-sm text-slate-700 font-medium">Gerência</TableCell>
+   628→   628→                              <TableCell className="text-sm text-slate-400 italic">Preencher manualmente no Excel</TableCell>
+   629→   629→                              <TableCell className="text-center">
+   630→   630→                                <AlertCircle className="h-4 w-4 text-amber-400 mx-auto" />
+   631→   631→                              </TableCell>
+   632→   632→                            </TableRow>
+   633→   633→                            <TableRow>
+   634→   634→                              <TableCell className="text-sm text-slate-700 font-medium">LOCINS</TableCell>
+   635→   635→                              <TableCell className="text-sm text-slate-400 italic">Preencher manualmente no Excel</TableCell>
+   636→   636→                              <TableCell className="text-center">
+   637→   637→                                <AlertCircle className="h-4 w-4 text-amber-400 mx-auto" />
+   638→   638→                              </TableCell>
+   639→   639→                            </TableRow>
+   640→   640→                          </TableBody>
+   641→   641→                        </Table>
+   642→   642→                      </div>
+   643→   643→                    </CardContent>
+   644→   644→                  </Card>
+   645→   645→
+   646→   646→                  {/* Debug: Raw Text */}
+   647→   647→                  {result.rawText && (
+   648→   648→                    <Card className="mt-2 border-amber-200 bg-amber-50/50">
+   649→   649→                      <CardHeader className="py-2 px-4">
+   650→   650→                        <CardTitle className="text-sm flex items-center gap-2 text-amber-800">
+   651→   651→                          <Bug className="h-4 w-4" />
+   652→   652→                          Texto Bruto Extraído do PDF
+   653→   653→                        </CardTitle>
+   654→   654→                      </CardHeader>
+   655→   655→                      <CardContent className="px-4 pb-3">
+   656→   656→                        <pre className="text-[10px] leading-tight text-slate-700 bg-white border border-amber-200 rounded p-3 overflow-auto max-h-80 font-mono whitespace-pre-wrap break-all">
+   657→   657→                          {result.rawText}
+   658→   658→                        </pre>
+   659→   659→                      </CardContent>
+   660→   660→                    </Card>
+   661→   661→                  )}
+   662→   662→                  </>
+   663→   663→                ))}
+   664→   664→
+   665→   665→                {/* Export bar */}
+   666→   666→                <Card>
+   667→   667→                  <CardContent className="p-4 flex items-center justify-between flex-wrap gap-3">
+   668→   668→                    <div className="flex items-center gap-2 text-sm text-slate-600">
+   669→   669→                      <FileSpreadsheet className="h-5 w-5" />
+   670→   670→                      <span>
+   671→   671→                        <strong>{results.length}</strong> fatura{results.length !== 1 ? 's' : ''} pronta{results.length !== 1 ? 's' : ''} para exportação.
+   672→   672→                        Colunas em amarelo no Excel são para preenchimento manual.
+   673→   673→                      </span>
+   674→   674→                    </div>
+   675→   675→                    <Button onClick={exportToExcel} className="gap-1.5 bg-emerald-600 hover:bg-emerald-700">
+   676→   676→                      <Download className="h-4 w-4" />
+   677→   677→                      Exportar para Excel
+   678→   678→                    </Button>
+   679→   679→                  </CardContent>
+   680→   680→                </Card>
+   681→   681→              </div>
+   682→   682→            )}
+   683→   683→          </TabsContent>
+   684→   684→        </Tabs>
+   685→   685→      </main>
+   686→   686→
+   687→   687→      {/* Footer */}
+   688→   688→      <footer className="border-t bg-white mt-auto">
+   689→   689→        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 text-center text-xs text-slate-400">
+   690→   690→          Extração de Faturas ENERGISA — Colunas em amarelo no Excel devem ser preenchidas manualmente.
+   691→   691→        </div>
+   692→   692→      </footer>
+   693→   693→    </div>
+   694→   694→  );
+   695→   695→}
+   696→   696→
