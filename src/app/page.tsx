@@ -62,28 +62,28 @@ interface ExtractionResult {
 
 /* ── Category visual config ── */
 const CAT_CFG: Record<string, { icon: React.ReactNode; accent: string; soft: string; ring: string }> = {
-  'Identificação':                    { icon: <Building2 className="h-3.5 w-3.5" />,  accent: 'text-blue-600',    soft: 'bg-blue-50/80',    ring: 'ring-blue-200' },
-  'Datas e Documentos':              { icon: <Calendar className="h-3.5 w-3.5" />,   accent: 'text-violet-600',  soft: 'bg-violet-50/80',  ring: 'ring-violet-200' },
-  'Tarifa':                           { icon: <Tag className="h-3.5 w-3.5" />,        accent: 'text-indigo-600',  soft: 'bg-indigo-50/80',  ring: 'ring-indigo-200' },
-  'Consumo (kWh)':                    { icon: <Zap className="h-3.5 w-3.5" />,       accent: 'text-emerald-600', soft: 'bg-emerald-50/80', ring: 'ring-emerald-200' },
-  'Demanda Contratada (kW)':         { icon: <Shield className="h-3.5 w-3.5" />,    accent: 'text-sky-600',     soft: 'bg-sky-50/80',     ring: 'ring-sky-200' },
-  'Demanda Medida (kW)':             { icon: <Gauge className="h-3.5 w-3.5" />,     accent: 'text-teal-600',    soft: 'bg-teal-50/80',    ring: 'ring-teal-200' },
-  'Demanda Faturada (kW)':           { icon: <TrendingUp className="h-3.5 w-3.5" />, accent: 'text-cyan-600',    soft: 'bg-cyan-50/80',    ring: 'ring-cyan-200' },
-  'Ultrapassagem (kW)':              { icon: <ArrowUpRight className="h-3.5 w-3.5" />, accent: 'text-orange-600', soft: 'bg-orange-50/80',  ring: 'ring-orange-200' },
-  'Demanda Não Consumida (kW)':      { icon: <Minus className="h-3.5 w-3.5" />,     accent: 'text-rose-600',    soft: 'bg-rose-50/80',    ring: 'ring-rose-200' },
-  'Reativa Excedente (kWh)':         { icon: <BatteryCharging className="h-3.5 w-3.5" />, accent: 'text-amber-600', soft: 'bg-amber-50/80',  ring: 'ring-amber-200' },
-  'Valores - Consumo (R$)':          { icon: <CircleDollarSign className="h-3.5 w-3.5" />, accent: 'text-green-600', soft: 'bg-green-50/80', ring: 'ring-green-200' },
-  'Valores - Demanda (R$)':          { icon: <CircleDollarSign className="h-3.5 w-3.5" />, accent: 'text-emerald-600', soft: 'bg-emerald-50/80', ring: 'ring-emerald-200' },
-  'Valores - Ultrapassagem (R$)':    { icon: <CircleDollarSign className="h-3.5 w-3.5" />, accent: 'text-orange-600', soft: 'bg-orange-50/80', ring: 'ring-orange-200' },
-  'Valores - Demanda Não Consumida (R$)': { icon: <CircleDollarSign className="h-3.5 w-3.5" />, accent: 'text-rose-600', soft: 'bg-rose-50/80', ring: 'ring-rose-200' },
-  'Valores - Reativa Excedente (R$)':{ icon: <CircleDollarSign className="h-3.5 w-3.5" />, accent: 'text-amber-600', soft: 'bg-amber-50/80', ring: 'ring-amber-200' },
-  'Tributos e Encargos (R$)':        { icon: <PiggyBank className="h-3.5 w-3.5" />,  accent: 'text-red-600',     soft: 'bg-red-50/80',     ring: 'ring-red-200' },
-  'Energia Injetada GDI oUC':        { icon: <Sun className="h-3.5 w-3.5" />,        accent: 'text-lime-600',    soft: 'bg-lime-50/80',    ring: 'ring-lime-200' },
-  'Energia Injetada GDI mUC':        { icon: <Sun className="h-3.5 w-3.5" />,        accent: 'text-lime-600',    soft: 'bg-lime-50/80',    ring: 'ring-lime-200' },
-  'Geração Distribuída':             { icon: <Sparkles className="h-3.5 w-3.5" />,   accent: 'text-green-600',   soft: 'bg-green-50/80',   ring: 'ring-green-200' },
-  'Total':                           { icon: <DollarSign className="h-3.5 w-3.5" />,  accent: 'text-slate-700',   soft: 'bg-slate-100/80',  ring: 'ring-slate-300' },
+  'Identificação':                    { icon: <Building2 className="h-3.5 w-3.5" />,  accent: 'text-blue-700',    soft: 'bg-blue-50',    ring: 'ring-blue-200' },
+  'Datas e Documentos':              { icon: <Calendar className="h-3.5 w-3.5" />,   accent: 'text-violet-700',  soft: 'bg-violet-50',  ring: 'ring-violet-200' },
+  'Tarifa':                           { icon: <Tag className="h-3.5 w-3.5" />,        accent: 'text-indigo-700',  soft: 'bg-indigo-50',  ring: 'ring-indigo-200' },
+  'Consumo (kWh)':                    { icon: <Zap className="h-3.5 w-3.5" />,       accent: 'text-emerald-700', soft: 'bg-emerald-50', ring: 'ring-emerald-200' },
+  'Demanda Contratada (kW)':         { icon: <Shield className="h-3.5 w-3.5" />,    accent: 'text-sky-700',     soft: 'bg-sky-50',     ring: 'ring-sky-200' },
+  'Demanda Medida (kW)':             { icon: <Gauge className="h-3.5 w-3.5" />,     accent: 'text-teal-700',    soft: 'bg-teal-50',    ring: 'ring-teal-200' },
+  'Demanda Faturada (kW)':           { icon: <TrendingUp className="h-3.5 w-3.5" />, accent: 'text-cyan-700',    soft: 'bg-cyan-50',    ring: 'ring-cyan-200' },
+  'Ultrapassagem (kW)':              { icon: <ArrowUpRight className="h-3.5 w-3.5" />, accent: 'text-orange-700', soft: 'bg-orange-50',  ring: 'ring-orange-200' },
+  'Demanda Não Consumida (kW)':      { icon: <Minus className="h-3.5 w-3.5" />,     accent: 'text-rose-700',    soft: 'bg-rose-50',    ring: 'ring-rose-200' },
+  'Reativa Excedente (kWh)':         { icon: <BatteryCharging className="h-3.5 w-3.5" />, accent: 'text-amber-700', soft: 'bg-amber-50',  ring: 'ring-amber-200' },
+  'Valores - Consumo (R$)':          { icon: <CircleDollarSign className="h-3.5 w-3.5" />, accent: 'text-green-700', soft: 'bg-green-50', ring: 'ring-green-200' },
+  'Valores - Demanda (R$)':          { icon: <CircleDollarSign className="h-3.5 w-3.5" />, accent: 'text-emerald-700', soft: 'bg-emerald-50', ring: 'ring-emerald-200' },
+  'Valores - Ultrapassagem (R$)':    { icon: <CircleDollarSign className="h-3.5 w-3.5" />, accent: 'text-orange-700', soft: 'bg-orange-50', ring: 'ring-orange-200' },
+  'Valores - Demanda Não Consumida (R$)': { icon: <CircleDollarSign className="h-3.5 w-3.5" />, accent: 'text-rose-700', soft: 'bg-rose-50', ring: 'ring-rose-200' },
+  'Valores - Reativa Excedente (R$)':{ icon: <CircleDollarSign className="h-3.5 w-3.5" />, accent: 'text-amber-700', soft: 'bg-amber-50', ring: 'ring-amber-200' },
+  'Tributos e Encargos (R$)':        { icon: <PiggyBank className="h-3.5 w-3.5" />,  accent: 'text-red-700',     soft: 'bg-red-50',     ring: 'ring-red-200' },
+  'Energia Injetada GDI oUC':        { icon: <Sun className="h-3.5 w-3.5" />,        accent: 'text-lime-700',    soft: 'bg-lime-50',    ring: 'ring-lime-200' },
+  'Energia Injetada GDI mUC':        { icon: <Sun className="h-3.5 w-3.5" />,        accent: 'text-lime-700',    soft: 'bg-lime-50',    ring: 'ring-lime-200' },
+  'Geração Distribuída':             { icon: <Sparkles className="h-3.5 w-3.5" />,   accent: 'text-green-700',   soft: 'bg-green-50',   ring: 'ring-green-200' },
+  'Total':                           { icon: <DollarSign className="h-3.5 w-3.5" />,  accent: 'text-slate-800',   soft: 'bg-slate-100',  ring: 'ring-slate-300' },
 };
-const FALLBACK_CFG = { icon: <Tag className="h-3.5 w-3.5" />, accent: 'text-slate-600', soft: 'bg-slate-50/80', ring: 'ring-slate-200' };
+const FALLBACK_CFG = { icon: <Tag className="h-3.5 w-3.5" />, accent: 'text-slate-700', soft: 'bg-slate-50', ring: 'ring-slate-200' };
 
 /* ── Helpers ── */
 function shortenLabel(label: string): string {
@@ -187,30 +187,30 @@ export default function Home() {
      RENDER
      ═══════════════════════════════════════════════ */
   return (
-    <div className="min-h-screen bg-[#141420] text-white flex flex-col">
+    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col">
 
       {/* ══════════ HEADER ══════════ */}
-      <header className="sticky top-0 z-50 border-b border-white/[0.10] bg-[#141420]/80 backdrop-blur-xl">
+      <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/80 backdrop-blur-xl">
         <div className="max-w-[1400px] mx-auto px-6 h-14 flex items-center justify-between">
           {/* Logo */}
           <div className="flex items-center gap-3">
-            <div className="relative h-8 w-8 rounded-lg bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+            <div className="relative h-8 w-8 rounded-lg bg-gradient-to-br from-blue-500 to-sky-500 flex items-center justify-center shadow-lg shadow-blue-500/25">
               <Zap className="h-4 w-4 text-white" />
             </div>
             <div className="flex items-baseline gap-2">
-              <span className="text-sm font-semibold tracking-tight text-white">ENERGISA</span>
-              <span className="text-[11px] text-white/50 font-medium">Extractor</span>
+              <span className="text-sm font-semibold tracking-tight text-slate-800">ENERGISA</span>
+              <span className="text-[11px] text-slate-400 font-medium">Extractor</span>
             </div>
           </div>
 
           {/* Nav pills */}
-          <nav className="flex items-center gap-1 bg-white/[0.08] rounded-lg p-0.5 border border-white/[0.10]">
+          <nav className="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5 border border-slate-200">
             <button
               onClick={() => setActiveTab('upload')}
               className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
                 activeTab === 'upload'
-                  ? 'bg-white/[0.15] text-white shadow-sm'
-                  : 'text-white/65 hover:text-white/90'
+                  ? 'bg-white text-slate-800 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
               }`}
             >
               Upload
@@ -220,11 +220,11 @@ export default function Home() {
               disabled={results.length === 0}
               className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
                 activeTab === 'results'
-                  ? 'bg-white/[0.15] text-white shadow-sm'
-                  : 'text-white/65 hover:text-white/90 disabled:opacity-30 disabled:cursor-not-allowed'
+                  ? 'bg-white text-slate-800 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed'
               }`}
             >
-              Resultados {results.length > 0 && <span className="ml-1 text-emerald-400">({results.length})</span>}
+              Resultados {results.length > 0 && <span className="ml-1 text-blue-600">({results.length})</span>}
             </button>
           </nav>
 
@@ -233,7 +233,7 @@ export default function Home() {
             {results.length > 0 && (
               <button
                 onClick={exportToExcel}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 transition-all"
               >
                 <Download className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">Excel</span>
@@ -251,15 +251,15 @@ export default function Home() {
           <div className="space-y-8">
             {/* Hero */}
             <div className="text-center max-w-xl mx-auto pt-8 pb-2">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[11px] font-medium mb-6">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-600 text-[11px] font-medium mb-6">
                 <Sparkles className="h-3 w-3" />
                 Extração automática de 40+ campos
               </div>
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white mb-3">
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-800 mb-3">
                 Extraia dados de faturas<br />
-                <span className="bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">ENERGISA</span> em segundos
+                <span className="bg-gradient-to-r from-blue-600 to-sky-500 bg-clip-text text-transparent">ENERGISA</span> em segundos
               </h1>
-              <p className="text-sm text-white/50 leading-relaxed">
+              <p className="text-sm text-slate-500 leading-relaxed">
                 Arraste PDFs de faturas de energia e obtenha consumo, demanda, tributos e mais — pronto para Excel.
               </p>
             </div>
@@ -272,27 +272,27 @@ export default function Home() {
               onClick={() => fileInputRef.current?.click()}
               className={`
                 relative group cursor-pointer rounded-2xl border border-dashed transition-all duration-300
-                ${isProcessing ? 'pointer-events-none opacity-50 border-white/[0.14]' : isDragging ? 'border-emerald-500/60 bg-emerald-500/5 scale-[1.01]' : 'border-white/[0.14] bg-white/[0.04] hover:border-emerald-500/30 hover:bg-white/[0.06]'}
+                ${isProcessing ? 'pointer-events-none opacity-50 border-slate-300' : isDragging ? 'border-blue-400 bg-blue-50/50 scale-[1.01]' : 'border-slate-300 bg-white hover:border-blue-400 hover:bg-blue-50/30'}
               `}
             >
               <input ref={fileInputRef} type="file" accept="application/pdf" multiple onChange={handleFileChange} className="hidden" />
               <div className="p-12 sm:p-16 flex flex-col items-center gap-4">
                 {!isProcessing && (
                   <>
-                    <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 border border-emerald-500/10 flex items-center justify-center">
-                      <Upload className="h-6 w-6 text-emerald-400" />
+                    <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-blue-100 to-sky-100 border border-blue-200 flex items-center justify-center">
+                      <Upload className="h-6 w-6 text-blue-500" />
                     </div>
                     <div className="text-center">
-                      <p className="text-sm font-medium text-white/85">Arraste faturas PDF aqui</p>
-                      <p className="text-xs text-white/40 mt-1">ou clique para selecionar</p>
+                      <p className="text-sm font-medium text-slate-700">Arraste faturas PDF aqui</p>
+                      <p className="text-xs text-slate-400 mt-1">ou clique para selecionar</p>
                     </div>
                     <label
                       onClick={(e) => e.stopPropagation()}
                       className="flex items-center gap-2 mt-2 cursor-pointer select-none"
                     >
-                      <input type="checkbox" checked={debugMode} onChange={(e) => setDebugMode(e.target.checked)} className="rounded border-white/30 bg-white/5 text-emerald-500 focus:ring-emerald-500/30" />
-                      <Bug className="h-3 w-3 text-white/40" />
-                      <span className="text-[11px] text-white/40">Debug</span>
+                      <input type="checkbox" checked={debugMode} onChange={(e) => setDebugMode(e.target.checked)} className="rounded border-slate-300 bg-white text-blue-500 focus:ring-blue-500/30" />
+                      <Bug className="h-3 w-3 text-slate-400" />
+                      <span className="text-[11px] text-slate-400">Debug</span>
                     </label>
                   </>
                 )}
@@ -301,33 +301,33 @@ export default function Home() {
                 {isProcessing && fileProgress.length > 0 && (
                   <div className="w-full max-w-lg mx-auto space-y-4">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-white/65 font-medium">Processando faturas</span>
-                      <span className="text-emerald-400 font-mono">
+                      <span className="text-slate-600 font-medium">Processando faturas</span>
+                      <span className="text-blue-600 font-mono">
                         {fileProgress.filter((p) => p.status === 'done' || p.status === 'error').length}/{fileProgress.length}
                       </span>
                     </div>
                     <Progress
                       value={(fileProgress.filter((p) => p.status === 'done' || p.status === 'error').length / fileProgress.length) * 100}
-                      className="h-1 bg-white/[0.08] [&>div]:bg-gradient-to-r [&>div]:from-emerald-400 [&>div]:to-cyan-400 [&>div]:rounded-full"
+                      className="h-1 bg-slate-200 [&>div]:bg-gradient-to-r [&>div]:from-blue-500 [&>div]:to-sky-400 [&>div]:rounded-full"
                     />
                     <div className="space-y-2 max-h-56 overflow-y-auto">
                       {fileProgress.map((fp, i) => (
                         <div key={i} className={`flex items-center gap-3 px-3 py-2 rounded-lg text-xs ${
-                          fp.status === 'processing' ? 'bg-emerald-500/10 border border-emerald-500/20' :
-                          fp.status === 'error' ? 'bg-red-500/10 border border-red-500/20' :
-                          fp.status === 'done' ? 'bg-white/[0.06]' : 'bg-white/[0.04]'
+                          fp.status === 'processing' ? 'bg-blue-50 border border-blue-200' :
+                          fp.status === 'error' ? 'bg-red-50 border border-red-200' :
+                          fp.status === 'done' ? 'bg-slate-50' : 'bg-white'
                         }`}>
                           <div className="flex-shrink-0">
-                            {fp.status === 'pending' && <div className="h-4 w-4 rounded-full border border-white/30" />}
-                            {fp.status === 'processing' && <Loader2 className="h-4 w-4 text-emerald-400 animate-spin" />}
-                            {fp.status === 'done' && <CheckCircle2 className="h-4 w-4 text-emerald-400" />}
-                            {fp.status === 'error' && <AlertCircle className="h-4 w-4 text-red-400" />}
+                            {fp.status === 'pending' && <div className="h-4 w-4 rounded-full border border-slate-300" />}
+                            {fp.status === 'processing' && <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />}
+                            {fp.status === 'done' && <CheckCircle2 className="h-4 w-4 text-emerald-500" />}
+                            {fp.status === 'error' && <AlertCircle className="h-4 w-4 text-red-500" />}
                           </div>
-                          <span className={`flex-1 truncate ${fp.status === 'processing' ? 'text-emerald-300' : fp.status === 'error' ? 'text-red-300' : 'text-white/65'}`}>
+                          <span className={`flex-1 truncate ${fp.status === 'processing' ? 'text-blue-700' : fp.status === 'error' ? 'text-red-600' : 'text-slate-600'}`}>
                             {fp.fileName}
                           </span>
                           {fp.status === 'done' && fp.result && (
-                            <span className="text-emerald-400 font-mono">{fp.result.stats.extractionRate}%</span>
+                            <span className="text-emerald-600 font-mono">{fp.result.stats.extractionRate}%</span>
                           )}
                         </div>
                       ))}
@@ -344,11 +344,11 @@ export default function Home() {
                 { icon: <FileSpreadsheet className="h-3.5 w-3.5" />, label: 'Exportar Excel', desc: 'Com Gerência e LOCINS' },
                 { icon: <Sparkles className="h-3.5 w-3.5" />, label: 'Multi-modelo', desc: 'Conv., Azul, Verde, GDI' },
               ].map((f, i) => (
-                <div key={i} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/[0.05] border border-white/[0.08]">
-                  <div className="text-white/50">{f.icon}</div>
+                <div key={i} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white border border-slate-200 shadow-sm">
+                  <div className="text-slate-500">{f.icon}</div>
                   <div>
-                    <p className="text-xs font-medium text-white/85">{f.label}</p>
-                    <p className="text-[10px] text-white/40">{f.desc}</p>
+                    <p className="text-xs font-medium text-slate-700">{f.label}</p>
+                    <p className="text-[10px] text-slate-400">{f.desc}</p>
                   </div>
                 </div>
               ))}
@@ -356,13 +356,13 @@ export default function Home() {
 
             {/* Existing results quick bar */}
             {results.length > 0 && (
-              <div className="flex items-center justify-between px-5 py-3 rounded-xl bg-white/[0.05] border border-white/[0.08]">
-                <span className="text-xs text-white/60">{results.length} fatura{results.length !== 1 ? 's' : ''} processada{results.length !== 1 ? 's' : ''}</span>
+              <div className="flex items-center justify-between px-5 py-3 rounded-xl bg-white border border-slate-200 shadow-sm">
+                <span className="text-xs text-slate-500">{results.length} fatura{results.length !== 1 ? 's' : ''} processada{results.length !== 1 ? 's' : ''}</span>
                 <div className="flex gap-2">
-                  <button onClick={clearAll} className="text-xs text-red-400/70 hover:text-red-400 transition-colors flex items-center gap-1">
+                  <button onClick={clearAll} className="text-xs text-red-500/70 hover:text-red-500 transition-colors flex items-center gap-1">
                     <Trash2 className="h-3 w-3" /> Limpar
                   </button>
-                  <button onClick={() => setActiveTab('results')} className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1">
+                  <button onClick={() => setActiveTab('results')} className="text-xs text-blue-600 hover:text-blue-700 transition-colors flex items-center gap-1">
                     Ver resultados <ArrowUpRight className="h-3 w-3" />
                   </button>
                 </div>
@@ -376,8 +376,8 @@ export default function Home() {
           <div className="space-y-8">
             {results.length === 0 ? (
               <div className="text-center py-20">
-                <FileText className="h-10 w-10 text-white/15 mx-auto mb-3" />
-                <p className="text-sm text-white/40">Nenhuma fatura processada.</p>
+                <FileText className="h-10 w-10 text-slate-300 mx-auto mb-3" />
+                <p className="text-sm text-slate-400">Nenhuma fatura processada.</p>
               </div>
             ) : (
               results.map((result, idx) => {
@@ -390,43 +390,43 @@ export default function Home() {
                   <div key={`${result.fileName}-${idx}`} className="space-y-5">
 
                     {/* ─── INVOICE HEADER ─── */}
-                    <div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] overflow-hidden">
+                    <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-sm">
                       {/* Top accent line */}
                       <div className={`h-0.5 w-full ${
-                        isGood ? 'bg-gradient-to-r from-emerald-500 to-cyan-500' :
-                        isMid ? 'bg-gradient-to-r from-amber-500 to-yellow-500' :
-                        'bg-gradient-to-r from-red-500 to-rose-500'
+                        isGood ? 'bg-gradient-to-r from-blue-500 to-sky-400' :
+                        isMid ? 'bg-gradient-to-r from-amber-400 to-yellow-400' :
+                        'bg-gradient-to-r from-red-400 to-rose-400'
                       }`} />
 
                       <div className="p-6">
                         {/* Row 1: file + key info */}
                         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                           <div className="flex items-start gap-4 min-w-0">
-                            <div className="h-10 w-10 rounded-xl bg-white/[0.08] border border-white/[0.10] flex items-center justify-center flex-shrink-0">
-                              <FileText className="h-5 w-5 text-white/50" />
+                            <div className="h-10 w-10 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center flex-shrink-0">
+                              <FileText className="h-5 w-5 text-slate-500" />
                             </div>
                             <div className="min-w-0">
-                              <h2 className="text-sm font-semibold text-white/90 truncate">{result.fileName}</h2>
+                              <h2 className="text-sm font-semibold text-slate-800 truncate">{result.fileName}</h2>
                               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5">
                                 {d.UC && (
-                                  <span className="inline-flex items-center gap-1 text-xs text-blue-400">
+                                  <span className="inline-flex items-center gap-1 text-xs text-blue-600">
                                     <MapPin className="h-3 w-3" />
                                     <span className="font-mono">{d.UC}</span>
                                   </span>
                                 )}
-                                {d.Cidade && <span className="text-xs text-white/50">{d.Cidade}</span>}
+                                {d.Cidade && <span className="text-xs text-slate-500">{d.Cidade}</span>}
                                 {d.MesReferencia && (
-                                  <span className="inline-flex items-center gap-1 text-xs text-violet-400">
+                                  <span className="inline-flex items-center gap-1 text-xs text-violet-600">
                                     <Calendar className="h-3 w-3" />{d.MesReferencia}
                                   </span>
                                 )}
                                 {d.ModalidadeTarifaria && (
-                                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/20">
+                                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
                                     {d.ModalidadeTarifaria}
                                   </span>
                                 )}
                                 {d.Subgrupo && (
-                                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/20">
+                                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
                                     {d.Subgrupo}
                                   </span>
                                 )}
@@ -438,25 +438,25 @@ export default function Home() {
                           <div className="flex items-center gap-5 flex-shrink-0">
                             {d.ValorTotal && (
                               <div className="text-right">
-                                <p className="text-[10px] uppercase tracking-wider text-white/40 mb-0.5">Valor Total</p>
-                                <p className="text-xl font-bold font-mono bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
+                                <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-0.5">Valor Total</p>
+                                <p className="text-xl font-bold font-mono bg-gradient-to-r from-blue-600 to-sky-500 bg-clip-text text-transparent">
                                   R$ {d.ValorTotal}
                                 </p>
                               </div>
                             )}
                             <div className="text-right">
-                              <p className="text-[10px] uppercase tracking-wider text-white/40 mb-0.5">Extração</p>
+                              <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-0.5">Extração</p>
                               <div className="flex items-center gap-2">
-                                <div className="h-1.5 w-16 rounded-full bg-white/[0.08] overflow-hidden">
+                                <div className="h-1.5 w-16 rounded-full bg-slate-200 overflow-hidden">
                                   <div
                                     className={`h-full rounded-full ${
-                                      isGood ? 'bg-emerald-400' : isMid ? 'bg-amber-400' : 'bg-red-400'
+                                      isGood ? 'bg-emerald-500' : isMid ? 'bg-amber-500' : 'bg-red-500'
                                     }`}
                                     style={{ width: `${rate}%` }}
                                   />
                                 </div>
                                 <span className={`text-sm font-bold font-mono ${
-                                  isGood ? 'text-emerald-400' : isMid ? 'text-amber-400' : 'text-red-400'
+                                  isGood ? 'text-emerald-600' : isMid ? 'text-amber-600' : 'text-red-600'
                                 }`}>
                                   {rate}%
                                 </span>
@@ -464,7 +464,7 @@ export default function Home() {
                             </div>
                             <button
                               onClick={() => removeResult(idx)}
-                              className="h-8 w-8 rounded-lg flex items-center justify-center text-white/30 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                              className="h-8 w-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all"
                             >
                               <X className="h-3.5 w-3.5" />
                             </button>
@@ -472,21 +472,21 @@ export default function Home() {
                         </div>
 
                         {/* Quick stats strip */}
-                        <div className="flex flex-wrap gap-4 mt-5 pt-4 border-t border-white/[0.08]">
+                        <div className="flex flex-wrap gap-4 mt-5 pt-4 border-t border-slate-100">
                           {[
-                            { v: d.ConsumoTotal, l: 'Consumo', u: 'kWh', icon: <Zap className="h-3 w-3 text-emerald-400" /> },
+                            { v: d.ConsumoTotal, l: 'Consumo', u: 'kWh', icon: <Zap className="h-3 w-3 text-blue-500" /> },
                             { v: d.ConsumoPonta, l: 'Ponta', u: 'kWh', icon: null },
                             { v: d.ConsumoForaPonta, l: 'FP', u: 'kWh', icon: null },
-                            { v: d.Vencimento, l: 'Vencimento', u: '', icon: <Clock className="h-3 w-3 text-violet-400" /> },
-                            { v: d.NotaFiscal, l: 'NF', u: '', icon: <Hash className="h-3 w-3 text-white/40" /> },
+                            { v: d.Vencimento, l: 'Vencimento', u: '', icon: <Clock className="h-3 w-3 text-violet-500" /> },
+                            { v: d.NotaFiscal, l: 'NF', u: '', icon: <Hash className="h-3 w-3 text-slate-400" /> },
                           ].filter(x => x.v).map((s, i) => (
                             <div key={i} className="flex items-center gap-1.5 text-xs">
                               {s.icon}
-                              <span className="text-white/40">{s.l}:</span>
-                              <span className="font-mono text-white/75">{s.v}{s.u && <span className="text-white/40 ml-0.5">{s.u}</span>}</span>
+                              <span className="text-slate-400">{s.l}:</span>
+                              <span className="font-mono text-slate-700">{s.v}{s.u && <span className="text-slate-400 ml-0.5">{s.u}</span>}</span>
                             </div>
                           ))}
-                          <div className="flex items-center gap-1.5 text-xs text-white/40">
+                          <div className="flex items-center gap-1.5 text-xs text-slate-400">
                             <FileText className="h-3 w-3" />{result.stats.pageCount} pág.
                           </div>
                         </div>
@@ -507,8 +507,8 @@ export default function Home() {
                             key={cat.category}
                             className={`rounded-xl border p-4 transition-all duration-200 ${
                               hasData
-                                ? `bg-white/[0.05] border-white/[0.10] hover:border-white/[0.16] hover:bg-white/[0.07]`
-                                : `bg-white/[0.02] border-white/[0.06] opacity-40`
+                                ? `bg-white border-slate-200 hover:border-slate-300 hover:shadow-sm`
+                                : `bg-slate-50/50 border-slate-100 opacity-40`
                             }`}
                           >
                             {/* Cat header */}
@@ -518,9 +518,9 @@ export default function Home() {
                                 <span className={`text-xs font-semibold ${cfg.accent}`}>{cat.category}</span>
                               </div>
                               <span className={`text-[10px] font-bold font-mono px-1.5 py-0.5 rounded-md ${
-                                catRate === 100 ? 'bg-emerald-500/15 text-emerald-400' :
-                                catRate > 0 ? 'bg-amber-500/15 text-amber-400' :
-                                'bg-white/[0.08] text-white/40'
+                                catRate === 100 ? 'bg-emerald-50 text-emerald-600' :
+                                catRate > 0 ? 'bg-amber-50 text-amber-600' :
+                                'bg-slate-100 text-slate-400'
                               }`}>
                                 {extracted}/{total}
                               </span>
@@ -536,16 +536,16 @@ export default function Home() {
                                   <div
                                     key={fk}
                                     className={`flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-xs ${
-                                      empty ? 'bg-white/[0.02]' : 'bg-white/[0.06]'
+                                      empty ? 'bg-slate-50/50' : 'bg-slate-50'
                                     }`}
                                   >
-                                    <span className={`truncate ${empty ? 'text-white/30' : 'text-white/65'}`}>
+                                    <span className={`truncate ${empty ? 'text-slate-300' : 'text-slate-600'}`}>
                                       {label}
                                     </span>
                                     {empty ? (
-                                      <span className="text-white/15 flex-shrink-0">—</span>
+                                      <span className="text-slate-300 flex-shrink-0">—</span>
                                     ) : (
-                                      <span className="font-mono text-[11px] font-medium text-white/90 bg-white/[0.08] px-1.5 py-0.5 rounded border border-white/[0.10] flex-shrink-0">
+                                      <span className="font-mono text-[11px] font-medium text-slate-800 bg-white px-1.5 py-0.5 rounded border border-slate-200 flex-shrink-0">
                                         {val}
                                       </span>
                                     )}
@@ -559,24 +559,24 @@ export default function Home() {
                     </div>
 
                     {/* ─── CAMPOS MANUAIS ─── */}
-                    <div className="rounded-xl border border-amber-500/15 bg-amber-500/5 p-4 flex items-center gap-4">
-                      <AlertCircle className="h-4 w-4 text-amber-400/60 flex-shrink-0" />
-                      <span className="text-xs text-amber-300/70">
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 flex items-center gap-4">
+                      <AlertCircle className="h-4 w-4 text-amber-600 flex-shrink-0" />
+                      <span className="text-xs text-amber-700">
                         Campos para preenchimento manual no Excel:
                       </span>
                       <div className="flex gap-2">
-                        <span className="text-[10px] font-medium px-2 py-1 rounded-md bg-amber-500/10 text-amber-300 border border-amber-500/15">Gerência</span>
-                        <span className="text-[10px] font-medium px-2 py-1 rounded-md bg-amber-500/10 text-amber-300 border border-amber-500/15">LOCINS</span>
+                        <span className="text-[10px] font-medium px-2 py-1 rounded-md bg-amber-100 text-amber-800 border border-amber-200">Gerência</span>
+                        <span className="text-[10px] font-medium px-2 py-1 rounded-md bg-amber-100 text-amber-800 border border-amber-200">LOCINS</span>
                       </div>
                     </div>
 
                     {/* Debug raw text */}
                     {debugMode && result.rawText && (
-                      <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
-                        <p className="text-xs font-medium text-amber-400 mb-2 flex items-center gap-1.5">
+                      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                        <p className="text-xs font-medium text-amber-700 mb-2 flex items-center gap-1.5">
                           <Bug className="h-3 w-3" /> Texto Bruto
                         </p>
-                        <pre className="text-[10px] leading-tight text-white/60 bg-black/25 rounded-lg p-3 overflow-auto max-h-72 font-mono whitespace-pre-wrap break-all border border-white/[0.08]">
+                        <pre className="text-[10px] leading-tight text-slate-600 bg-slate-800 rounded-lg p-3 overflow-auto max-h-72 font-mono whitespace-pre-wrap break-all border border-slate-700">
                           {result.rawText}
                         </pre>
                       </div>
@@ -588,14 +588,14 @@ export default function Home() {
 
             {/* Export bar */}
             {results.length > 0 && (
-              <div className="flex items-center justify-between px-5 py-3 rounded-xl bg-white/[0.05] border border-white/[0.08]">
-                <div className="flex items-center gap-2 text-xs text-white/50">
+              <div className="flex items-center justify-between px-5 py-3 rounded-xl bg-white border border-slate-200 shadow-sm">
+                <div className="flex items-center gap-2 text-xs text-slate-500">
                   <FileSpreadsheet className="h-4 w-4" />
-                  <span><strong className="text-white/65">{results.length}</strong> fatura{results.length !== 1 ? 's' : ''} pronta{results.length !== 1 ? 's' : ''} para exportação</span>
+                  <span><strong className="text-slate-700">{results.length}</strong> fatura{results.length !== 1 ? 's' : ''} pronta{results.length !== 1 ? 's' : ''} para exportação</span>
                 </div>
                 <button
                   onClick={exportToExcel}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium bg-gradient-to-r from-emerald-500 to-cyan-500 text-white shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30 transition-all"
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium bg-gradient-to-r from-blue-600 to-sky-500 text-white shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 transition-all"
                 >
                   <Download className="h-3.5 w-3.5" />
                   Exportar Excel
@@ -607,10 +607,10 @@ export default function Home() {
       </main>
 
       {/* ══════════ FOOTER ══════════ */}
-      <footer className="border-t border-white/[0.06] mt-auto">
+      <footer className="border-t border-slate-200 mt-auto">
         <div className="max-w-[1400px] mx-auto px-6 py-3 flex items-center justify-between">
-          <span className="text-[10px] text-white/30">ENERGISA Extractor</span>
-          <span className="text-[10px] text-white/30">Colunas em amarelo no Excel devem ser preenchidas manualmente</span>
+          <span className="text-[10px] text-slate-400">ENERGISA Extractor</span>
+          <span className="text-[10px] text-slate-400">Colunas em amarelo no Excel devem ser preenchidas manualmente</span>
         </div>
       </footer>
     </div>
