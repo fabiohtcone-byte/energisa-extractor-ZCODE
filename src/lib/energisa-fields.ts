@@ -24,6 +24,7 @@ export interface TableExtraction {
 export interface EnergisaInvoiceData {
   UC: string;
   Cidade: string;
+  Endereco: string;
   Tipo: string;
   Mercado: string;
   Concessionaria: string;
@@ -79,6 +80,7 @@ export interface EnergisaInvoiceData {
 export const FIELD_LABELS: Record<keyof EnergisaInvoiceData, string> = {
   UC: 'UC (Unidade Consumidora)',
   Cidade: 'Cidade',
+  Endereco: 'ENDEREÇO',
   Tipo: 'Tipo',
   Mercado: 'Mercado',
   Concessionaria: 'Concessionária',
@@ -132,7 +134,7 @@ export const FIELD_LABELS: Record<keyof EnergisaInvoiceData, string> = {
 };
 
 export const FIELD_CATEGORIES: { category: string; fields: (keyof EnergisaInvoiceData)[] }[] = [
-  { category: 'Identificação', fields: ['UC', 'Cidade', 'Tipo', 'Mercado', 'Concessionaria'] },
+  { category: 'Identificação', fields: ['UC', 'Cidade', 'Endereco', 'Tipo', 'Mercado', 'Concessionaria'] },
   { category: 'Datas e Documentos', fields: ['MesReferencia', 'AnoLeitura', 'Vencimento', 'NotaFiscal'] },
   { category: 'Tarifa', fields: ['ModalidadeTarifaria', 'Subgrupo'] },
   { category: 'Consumo (kWh)', fields: ['ConsumoPonta', 'ConsumoIntermediaria', 'ConsumoForaPonta', 'ConsumoTotal', 'ConsumoGrupoB_kWh'] },

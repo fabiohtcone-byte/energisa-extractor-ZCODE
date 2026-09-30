@@ -159,6 +159,41 @@ function extractEnergisaData(rawText, tableExtraction) {
     return EMPTY;
   })();
   const cleanUC = UC.replace(/[.\-]/g, "");
+  const Endereco = (() => {
+    const STREET_RE = /^(RUA|AV[. ]|AVE |AVENIDA|ESTRADA|LOT |RODOVIA|TRAVESSA|ALAMEDA|PCA[. ]|PRACA)/i;
+    const extractCleanAddress = (line) => {
+      const beforeCodes = line.split(/\s*-\s*\d{2}\.\d{3}/)[0];
+      let addr = (beforeCodes || line).trim();
+      addr = addr.replace(/\s*-\s*$/, "").trim();
+      const cepMatch = line.match(/(\d{5}-?\d{3})\s*$/);
+      if (cepMatch) addr += " - CEP " + cepMatch[1];
+      return addr;
+    };
+    for (let i = 0; i < Math.min(60, lines.length); i++) {
+      if (/\(\s*AG\s*:\s*\d+\s*\)/.test(lines[i])) {
+        for (let j = i + 1; j <= Math.min(i + 3, lines.length - 1); j++) {
+          if (STREET_RE.test(lines[j])) {
+            return extractCleanAddress(lines[j]);
+          }
+        }
+      }
+    }
+    for (let i = 0; i < lines.length; i++) {
+      if (/CNPJ\/CPF/i.test(lines[i]) && i > 0) {
+        if (STREET_RE.test(lines[i - 1])) {
+          return extractCleanAddress(lines[i - 1]);
+        }
+      }
+    }
+    for (let i = 0; i < lines.length; i++) {
+      if (/^ENDERE[ÇC]O$/i.test(lines[i].trim()) && i + 1 < lines.length) {
+        const next = lines[i + 1];
+        const cleanAddr = next.replace(/\s*-\s*(SA[IÍ]DA|ENTRADA)\s+PARA\s+[^-]+/i, "").replace(/\s*-\s*[A-ZÀ-Ú]+\s*\/\s*[A-Z]{2}\s*-\s*CEP\s+\d{5}-\d{3}/i, "").trim();
+        if (cleanAddr.length > 5) return cleanAddr;
+      }
+    }
+    return EMPTY;
+  })();
   const MesReferencia = (() => {
     const meses = "Janeiro|Fevereiro|Mar[\xE7c]o|Abril|Maio|Junho|Julho|Agosto|Setembro|Outubro|Novembro|Dezembro";
     const numToMonth = {
@@ -695,6 +730,7 @@ function extractEnergisaData(rawText, tableExtraction) {
   return {
     UC: cleanUC,
     Cidade,
+    Endereco,
     Tipo,
     Mercado,
     Concessionaria,
@@ -869,6 +905,7 @@ function findTributoValue(lines, flat, labelPattern) {
 var FIELD_LABELS = {
   UC: "UC (Unidade Consumidora)",
   Cidade: "Cidade",
+  Endereco: "ENDERE\xC7O",
   Tipo: "Tipo",
   Mercado: "Mercado",
   Concessionaria: "Concession\xE1ria",
@@ -921,7 +958,7 @@ var FIELD_LABELS = {
   ValorTotal: "Valor Total (R$)"
 };
 var FIELD_CATEGORIES = [
-  { category: "Identifica\xE7\xE3o", fields: ["UC", "Cidade", "Tipo", "Mercado", "Concessionaria"] },
+  { category: "Identifica\xE7\xE3o", fields: ["UC", "Cidade", "Endereco", "Tipo", "Mercado", "Concessionaria"] },
   { category: "Datas e Documentos", fields: ["MesReferencia", "AnoLeitura", "Vencimento", "NotaFiscal"] },
   { category: "Tarifa", fields: ["ModalidadeTarifaria", "Subgrupo"] },
   { category: "Consumo (kWh)", fields: ["ConsumoPonta", "ConsumoIntermediaria", "ConsumoForaPonta", "ConsumoTotal", "ConsumoGrupoB_kWh"] },

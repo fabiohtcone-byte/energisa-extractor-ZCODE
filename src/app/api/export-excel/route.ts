@@ -116,6 +116,7 @@ export async function POST(request: NextRequest) {
       ['Gerência',                                '__empty__'],
       ['LOCINS',                                  '__empty__'],
       ['Cidade',                                  'Cidade'],
+      ['ENDEREÇO',                                'Endereco'],
       ['Tipo',                                    'Tipo'],
       ['Mercado',                                 'Mercado'],
       ['Concessionária',                          'Concessionaria'],

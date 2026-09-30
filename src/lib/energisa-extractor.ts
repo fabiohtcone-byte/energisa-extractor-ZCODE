@@ -21,6 +21,7 @@ export interface TableExtraction {
 export interface EnergisaInvoiceData {
   UC: string;
   Cidade: string;
+  Endereco: string;
   Tipo: string;
   Mercado: string;
   Concessionaria: string;
@@ -240,6 +241,62 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
 
   // Clean UC: remove dots and dashes (e.g., "1.409.407.051-47" → "140940705147")
   const cleanUC = UC.replace(/[.\-]/g, '');
+
+  // ===== ENDEREÇO =====
+  const Endereco = (() => {
+    // Address line typically follows the city (AG: XX) line and starts with RUA, AV, AVE, LOT, ESTRADA, etc.
+    // Examples from real PDFs:
+    //   "RUA SALDANHA DA GAMA, 896 - 21.004.65.029401 LAD RE RA - 422 - 79370000"
+    //   "LOT RECANTO NUARA, S/N - 24.416.10.154000 PAT 01/REL01 2289 - 79190000"
+    //   "AVE MATO GROSSO DO SUL, SN - 12.029.07.090000 COX EAT 006 2243 - 79400000"
+    const STREET_RE = /^(RUA|AV[. ]|AVE |AVENIDA|ESTRADA|LOT |RODOVIA|TRAVESSA|ALAMEDA|PCA[. ]|PRACA)/i;
+
+    // Clean an address line: keep street + number, strip internal codes, keep CEP
+    const extractCleanAddress = (line: string): string => {
+      // Split at the first " - " that precedes an internal code pattern (XX.XXX.XX.XXXXXX)
+      const beforeCodes = line.split(/\s*-\s*\d{2}\.\d{3}/)[0];
+      let addr = (beforeCodes || line).trim();
+      // Remove trailing dash
+      addr = addr.replace(/\s*-\s*$/, '').trim();
+      // Append CEP if found at end of original line
+      const cepMatch = line.match(/(\d{5}-?\d{3})\s*$/);
+      if (cepMatch) addr += ' - CEP ' + cepMatch[1];
+      return addr;
+    };
+
+    // Strategy 1: Find address line after city (AG: XX) pattern
+    for (let i = 0; i < Math.min(60, lines.length); i++) {
+      if (/\(\s*AG\s*:\s*\d+\s*\)/.test(lines[i])) {
+        // Check next 3 lines for an address pattern
+        for (let j = i + 1; j <= Math.min(i + 3, lines.length - 1); j++) {
+          if (STREET_RE.test(lines[j])) {
+            return extractCleanAddress(lines[j]);
+          }
+        }
+      }
+    }
+
+    // Strategy 2: Find address line near CNPJ/CPF line (appears before it)
+    for (let i = 0; i < lines.length; i++) {
+      if (/CNPJ\/CPF/i.test(lines[i]) && i > 0) {
+        if (STREET_RE.test(lines[i - 1])) {
+          return extractCleanAddress(lines[i - 1]);
+        }
+      }
+    }
+
+    // Strategy 3: Look for "ENDEREÇO" label followed by address
+    for (let i = 0; i < lines.length; i++) {
+      if (/^ENDERE[ÇC]O$/i.test(lines[i].trim()) && i + 1 < lines.length) {
+        const next = lines[i + 1];
+        const cleanAddr = next.replace(/\s*-\s*(SA[IÍ]DA|ENTRADA)\s+PARA\s+[^-]+/i, '')
+          .replace(/\s*-\s*[A-ZÀ-Ú]+\s*\/\s*[A-Z]{2}\s*-\s*CEP\s+\d{5}-\d{3}/i, '').trim();
+        if (cleanAddr.length > 5) return cleanAddr;
+      }
+    }
+
+    return EMPTY;
+  })();
 
   // ===== MÊS REFERÊNCIA =====
   const MesReferencia = (() => {
@@ -929,7 +986,7 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
   }
 
   return {
-    UC: cleanUC, Cidade, Tipo, Mercado, Concessionaria,
+    UC: cleanUC, Cidade, Endereco, Tipo, Mercado, Concessionaria,
     MesReferencia, AnoLeitura, Vencimento, NotaFiscal,
     ModalidadeTarifaria, Subgrupo,
     ConsumoPonta, ConsumoIntermediaria, ConsumoForaPonta, ConsumoTotal, ConsumoGrupoB_kWh, ConsumoGrupoB_Valor,
@@ -1098,6 +1155,7 @@ function findTributoValue(lines: string[], flat: string, labelPattern: RegExp): 
 export const FIELD_LABELS: Record<keyof EnergisaInvoiceData, string> = {
   UC: 'UC (Unidade Consumidora)',
   Cidade: 'Cidade',
+  Endereco: 'ENDEREÇO',
   Tipo: 'Tipo',
   Mercado: 'Mercado',
   Concessionaria: 'Concessionária',
@@ -1151,7 +1209,7 @@ export const FIELD_LABELS: Record<keyof EnergisaInvoiceData, string> = {
 };
 
 export const FIELD_CATEGORIES: { category: string; fields: (keyof EnergisaInvoiceData)[] }[] = [
-  { category: 'Identificação', fields: ['UC', 'Cidade', 'Tipo', 'Mercado', 'Concessionaria'] },
+  { category: 'Identificação', fields: ['UC', 'Cidade', 'Endereco', 'Tipo', 'Mercado', 'Concessionaria'] },
   { category: 'Datas e Documentos', fields: ['MesReferencia', 'AnoLeitura', 'Vencimento', 'NotaFiscal'] },
   { category: 'Tarifa', fields: ['ModalidadeTarifaria', 'Subgrupo'] },
   { category: 'Consumo (kWh)', fields: ['ConsumoPonta', 'ConsumoIntermediaria', 'ConsumoForaPonta', 'ConsumoTotal', 'ConsumoGrupoB_kWh'] },
