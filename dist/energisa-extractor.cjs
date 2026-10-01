@@ -507,6 +507,39 @@ function extractEnergisaData(rawText, tableExtraction) {
   if (tributosFromTable?.cofins) COFINS = tributosFromTable.cofins;
   if (tributosFromTable?.icms) ICMS = tributosFromTable.icms;
   if (!PIS || !COFINS || !ICMS) {
+    for (let i = 0; i < lines.length - 2; i++) {
+      if (/^ICMS$/i.test(lines[i]) && /^COFINS$/i.test(lines[i + 1]) && /^PIS$/i.test(lines[i + 2])) {
+        const afterLabels = lines.slice(i + 3, Math.min(i + 20, lines.length));
+        const moneyValues = [];
+        for (const line of afterLabels) {
+          const m = line.match(/^(\d[\d.]*,\d{2})$/);
+          if (m) moneyValues.push(m[1]);
+          if (moneyValues.length >= 6) break;
+        }
+        if (moneyValues.length >= 6) {
+          if (!ICMS) ICMS = moneyValues[3];
+          if (!COFINS) COFINS = moneyValues[4];
+          if (!PIS) PIS = moneyValues[5];
+        } else if (moneyValues.length >= 3) {
+          const afterBases = afterLabels.slice(3);
+          const actualValues = [];
+          for (const line of afterBases) {
+            if (/^\d+([.,]\d+)?%$/.test(line)) continue;
+            const m = line.match(/^(\d[\d.]*,\d{2})$/);
+            if (m) actualValues.push(m[1]);
+            if (actualValues.length >= 3) break;
+          }
+          if (actualValues.length >= 3) {
+            if (!ICMS) ICMS = actualValues[0];
+            if (!COFINS) COFINS = actualValues[1];
+            if (!PIS) PIS = actualValues[2];
+          }
+        }
+        break;
+      }
+    }
+  }
+  if (!PIS || !COFINS || !ICMS) {
     const pisIdx = findLine(lines, /^PIS\s*\/\s*$/i);
     if (pisIdx >= 0) {
       const nums = [];

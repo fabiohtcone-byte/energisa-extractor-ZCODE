@@ -690,6 +690,61 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
   if (tributosFromTable?.cofins) COFINS = tributosFromTable.cofins;
   if (tributosFromTable?.icms) ICMS = tributosFromTable.icms;
 
+  // Fallback: ELEKTRO/SANESUL pattern — ICMS, COFINS, PIS on consecutive lines,
+  // followed by base values, aliquotas (%), then actual tributo values.
+  // Example:
+  //   L52: ICMS
+  //   L53: COFINS
+  //   L54: PIS
+  //   L55: 5087,88   ← Base de cálculo ICMS
+  //   L56: 4222,95   ← Base de cálculo COFINS
+  //   L57: 4222,95   ← Base de cálculo PIS
+  //   L58: 17%       ← Alíquota ICMS
+  //   L59: 3,48%     ← Alíquota COFINS
+  //   L60: 0,75%     ← Alíquota PIS
+  //   L61: 864,93    ← Valor ICMS ✓
+  //   L62: 146,96    ← Valor COFINS ✓
+  //   L63: 31,67     ← Valor PIS ✓
+  if (!PIS || !COFINS || !ICMS) {
+    for (let i = 0; i < lines.length - 2; i++) {
+      if (/^ICMS$/i.test(lines[i]) && /^COFINS$/i.test(lines[i + 1]) && /^PIS$/i.test(lines[i + 2])) {
+        // Found the ICMS/COFINS/PIS label block
+        // Look for 3 money values after the labels (base values), then skip aliquotas, then get 3 more money values (actual values)
+        const afterLabels = lines.slice(i + 3, Math.min(i + 20, lines.length));
+        const moneyValues: string[] = [];
+        for (const line of afterLabels) {
+          const m = line.match(/^(\d[\d.]*,\d{2})$/);
+          if (m) moneyValues.push(m[1]);
+          if (moneyValues.length >= 6) break;
+        }
+        // If we have at least 6 money values, the last 3 are the actual tributo values
+        // (first 3 = bases, then 3 = actual values)
+        if (moneyValues.length >= 6) {
+          if (!ICMS) ICMS = moneyValues[3]; // 4th value = ICMS valor
+          if (!COFINS) COFINS = moneyValues[4]; // 5th value = COFINS valor
+          if (!PIS) PIS = moneyValues[5]; // 6th value = PIS valor
+        } else if (moneyValues.length >= 3) {
+          // If only 3 values found, they might be the base values
+          // Check if there are percentage values between the base and actual values
+          const afterBases = afterLabels.slice(3);
+          const actualValues: string[] = [];
+          for (const line of afterBases) {
+            if (/^\d+([.,]\d+)?%$/.test(line)) continue; // skip aliquotas
+            const m = line.match(/^(\d[\d.]*,\d{2})$/);
+            if (m) actualValues.push(m[1]);
+            if (actualValues.length >= 3) break;
+          }
+          if (actualValues.length >= 3) {
+            if (!ICMS) ICMS = actualValues[0];
+            if (!COFINS) COFINS = actualValues[1];
+            if (!PIS) PIS = actualValues[2];
+          }
+        }
+        break; // Only process the first match
+      }
+    }
+  }
+
   // Fallback: text-based extraction for any missing tributo
   if (!PIS || !COFINS || !ICMS) {
     const pisIdx = findLine(lines, /^PIS\s*\/\s*$/i);
