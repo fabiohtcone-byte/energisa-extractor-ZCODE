@@ -411,6 +411,22 @@ function extractEnergisaData(rawText, tableExtraction) {
         }
       }
     }
+    if (!ConsumoTotal) {
+      for (let i = 0; i < lines.length - 3; i++) {
+        if (/^CONSUMO\s+(TE|TUSD)$/i.test(lines[i])) {
+          const afterLabels = lines.slice(i + 1, Math.min(i + 15, lines.length));
+          for (const al of afterLabels) {
+            if (/^(kWh|kW)$/i.test(al)) continue;
+            const m = al.match(/^(\d{1,2}\.\d{3}|\d{3,6})$/);
+            if (m) {
+              ConsumoTotal = m[1];
+              break;
+            }
+          }
+          if (ConsumoTotal) break;
+        }
+      }
+    }
     ValorConsumoForaPonta = findRValueNearLine(lines, flat, /Consumo\s+em\s+kWh(?!.*Ponta)/i);
   }
   let DemandaContratadaPonta = EMPTY;

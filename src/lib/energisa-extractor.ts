@@ -556,6 +556,28 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
         }
       }
     }
+    // ELEKTRO/SANESUL pattern: "CONSUMO TE" / "CONSUMO TUSD" labels followed by kWh units and consumption value
+    // e.g., Line 22: "CONSUMO TE", Line 23: "CONSUMO TUSD", Line 25: "kWh", Line 28: "4.963"
+    if (!ConsumoTotal) {
+      for (let i = 0; i < lines.length - 3; i++) {
+        if (/^CONSUMO\s+(TE|TUSD)$/i.test(lines[i])) {
+          // Found CONSUMO TE/TUSD label — look for the first numeric value after kWh units
+          const afterLabels = lines.slice(i + 1, Math.min(i + 15, lines.length));
+          // Find the first numeric value that looks like a consumption number (e.g., "4.963" or "4963")
+          for (const al of afterLabels) {
+            // Skip unit labels like "kWh", "kW"
+            if (/^(kWh|kW)$/i.test(al)) continue;
+            // Match a number like "4.963" (with dot as thousands separator) or "4963"
+            const m = al.match(/^(\d{1,2}\.\d{3}|\d{3,6})$/);
+            if (m) {
+              ConsumoTotal = m[1];
+              break;
+            }
+          }
+          if (ConsumoTotal) break;
+        }
+      }
+    }
     ValorConsumoForaPonta = findRValueNearLine(lines, flat, /Consumo\s+em\s+kWh(?!.*Ponta)/i);
   }
 
