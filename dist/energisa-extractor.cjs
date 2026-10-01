@@ -390,7 +390,7 @@ function extractEnergisaData(rawText, tableExtraction) {
     ValorConsumoForaPonta = findRValueNearLine(lines, flat, /Consumo\s+em\s+kWh.*Fora\s*Ponta/i);
   } else {
     for (const line of lines) {
-      const km = line.match(/^KWH\s*([\d.,]+)$/i);
+      const km = line.match(/^KWH\s+([\d.,]+)$/i);
       if (km) {
         ConsumoTotal = km[1];
         break;
@@ -425,6 +425,104 @@ function extractEnergisaData(rawText, tableExtraction) {
           }
           if (ConsumoTotal) break;
         }
+      }
+    }
+    if (!ConsumoTotal) {
+      for (const line of lines) {
+        const pontaMatch = line.match(/^(?:KWH)?Ponta([\d.,]+)/);
+        if (pontaMatch) {
+          const nums = [];
+          const pontaIdx = line.indexOf("Ponta");
+          const rest = line.substring(pontaIdx + 5);
+          const numRegex = /(\d{1,2}(?:\.\d{3})*,\d{2})/g;
+          let nm;
+          while ((nm = numRegex.exec(rest)) !== null) {
+            nums.push(nm[1]);
+          }
+          if (nums.length >= 2) {
+            if (line.startsWith("KWH")) {
+              ConsumoTotal = nums[0];
+            } else {
+              ConsumoTotal = nums[nums.length - 2];
+            }
+          } else if (nums.length === 1) {
+            ConsumoTotal = nums[0];
+          }
+          break;
+        }
+      }
+    }
+    if (!ConsumoTotal) {
+      const kwhValues = [];
+      let pontaKwhFromLabel = "";
+      for (const line of lines) {
+        const km = line.match(/^KWH(\d{1,2}(?:\.\d{3})*,\d{2})$/i);
+        if (km) {
+          kwhValues.push(km[1]);
+          pontaKwhFromLabel = km[1];
+        }
+      }
+      const periodSections = [];
+      for (let i = 0; i < lines.length - 2; i++) {
+        if (/Ponta$/i.test(lines[i]) && !/Fora/i.test(lines[i]) && /^Energia\s+ativa\s+em\s+kWh$/i.test(lines[i + 1])) {
+          periodSections.push({ period: "Ponta", data: lines[i + 2] });
+        }
+        if (/Fora\s*Ponta$/i.test(lines[i]) && /^Energia\s+ativa\s+em\s+kWh$/i.test(lines[i + 1])) {
+          periodSections.push({ period: "ForaPonta", data: lines[i + 2] });
+        }
+      }
+      if (pontaKwhFromLabel && periodSections.length >= 1) {
+        const pontaSection = periodSections.find((s) => s.period === "Ponta");
+        const foraSection = periodSections.find((s) => s.period === "ForaPonta");
+        if (pontaSection) {
+          const pontaNoDot = pontaKwhFromLabel.replace(/\./g, "");
+          const prefixIdx = pontaSection.data.indexOf(pontaNoDot);
+          if (prefixIdx >= 0) {
+            const prefixLen = prefixIdx;
+            if (foraSection && prefixLen < foraSection.data.length) {
+              const foraRest = foraSection.data.substring(prefixLen);
+              const commaPos = foraRest.indexOf(",");
+              if (commaPos >= 2 && commaPos <= 7) {
+                const foraNum = foraRest.substring(0, commaPos + 3);
+                const parts = foraNum.split(",");
+                const intPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+                const foraBR = intPart + "," + parts[1];
+                if (!kwhValues.includes(foraBR)) kwhValues.push(foraBR);
+              }
+            }
+          }
+        }
+      }
+      if (kwhValues.length === 0) {
+        for (let i = 0; i < lines.length - 1; i++) {
+          if (/^Energia\s+ativa\s+em\s+kWh$/i.test(lines[i])) {
+            const nextLine = lines[i + 1];
+            for (let prefix = 0; prefix < Math.min(4, nextLine.length); prefix++) {
+              const rest = nextLine.substring(prefix);
+              const commaPos = rest.indexOf(",");
+              if (commaPos >= 1 && commaPos <= 6) {
+                const numStr = rest.substring(0, commaPos + 3);
+                const parts = numStr.split(",");
+                if (parts.length === 2 && /^\d+$/.test(parts[0]) && /^\d{2}$/.test(parts[1])) {
+                  const val = parseInt(parts[0]);
+                  if (val >= 10 && val <= 999999) {
+                    const intPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+                    const brNum = intPart + "," + parts[1];
+                    if (!kwhValues.includes(brNum)) kwhValues.push(brNum);
+                    break;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      if (kwhValues.length > 0) {
+        let totalKwh = 0;
+        for (const v of kwhValues) {
+          totalKwh += parseBR(v);
+        }
+        if (totalKwh > 0) ConsumoTotal = formatBR(totalKwh);
       }
     }
     ValorConsumoForaPonta = findRValueNearLine(lines, flat, /Consumo\s+em\s+kWh(?!.*Ponta)/i);

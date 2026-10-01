@@ -541,7 +541,9 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
     ValorConsumoForaPonta = findRValueNearLine(lines, flat, /Consumo\s+em\s+kWh.*Fora\s*Ponta/i);
   } else {
     for (const line of lines) {
-      const km = line.match(/^KWH\s*([\d.,]+)$/i);
+      // Only match "KWH" + space + number (e.g., "KWH 2829")
+      // Do NOT match "KWH1.198,96" which is a Verde/Azul Ponta-only value
+      const km = line.match(/^KWH\s+([\d.,]+)$/i);
       if (km) { ConsumoTotal = km[1]; break; }
     }
     if (!ConsumoTotal) {
@@ -576,6 +578,138 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
           }
           if (ConsumoTotal) break;
         }
+      }
+    }
+    // ENERGISA pattern: compressed "Ponta" line contains consumption kWh
+    // e.g., "Ponta12.771,0012.702,0040,002,500,000,002.829,002.829,00"
+    //   → numbers: [12771.00, 12702.00, 40.00, 2.50, 0.00, 2829.00, 2829.00]
+    //   → second-to-last = 2.829,00 = consumption kWh
+    // e.g., "Ponta23.484,0023.211,001,00273,00273,00"
+    //   → numbers: [23484.00, 23211.00, 1.00, 273.00, 273.00]
+    //   → second-to-last = 273,00 = consumption kWh
+    // ENERGISA Convencional: compressed "Ponta" line contains consumption kWh
+    // e.g., "Ponta12.771,0012.702,0040,002,500,000,002.829,002.829,00"
+    //   → numbers: [12771.00, 12702.00, 40.00, 2.50, 0.00, 2829.00, 2829.00]
+    //   → second-to-last = 2.829,00 = consumption kWh
+    // e.g., "Ponta23.484,0023.211,001,00273,00273,00"
+    //   → numbers: [23484.00, 23211.00, 1.00, 273.00, 273.00]
+    //   → second-to-last = 273,00 = consumption kWh
+    // Also matches "KWHPonta2.264,0039.862,00..." format
+    if (!ConsumoTotal) {
+      for (const line of lines) {
+        // Match "Ponta..." or "KWHPonta..." at start of line
+        const pontaMatch = line.match(/^(?:KWH)?Ponta([\d.,]+)/);
+        if (pontaMatch) {
+          // Extract all BR-format numbers (X.XXX,XX or XXX,XX) from after "Ponta"
+          const nums: string[] = [];
+          const pontaIdx = line.indexOf('Ponta');
+          const rest = line.substring(pontaIdx + 5); // skip "Ponta"
+          const numRegex = /(\d{1,2}(?:\.\d{3})*,\d{2})/g;
+          let nm;
+          while ((nm = numRegex.exec(rest)) !== null) {
+            nums.push(nm[1]);
+          }
+          if (nums.length >= 2) {
+            // "KWHPonta..." format: first number is consumption kWh
+            // "Ponta..." format: second-to-last number is consumption kWh
+            if (line.startsWith('KWH')) {
+              ConsumoTotal = nums[0];
+            } else {
+              ConsumoTotal = nums[nums.length - 2];
+            }
+          } else if (nums.length === 1) {
+            ConsumoTotal = nums[0];
+          }
+          break;
+        }
+      }
+    }
+    // ENERGISA Verde/Azul: extract consumption from "KWH"+value and compressed "Energia ativa em kWh" data
+    // Pattern A: "KWH1.198,96" → Ponta consumption = 1.198,96
+    // Pattern B: After "W9...Ponta/Fora Ponta" + "Energia ativa em kWh" → compressed data line
+    //   e.g., "401198,963105,09575,852" → after prefix "40", first number = 1198,96 → 1.198,96
+    //   We determine the prefix length by finding the known Ponta KWH value in the compressed data
+    if (!ConsumoTotal) {
+      const kwhValues: string[] = [];
+      // Pattern A: "KWH" immediately followed by a BR number (e.g., "KWH1.198,96")
+      let pontaKwhFromLabel = '';
+      for (const line of lines) {
+        const km = line.match(/^KWH(\d{1,2}(?:\.\d{3})*,\d{2})$/i);
+        if (km) { kwhValues.push(km[1]); pontaKwhFromLabel = km[1]; }
+      }
+      // Pattern B: Parse compressed data after "Energia ativa em kWh" for each period (Ponta/Fora Ponta)
+      // Find all (periodHeader + "Energia ativa em kWh" + compressedData) triples
+      const periodSections: { period: string; data: string }[] = [];
+      for (let i = 0; i < lines.length - 2; i++) {
+        if (/Ponta$/i.test(lines[i]) && !/Fora/i.test(lines[i]) && /^Energia\s+ativa\s+em\s+kWh$/i.test(lines[i + 1])) {
+          periodSections.push({ period: 'Ponta', data: lines[i + 2] });
+        }
+        if (/Fora\s*Ponta$/i.test(lines[i]) && /^Energia\s+ativa\s+em\s+kWh$/i.test(lines[i + 1])) {
+          periodSections.push({ period: 'ForaPonta', data: lines[i + 2] });
+        }
+      }
+      // If we have the Ponta KWH from the label, use it to determine prefix length
+      // Then apply same prefix length to Fora Ponta compressed data
+      if (pontaKwhFromLabel && periodSections.length >= 1) {
+        const pontaSection = periodSections.find(s => s.period === 'Ponta');
+        const foraSection = periodSections.find(s => s.period === 'ForaPonta');
+        if (pontaSection) {
+          // Find the Ponta KWH value (without dots) in the compressed data to determine prefix length
+          const pontaNoDot = pontaKwhFromLabel.replace(/\./g, '');
+          const prefixIdx = pontaSection.data.indexOf(pontaNoDot);
+          if (prefixIdx >= 0) {
+            const prefixLen = prefixIdx;
+            // Extract Fora Ponta consumption using same prefix length
+            if (foraSection && prefixLen < foraSection.data.length) {
+              const foraRest = foraSection.data.substring(prefixLen);
+              // Find the first number ending with ,XX (2 decimal places)
+              const commaPos = foraRest.indexOf(',');
+              if (commaPos >= 2 && commaPos <= 7) {
+                const foraNum = foraRest.substring(0, commaPos + 3); // include ,XX
+                // Add dots as thousands separator
+                const parts = foraNum.split(',');
+                const intPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+                const foraBR = intPart + ',' + parts[1];
+                if (!kwhValues.includes(foraBR)) kwhValues.push(foraBR);
+              }
+            }
+          }
+        }
+      }
+      // Also try: for each "Energia ativa em kWh" section, if we don't have the value yet,
+      // try to find it as a standalone BR number near the section
+      if (kwhValues.length === 0) {
+        for (let i = 0; i < lines.length - 1; i++) {
+          if (/^Energia\s+ativa\s+em\s+kWh$/i.test(lines[i])) {
+            // Look for the consumption in the next line by trying different prefix lengths
+            const nextLine = lines[i + 1];
+            for (let prefix = 0; prefix < Math.min(4, nextLine.length); prefix++) {
+              const rest = nextLine.substring(prefix);
+              const commaPos = rest.indexOf(',');
+              if (commaPos >= 1 && commaPos <= 6) {
+                const numStr = rest.substring(0, commaPos + 3);
+                const parts = numStr.split(',');
+                if (parts.length === 2 && /^\d+$/.test(parts[0]) && /^\d{2}$/.test(parts[1])) {
+                  const val = parseInt(parts[0]);
+                  if (val >= 10 && val <= 999999) {
+                    const intPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+                    const brNum = intPart + ',' + parts[1];
+                    if (!kwhValues.includes(brNum)) kwhValues.push(brNum);
+                    break;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      if (kwhValues.length > 0) {
+        // Sum all period consumptions to get total
+        let totalKwh = 0;
+        for (const v of kwhValues) {
+          totalKwh += parseBR(v);
+        }
+        if (totalKwh > 0) ConsumoTotal = formatBR(totalKwh);
       }
     }
     ValorConsumoForaPonta = findRValueNearLine(lines, flat, /Consumo\s+em\s+kWh(?!.*Ponta)/i);

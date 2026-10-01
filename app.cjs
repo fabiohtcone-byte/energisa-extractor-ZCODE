@@ -92,23 +92,31 @@ let lastReq = Date.now();
 
 const srv = http.createServer(async (req, res) => {
   lastReq = Date.now();
+  const p = new URL(req.url, 'http://x').pathname;
   try {
-    const p = new URL(req.url, 'http://x').pathname;
-    if (p === '/api/health') return json(res, { status: 'ok', uptime: process.uptime() });
+    if (p === '/api/health') return json(res, { status: 'ok', uptime: process.uptime(), pid: process.pid, memory: Math.round(process.memoryUsage().rss / 1024 / 1024) + 'MB' });
     if (p === '/api/extract-pdf' && req.method === 'POST') {
+      console.log('[extract] request started, content-type:', req.headers['content-type']?.substring(0, 80));
       const body = await readBody(req);
+      console.log('[extract] body received:', body.length, 'bytes');
       const bm = (req.headers['content-type'] || '').match(/boundary=([\w\-]+)/);
-      if (!bm) return json(res, { error: 'invalid' }, 400);
+      if (!bm) { console.log('[extract] no boundary'); return json(res, { error: 'invalid' }, 400); }
       const parts = parseMultipart(body, bm[1]);
+      console.log('[extract] multipart parts:', parts.length);
       const fp = parts.find(x => x.name === 'file' && x.body.length > 0);
-      if (!fp) return json(res, { error: 'no file' }, 400);
+      if (!fp) { console.log('[extract] no file part'); return json(res, { error: 'no file' }, 400); }
+      console.log('[extract] file found:', fp.filename, fp.body.length, 'bytes');
       const pd = await pdfParse(fp.body);
+      console.log('[extract] pdf parsed, pages:', pd.numpages, 'text:', pd.text.length);
       let td = null;
       try { if (tableExtractor) td = await Promise.race([tableExtractor.extractTableFromPDF(fp.body), new Promise((_,r) => setTimeout(() => r(new Error('t')), 10000))]); } catch(e) {}
-      if (!pd.text || !pd.text.trim()) return json(res, { error: 'Sem texto' }, 422);
+      if (!pd.text || !pd.text.trim()) { console.log('[extract] no text in pdf'); return json(res, { error: 'Sem texto' }, 422); }
       const ext = extractEnergisaData(pd.text, td);
       const vals = Object.values(ext), cnt = vals.filter(v => v !== '').length;
-      return json(res, { success: true, data: ext, stats: { extractedCount: cnt, totalFields: vals.length, extractionRate: Math.round(cnt/vals.length*100), pageCount: pd.numpages, tableItems: td?.items?.length ?? 0 } });
+      console.log('[extract] extraction done, fields:', cnt, '/', vals.length);
+      const result = { success: true, data: ext, stats: { extractedCount: cnt, totalFields: vals.length, extractionRate: Math.round(cnt/vals.length*100), pageCount: pd.numpages, tableItems: td?.items?.length ?? 0 } };
+      console.log('[extract] sending response');
+      return json(res, result);
     }
     if (p === '/api/export-excel' && req.method === 'POST') {
       const body = await readBody(req); let parsed;
@@ -195,7 +203,7 @@ const srv = http.createServer(async (req, res) => {
     if (p.startsWith('/_next/')) return sendCachedFile(res, path.join(BUILD, p.replace('/_next', '')));
     if (p === '/' || p === '/index.html') return sendCachedFile(res, path.join(BUILD, 'server', 'app', 'index.html'), true);
     res.writeHead(404); res.end('404');
-  } catch (e) { if (!res.headersSent) json(res, { error: e.message }, 500); }
+  } catch (e) { console.error('[server] Error on', p, ':', e.message, e.stack?.substring(0, 300)); if (!res.headersSent) json(res, { error: e.message }, 500); else console.error('[server] Headers already sent, cannot send error'); }
 });
 
 // Ignore SIGTERM/SIGHUP to stay alive in container
