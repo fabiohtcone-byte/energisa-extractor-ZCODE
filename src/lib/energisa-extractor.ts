@@ -785,6 +785,67 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
     }
   }
 
+  // Fallback: ENERGISA DANF3E pattern — "PIS / ICMS / COFINS" on consecutive lines,
+  // with PIS and COFINS total values above, and ICMS total embedded in the line before.
+  // Example from 1069.PDF:
+  //   L124: 18,47        ← PIS total ✓
+  //   L125: 85,06        ← COFINS total ✓
+  //   L126: 0,6757       ← (alíquota PIS)
+  //   L127: 3,1122       ← (alíquota COFINS)
+  //   L128: 17,00        ← (alíquota ICMS)
+  //   L129: 2.733,23     ← (base ICMS)
+  //   L130: 2.733,23     ← (base ICMS)
+  //   L131: 3.293,07559,82 ← "baseICMS,ICMS_total" concatenated
+  //   L132: PIS
+  //   L133: ICMS
+  //   L134: COFINS
+  if (!PIS || !COFINS || !ICMS) {
+    for (let i = 0; i < lines.length - 2; i++) {
+      if (/^PIS$/i.test(lines[i]) && /^ICMS$/i.test(lines[i + 1]) && /^COFINS$/i.test(lines[i + 2])) {
+        // Look backwards from the block. The PIS/COFINS values appear BEFORE the aliquotas.
+        // Pattern: <pis_val> <cofins_val> <aliq_pis> <aliq_cofins> <aliq_icms> <base_icms> <base_icms> <concat_base_icms,icms_total>
+        // The aliquotas look like "0,6757" or "3,1122" or "17,00"
+        // Find the first aliquota-looking value going backwards, then PIS/COFINS are the 2 money values before it
+        let firstAliquotIdx = -1;
+        for (let j = i - 1; j >= Math.max(0, i - 12); j--) {
+          if (/^\d+,\d{2,4}$/.test(lines[j]) && !/^\d+,\d{2}$/.test(lines[j])) {
+            // This looks like an aliquota (3+ decimal places) but NOT a money value (2 decimal places)
+            firstAliquotIdx = j;
+            break;
+          }
+        }
+        if (firstAliquotIdx >= 0) {
+          // PIS and COFINS are the 2 money values before the first aliquota
+          const pisCofinsValues: string[] = [];
+          for (let j = firstAliquotIdx - 1; j >= Math.max(0, firstAliquotIdx - 5); j--) {
+            const m = lines[j].match(/^(\d[\d.]*,\d{2})$/);
+            if (m) {
+              pisCofinsValues.unshift(m[1]);
+              if (pisCofinsValues.length >= 2) break;
+            }
+          }
+          if (pisCofinsValues.length >= 2) {
+            if (!PIS) PIS = pisCofinsValues[0];
+            if (!COFINS) COFINS = pisCofinsValues[1];
+          }
+        }
+        // ICMS total is in the concatenated line just before the block (e.g., "3.293,07559,82")
+        // The ICMS total is the LAST number in this concatenated string
+        if (!ICMS) {
+          for (let j = i - 1; j >= Math.max(0, i - 4); j--) {
+            // Look for a line with two concatenated money values (no space between them)
+            const catMatch = lines[j].match(/(\d[\d.]*,\d{2})(\d[\d.]*,\d{2})$/);
+            if (catMatch) {
+              ICMS = catMatch[2];
+              break;
+            }
+          }
+        }
+        break; // Only process the first match
+      }
+    }
+  }
+
   // Fallback: text-based extraction for any missing tributo
   if (!PIS || !COFINS || !ICMS) {
     const pisIdx = findLine(lines, /^PIS\s*\/\s*$/i);

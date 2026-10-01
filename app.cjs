@@ -68,8 +68,10 @@ function parseMultipart(buf, boundary) {
 // Pre-load modules once (avoid clearing require.cache which can cause crashes)
 const pdfParse = require('pdf-parse');
 const { extractEnergisaData } = require('./dist/energisa-extractor.cjs');
+// Table extractor disabled — pdfjs-dist causes memory leak and crashes under load.
+// Text-based extraction + ELEKTRO/SANESUL fallback patterns now handle all fields.
 let tableExtractor = null;
-try { tableExtractor = require('./dist/energisa-table-extractor.cjs'); } catch(e) {}
+// try { tableExtractor = require('./dist/energisa-table-extractor.cjs'); } catch(e) {}
 
 // Pre-warm static file cache with index.html and common assets
 cacheStaticFile(path.join(BUILD, 'server', 'app', 'index.html'));
@@ -204,8 +206,9 @@ srv.listen(3000, '0.0.0.0', () => console.log('> Ready on :3000'));
 
 // Global error handlers to prevent crashes
 process.on('uncaughtException', (err) => {
-  console.error('uncaught:', err.message);
-  // Don't exit on signal registration errors in container
-  if (err.message && err.message.includes('uv_signal_start')) return;
+  console.error('uncaught:', err.message, err.stack?.substring(0, 200));
+  // Don't exit on signal registration errors or pdfjs warnings
+  if (err.message && (err.message.includes('uv_signal_start') || err.message.includes('standardFontDataUrl') || err.message.includes('UnknownErrorException'))) return;
+  // For other errors, log but don't crash — let the process continue
 });
-process.on('unhandledRejection', (err) => { console.error('unhandled:', err?.message || err); });
+process.on('unhandledRejection', (err) => { console.error('unhandled:', err?.message || err, err?.stack?.substring(0, 200)); });

@@ -569,6 +569,43 @@ function extractEnergisaData(rawText, tableExtraction) {
     }
   }
   if (!PIS || !COFINS || !ICMS) {
+    for (let i = 0; i < lines.length - 2; i++) {
+      if (/^PIS$/i.test(lines[i]) && /^ICMS$/i.test(lines[i + 1]) && /^COFINS$/i.test(lines[i + 2])) {
+        let firstAliquotIdx = -1;
+        for (let j = i - 1; j >= Math.max(0, i - 12); j--) {
+          if (/^\d+,\d{2,4}$/.test(lines[j]) && !/^\d+,\d{2}$/.test(lines[j])) {
+            firstAliquotIdx = j;
+            break;
+          }
+        }
+        if (firstAliquotIdx >= 0) {
+          const pisCofinsValues = [];
+          for (let j = firstAliquotIdx - 1; j >= Math.max(0, firstAliquotIdx - 5); j--) {
+            const m = lines[j].match(/^(\d[\d.]*,\d{2})$/);
+            if (m) {
+              pisCofinsValues.unshift(m[1]);
+              if (pisCofinsValues.length >= 2) break;
+            }
+          }
+          if (pisCofinsValues.length >= 2) {
+            if (!PIS) PIS = pisCofinsValues[0];
+            if (!COFINS) COFINS = pisCofinsValues[1];
+          }
+        }
+        if (!ICMS) {
+          for (let j = i - 1; j >= Math.max(0, i - 4); j--) {
+            const catMatch = lines[j].match(/(\d[\d.]*,\d{2})(\d[\d.]*,\d{2})$/);
+            if (catMatch) {
+              ICMS = catMatch[2];
+              break;
+            }
+          }
+        }
+        break;
+      }
+    }
+  }
+  if (!PIS || !COFINS || !ICMS) {
     const pisIdx = findLine(lines, /^PIS\s*\/\s*$/i);
     if (pisIdx >= 0) {
       const nums = [];
