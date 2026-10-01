@@ -131,7 +131,25 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
   const flat = lines.join(' ');
 
   // ===== CONCESSIONÁRIA =====
-  const Concessionaria = /ENERGISA/i.test(flat) ? 'ENERGISA' : EMPTY;
+  // Priority: detect the ISSUING concessionária (not the customer).
+  // For electricity invoices (DANF3E / CONTA DE ENERGIA), ENERGISA/ELEKTRO is the issuer.
+  // For water/sewage invoices, SANESUL is the issuer.
+  const Concessionaria = (() => {
+    const u = flat.toUpperCase();
+    const isEnergyInvoice = /DANF3E|ENERGIA\s*EL[eÉ]TRICA|DISTR\.\s*DE\s*ENERGIA/i.test(u);
+    if (isEnergyInvoice) {
+      // For energy invoices, the issuing utility is ENERGISA/ELEKTRO/NEOENERGIA
+      if (/ELEKTRO/i.test(u)) return 'ELEKTRO';
+      if (/NEOENERGIA/i.test(u)) return 'NEOENERGIA';
+      if (/ENERGISA/i.test(u)) return 'ENERGISA';
+    }
+    // For non-energy invoices or when no energy indicator found
+    if (/SANESUL/i.test(u)) return 'SANESUL';
+    if (/ELEKTRO/i.test(u)) return 'ELEKTRO';
+    if (/NEOENERGIA/i.test(u)) return 'NEOENERGIA';
+    if (/ENERGISA/i.test(u)) return 'ENERGISA';
+    return EMPTY;
+  })();
 
   // ===== TIPO =====
   const Tipo = (() => {

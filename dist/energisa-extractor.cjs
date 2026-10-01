@@ -68,7 +68,20 @@ function extractEnergisaData(rawText, tableExtraction) {
   const tributosFromTable = tableExtraction ? { pis: tableExtraction.pisTotal, cofins: tableExtraction.cofinsTotal, icms: tableExtraction.icmsTotal } : null;
   const lines = rawText.split(/[\r\n]+/).map((l) => l.trim()).filter((l) => l.length > 0);
   const flat = lines.join(" ");
-  const Concessionaria = /ENERGISA/i.test(flat) ? "ENERGISA" : EMPTY;
+  const Concessionaria = (() => {
+    const u = flat.toUpperCase();
+    const isEnergyInvoice = /DANF3E|ENERGIA\s*EL[eÉ]TRICA|DISTR\.\s*DE\s*ENERGIA/i.test(u);
+    if (isEnergyInvoice) {
+      if (/ELEKTRO/i.test(u)) return "ELEKTRO";
+      if (/NEOENERGIA/i.test(u)) return "NEOENERGIA";
+      if (/ENERGISA/i.test(u)) return "ENERGISA";
+    }
+    if (/SANESUL/i.test(u)) return "SANESUL";
+    if (/ELEKTRO/i.test(u)) return "ELEKTRO";
+    if (/NEOENERGIA/i.test(u)) return "NEOENERGIA";
+    if (/ENERGISA/i.test(u)) return "ENERGISA";
+    return EMPTY;
+  })();
   const Tipo = (() => {
     const u = flat.toUpperCase();
     if (/SERVI[ÇC]O\s+P[ÚU]BLICO/.test(u)) return "SERVI\xC7O P\xDABLICO";
