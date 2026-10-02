@@ -512,7 +512,8 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
     return EMPTY;
   })();
 
-  const isSplitTariff = /AZUL|VERDE/i.test(flat) && !/CONVENCIONAL/i.test(flat);
+  const isSplitTariff = (/AZUL|VERDE/i.test(flat) && !/CONVENCIONAL/i.test(flat))
+    || /Consumo\s+em\s+kWh\s*-\s*Intermedi/i.test(flat);
 
   // ===== CONSUMO (text-based, will be overridden by table data if available) =====
   let ConsumoPonta = EMPTY;
@@ -539,6 +540,14 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
     ValorConsumoPonta = findRValueNearLine(lines, flat, /Consumo\s+em\s+kWh.*Ponta(?!.*Fora)(?!.*Intermedi)/i);
     ValorConsumoIntermediaria = findRValueNearLine(lines, flat, /Consumo\s+em\s+kWh.*Intermedi[áa]ria/i);
     ValorConsumoForaPonta = findRValueNearLine(lines, flat, /Consumo\s+em\s+kWh.*Fora\s*Ponta/i);
+
+    // Fallback: KWH + value pattern for split tariff (e.g., "KWH1.052,34")
+    if (!ConsumoPonta) {
+      for (const line of lines) {
+        const km = line.match(/^KWH(\d{1,2}(?:\.\d{3})*,\d{2})$/i);
+        if (km) { ConsumoPonta = km[1]; break; }
+      }
+    }
   } else {
     for (const line of lines) {
       // Only match "KWH" + space + number (e.g., "KWH 2829")
@@ -577,6 +586,47 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
             }
           }
           if (ConsumoTotal) break;
+        }
+      }
+    }
+    // ENERGISA DANF3E pattern: "Consumo kWh" label in history section, followed by
+    // tributos section headers ("Tributo", "Valor", "Alíquota", "Base de", "Cálc.(R$)"),
+    // then the actual consumption values as standalone BR-format money values.
+    // e.g., L119: "Consumo kWh" ... L127: "Tributo" ... L134: "39,00" L135: "136,00" ...
+    // The first 2-3 money values after "Cálc.(R$)" are the individual period consumptions.
+    if (!ConsumoTotal && isSplitTariff) {
+      const consumoKwhIdx = findLine(lines, /^Consumo\s+kWh$/i);
+      if (consumoKwhIdx >= 0) {
+        // Find "Cálc.(R$)" header after "Consumo kWh"
+        const calcIdx = lines.slice(consumoKwhIdx).findIndex(l => /C[aá]lc\.\(R\$\)/i.test(l));
+        if (calcIdx >= 0) {
+          const afterCalc = lines.slice(consumoKwhIdx + calcIdx + 1, Math.min(consumoKwhIdx + calcIdx + 15, lines.length));
+          const consumptionValues: string[] = [];
+          for (const line of afterCalc) {
+            // Match standalone BR-format money value (e.g., "39,00", "136,00", "987,00")
+            const m = line.match(/^(\d{1,3}(?:\.\d{3})*,\d{2})$/);
+            if (m) {
+              const num = parseBR(m[1]);
+              // Consumption values are typically between 1 and 200,000 kWh
+              if (num >= 1 && num <= 200000) {
+                consumptionValues.push(m[1]);
+                if (consumptionValues.length >= 3) break;
+              }
+            }
+          }
+          // Assign individual consumption values to periods
+          if (consumptionValues.length >= 2) {
+            // For Tarifa Branca (3 periods): Ponta, Intermediária, Fora Ponta
+            // For AZUL/VERDE (2 periods): Ponta, Fora Ponta
+            // The values appear in order: Ponta, Intermediária (if Branca), Fora Ponta
+            if (!ConsumoPonta) ConsumoPonta = consumptionValues[0];
+            if (consumptionValues.length >= 3) {
+              if (!ConsumoIntermediaria) ConsumoIntermediaria = consumptionValues[1];
+              if (!ConsumoForaPonta) ConsumoForaPonta = consumptionValues[2];
+            } else {
+              if (!ConsumoForaPonta) ConsumoForaPonta = consumptionValues[1];
+            }
+          }
         }
       }
     }
@@ -713,6 +763,17 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
       }
     }
     ValorConsumoForaPonta = findRValueNearLine(lines, flat, /Consumo\s+em\s+kWh(?!.*Ponta)/i);
+  }
+
+  // ===== CONSUMO TOTAL: sum individual consumptions if not already set =====
+  // For split tariffs (AZUL/VERDE), ConsumoTotal may not have been extracted directly.
+  // Sum ConsumoPonta + ConsumoForaPonta + ConsumoIntermediaria to get the total.
+  if (!ConsumoTotal && (ConsumoPonta || ConsumoForaPonta || ConsumoIntermediaria)) {
+    const p = ConsumoPonta ? parseBR(ConsumoPonta) : 0;
+    const f = ConsumoForaPonta ? parseBR(ConsumoForaPonta) : 0;
+    const it = ConsumoIntermediaria ? parseBR(ConsumoIntermediaria) : 0;
+    const total = p + f + it;
+    if (total > 0) ConsumoTotal = formatBR(total);
   }
 
   // ===== DEMANDA (text-based, will be overridden by table data if available) =====
@@ -1246,6 +1307,25 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
     if (tbl_oUC_Valor) EnergiaAtvInjetadaGDIoUC_Valor = tbl_oUC_Valor;
     if (tbl_mUC_Qtd) EnergiaAtvInjetadaGDImUC_Qtd = tbl_mUC_Qtd;
     if (tbl_mUC_Valor) EnergiaAtvInjetadaGDImUC_Valor = tbl_mUC_Valor;
+  }
+
+  // ===== CONSUMO TOTAL: recompute from individual consumptions after table processing =====
+  // For split tariffs (AZUL/VERDE/BRANCA), ConsumoTotal is the sum of all periods.
+  // Table extraction may have set ConsumoPonta/ForaPonta/Intermediaria with correct values.
+  // Always recompute if we have individual values, to ensure ConsumoTotal is accurate.
+  if (ConsumoPonta || ConsumoForaPonta || ConsumoIntermediaria) {
+    const p = ConsumoPonta ? parseBR(ConsumoPonta) : 0;
+    const f = ConsumoForaPonta ? parseBR(ConsumoForaPonta) : 0;
+    const it = ConsumoIntermediaria ? parseBR(ConsumoIntermediaria) : 0;
+    const total = p + f + it;
+    if (total > 0) {
+      // Only override if the computed total is larger than the current value,
+      // or if ConsumoTotal is empty (not set by direct extraction)
+      const currentTotal = ConsumoTotal ? parseBR(ConsumoTotal) : 0;
+      if (!ConsumoTotal || total > currentTotal) {
+        ConsumoTotal = formatBR(total);
+      }
+    }
   }
 
   // ===== Grupo B: calculate dedicated fields =====

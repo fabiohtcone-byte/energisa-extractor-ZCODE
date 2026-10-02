@@ -68,10 +68,41 @@ function parseMultipart(buf, boundary) {
 // Pre-load modules once (avoid clearing require.cache which can cause crashes)
 const pdfParse = require('pdf-parse');
 const { extractEnergisaData } = require('./dist/energisa-extractor.cjs');
-// Table extractor disabled — pdfjs-dist causes memory leak and crashes under load.
-// Text-based extraction + ELEKTRO/SANESUL fallback patterns now handle all fields.
-let tableExtractor = null;
-// try { tableExtractor = require('./dist/energisa-table-extractor.cjs'); } catch(e) {}
+const { execFile } = require('child_process');
+// Table extraction via child process - pdfjs-dist crashes when loaded in-process
+async function extractTableChildProcess(buffer) {
+  return new Promise((resolve) => {
+    const tmpFile = path.join(ROOT, 'tmp_extract_' + Date.now() + '_' + Math.random().toString(36).slice(2) + '.pdf');
+    try {
+      fs.writeFileSync(tmpFile, buffer);
+    } catch(e) {
+      resolve(null); return;
+    }
+    const timer = setTimeout(() => {
+      try { fs.unlinkSync(tmpFile); } catch(e) {}
+      resolve(null);
+    }, 15000);
+    try {
+      execFile('node', [path.join(ROOT, 'scripts', 'extract-table.cjs'), tmpFile], {
+        timeout: 14000,
+        maxBuffer: 10 * 1024 * 1024,
+      }, (err, stdout) => {
+        clearTimeout(timer);
+        try { fs.unlinkSync(tmpFile); } catch(e) {}
+        if (err || !stdout) { resolve(null); return; }
+        try {
+          const result = JSON.parse(stdout);
+          if (result.error) { resolve(null); return; }
+          resolve(result.items?.length > 0 ? result : null);
+        } catch(e) { resolve(null); }
+      });
+    } catch(e) {
+      clearTimeout(timer);
+      try { fs.unlinkSync(tmpFile); } catch(e2) {}
+      resolve(null);
+    }
+  });
+}
 
 // Pre-warm static file cache with index.html and common assets
 cacheStaticFile(path.join(BUILD, 'server', 'app', 'index.html'));
@@ -99,17 +130,40 @@ const srv = http.createServer(async (req, res) => {
       console.log('[extract] request started, content-type:', req.headers['content-type']?.substring(0, 80));
       const body = await readBody(req);
       console.log('[extract] body received:', body.length, 'bytes');
-      const bm = (req.headers['content-type'] || '').match(/boundary=([\w\-]+)/);
-      if (!bm) { console.log('[extract] no boundary'); return json(res, { error: 'invalid' }, 400); }
-      const parts = parseMultipart(body, bm[1]);
-      console.log('[extract] multipart parts:', parts.length);
-      const fp = parts.find(x => x.name === 'file' && x.body.length > 0);
-      if (!fp) { console.log('[extract] no file part'); return json(res, { error: 'no file' }, 400); }
-      console.log('[extract] file found:', fp.filename, fp.body.length, 'bytes');
-      const pd = await pdfParse(fp.body);
+
+      // Support two upload modes:
+      // 1. Multipart form-data (standard browser upload)
+      // 2. Binary body with X-Filename header (simple API upload)
+      let fileBuffer = null;
+      let fileName = 'upload.pdf';
+
+      const contentType = req.headers['content-type'] || '';
+      if (contentType.includes('multipart/form-data')) {
+        const bm = contentType.match(/boundary=([\w\-]+)/);
+        if (!bm) { console.log('[extract] no boundary'); return json(res, { error: 'invalid multipart' }, 400); }
+        const parts = parseMultipart(body, bm[1]);
+        console.log('[extract] multipart parts:', parts.length);
+        const fp = parts.find(x => x.name === 'file' && x.body.length > 0);
+        if (!fp) { console.log('[extract] no file part'); return json(res, { error: 'no file' }, 400); }
+        fileBuffer = fp.body;
+        fileName = fp.filename || fileName;
+      } else {
+        // Binary body - the entire body is the PDF file
+        fileBuffer = body;
+        fileName = req.headers['x-filename'] || fileName;
+      }
+
+      console.log('[extract] file:', fileName, fileBuffer.length, 'bytes');
+      const pd = await pdfParse(fileBuffer);
       console.log('[extract] pdf parsed, pages:', pd.numpages, 'text:', pd.text.length);
       let td = null;
-      try { if (tableExtractor) td = await Promise.race([tableExtractor.extractTableFromPDF(fp.body), new Promise((_,r) => setTimeout(() => r(new Error('t')), 10000))]); } catch(e) {}
+      try {
+        td = await extractTableChildProcess(fileBuffer);
+        if (td) console.log('[extract] table extraction: items:', td.items?.length);
+      } catch(e) {
+        console.log('[extract] table extraction failed:', e.message?.substring(0, 60));
+        td = null;
+      }
       if (!pd.text || !pd.text.trim()) { console.log('[extract] no text in pdf'); return json(res, { error: 'Sem texto' }, 422); }
       const ext = extractEnergisaData(pd.text, td);
       const vals = Object.values(ext), cnt = vals.filter(v => v !== '').length;
@@ -215,8 +269,17 @@ srv.listen(3000, '0.0.0.0', () => console.log('> Ready on :3000'));
 // Global error handlers to prevent crashes
 process.on('uncaughtException', (err) => {
   console.error('uncaught:', err.message, err.stack?.substring(0, 200));
-  // Don't exit on signal registration errors or pdfjs warnings
-  if (err.message && (err.message.includes('uv_signal_start') || err.message.includes('standardFontDataUrl') || err.message.includes('UnknownErrorException'))) return;
-  // For other errors, log but don't crash — let the process continue
+  // Don't exit on signal registration errors, pdfjs warnings, or worker thread errors
+  if (err.message && (
+    err.message.includes('uv_signal_start') ||
+    err.message.includes('standardFontDataUrl') ||
+    err.message.includes('UnknownErrorException') ||
+    err.message.includes('worker') ||
+    err.message.includes('read ECONNRESET') ||
+    err.message.includes('write EPIPE')
+  )) return;
+  // For other errors, log but don't crash
 });
-process.on('unhandledRejection', (err) => { console.error('unhandled:', err?.message || err, err?.stack?.substring(0, 200)); });
+process.on('unhandledRejection', (err) => {
+  console.error('unhandled:', err?.message || err, err?.stack?.substring(0, 200));
+});

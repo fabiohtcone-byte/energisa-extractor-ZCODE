@@ -366,7 +366,7 @@ function extractEnergisaData(rawText, tableExtraction) {
     }
     return EMPTY;
   })();
-  const isSplitTariff = /AZUL|VERDE/i.test(flat) && !/CONVENCIONAL/i.test(flat);
+  const isSplitTariff = /AZUL|VERDE/i.test(flat) && !/CONVENCIONAL/i.test(flat) || /Consumo\s+em\s+kWh\s*-\s*Intermedi/i.test(flat);
   let ConsumoPonta = EMPTY;
   let ConsumoIntermediaria = EMPTY;
   let ConsumoForaPonta = EMPTY;
@@ -388,6 +388,15 @@ function extractEnergisaData(rawText, tableExtraction) {
     ValorConsumoPonta = findRValueNearLine(lines, flat, /Consumo\s+em\s+kWh.*Ponta(?!.*Fora)(?!.*Intermedi)/i);
     ValorConsumoIntermediaria = findRValueNearLine(lines, flat, /Consumo\s+em\s+kWh.*Intermedi[áa]ria/i);
     ValorConsumoForaPonta = findRValueNearLine(lines, flat, /Consumo\s+em\s+kWh.*Fora\s*Ponta/i);
+    if (!ConsumoPonta) {
+      for (const line of lines) {
+        const km = line.match(/^KWH(\d{1,2}(?:\.\d{3})*,\d{2})$/i);
+        if (km) {
+          ConsumoPonta = km[1];
+          break;
+        }
+      }
+    }
   } else {
     for (const line of lines) {
       const km = line.match(/^KWH\s+([\d.,]+)$/i);
@@ -424,6 +433,35 @@ function extractEnergisaData(rawText, tableExtraction) {
             }
           }
           if (ConsumoTotal) break;
+        }
+      }
+    }
+    if (!ConsumoTotal && isSplitTariff) {
+      const consumoKwhIdx = findLine(lines, /^Consumo\s+kWh$/i);
+      if (consumoKwhIdx >= 0) {
+        const calcIdx = lines.slice(consumoKwhIdx).findIndex((l) => /C[aá]lc\.\(R\$\)/i.test(l));
+        if (calcIdx >= 0) {
+          const afterCalc = lines.slice(consumoKwhIdx + calcIdx + 1, Math.min(consumoKwhIdx + calcIdx + 15, lines.length));
+          const consumptionValues = [];
+          for (const line of afterCalc) {
+            const m = line.match(/^(\d{1,3}(?:\.\d{3})*,\d{2})$/);
+            if (m) {
+              const num = parseBR(m[1]);
+              if (num >= 1 && num <= 2e5) {
+                consumptionValues.push(m[1]);
+                if (consumptionValues.length >= 3) break;
+              }
+            }
+          }
+          if (consumptionValues.length >= 2) {
+            if (!ConsumoPonta) ConsumoPonta = consumptionValues[0];
+            if (consumptionValues.length >= 3) {
+              if (!ConsumoIntermediaria) ConsumoIntermediaria = consumptionValues[1];
+              if (!ConsumoForaPonta) ConsumoForaPonta = consumptionValues[2];
+            } else {
+              if (!ConsumoForaPonta) ConsumoForaPonta = consumptionValues[1];
+            }
+          }
         }
       }
     }
@@ -526,6 +564,13 @@ function extractEnergisaData(rawText, tableExtraction) {
       }
     }
     ValorConsumoForaPonta = findRValueNearLine(lines, flat, /Consumo\s+em\s+kWh(?!.*Ponta)/i);
+  }
+  if (!ConsumoTotal && (ConsumoPonta || ConsumoForaPonta || ConsumoIntermediaria)) {
+    const p = ConsumoPonta ? parseBR(ConsumoPonta) : 0;
+    const f = ConsumoForaPonta ? parseBR(ConsumoForaPonta) : 0;
+    const it = ConsumoIntermediaria ? parseBR(ConsumoIntermediaria) : 0;
+    const total = p + f + it;
+    if (total > 0) ConsumoTotal = formatBR(total);
   }
   let DemandaContratadaPonta = EMPTY;
   let DemandaContratadaForaPonta = EMPTY;
@@ -904,6 +949,18 @@ function extractEnergisaData(rawText, tableExtraction) {
     if (tbl_oUC_Valor) EnergiaAtvInjetadaGDIoUC_Valor = tbl_oUC_Valor;
     if (tbl_mUC_Qtd) EnergiaAtvInjetadaGDImUC_Qtd = tbl_mUC_Qtd;
     if (tbl_mUC_Valor) EnergiaAtvInjetadaGDImUC_Valor = tbl_mUC_Valor;
+  }
+  if (ConsumoPonta || ConsumoForaPonta || ConsumoIntermediaria) {
+    const p = ConsumoPonta ? parseBR(ConsumoPonta) : 0;
+    const f = ConsumoForaPonta ? parseBR(ConsumoForaPonta) : 0;
+    const it = ConsumoIntermediaria ? parseBR(ConsumoIntermediaria) : 0;
+    const total = p + f + it;
+    if (total > 0) {
+      const currentTotal = ConsumoTotal ? parseBR(ConsumoTotal) : 0;
+      if (!ConsumoTotal || total > currentTotal) {
+        ConsumoTotal = formatBR(total);
+      }
+    }
   }
   const isGrupoB = /^B/i.test(Subgrupo);
   if (isGrupoB) {
