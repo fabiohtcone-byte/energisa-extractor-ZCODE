@@ -120,6 +120,13 @@ function findNumNearLine(lines: string[], startIdx: number, direction: 1 | -1, m
   return EMPTY;
 }
 
+// Strip trailing ",00" from a BR-format number — consumption kWh values are always integers
+// e.g., "1.346,00" → "1.346", "12.929,00" → "12.929", "37,00" → "37"
+function stripDecimalZero(s: string): string {
+  if (s.endsWith(',00')) return s.slice(0, -3);
+  return s;
+}
+
 // Find a BR-format integer number near a line (e.g., "1.346" or "12.929" without decimal places)
 // This is needed because consumption kWh values are often displayed as integers in PDFs.
 function findIntNearLine(lines: string[], startIdx: number, direction: 1 | -1, maxDist: number): string {
@@ -584,7 +591,7 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
               const foraNum = foraRest.substring(0, commaPos + 3);
               const parts = foraNum.split(',');
               const intPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-              if (!ConsumoForaPonta) ConsumoForaPonta = intPart + ',' + parts[1];
+              if (!ConsumoForaPonta) ConsumoForaPonta = stripDecimalZero(intPart + ',' + parts[1]);
             }
           }
         }
@@ -657,8 +664,8 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
         prefixCandidates.sort((a, b) => b.score - a.score);
         if (prefixCandidates.length > 0) {
           const best = prefixCandidates[0];
-          if (!ConsumoPonta && best.results.has('Ponta')) ConsumoPonta = best.results.get('Ponta')!.value;
-          if (!ConsumoForaPonta && best.results.has('ForaPonta')) ConsumoForaPonta = best.results.get('ForaPonta')!.value;
+          if (!ConsumoPonta && best.results.has('Ponta')) ConsumoPonta = stripDecimalZero(best.results.get('Ponta')!.value);
+          if (!ConsumoForaPonta && best.results.has('ForaPonta')) ConsumoForaPonta = stripDecimalZero(best.results.get('ForaPonta')!.value);
           found = true;
         }
         if (!found) {
@@ -667,8 +674,8 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
             for (let prefix = 0; prefix <= 3; prefix++) {
               const result = tryExtract(sec.data, prefix);
               if (result && result.numeric >= 100) {
-                if (sec.period === 'Ponta' && !ConsumoPonta) ConsumoPonta = result.value;
-                if (sec.period === 'ForaPonta' && !ConsumoForaPonta) ConsumoForaPonta = result.value;
+                if (sec.period === 'Ponta' && !ConsumoPonta) ConsumoPonta = stripDecimalZero(result.value);
+                if (sec.period === 'ForaPonta' && !ConsumoForaPonta) ConsumoForaPonta = stripDecimalZero(result.value);
                 break;
               }
             }
@@ -989,7 +996,7 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
         for (const v of kwhValues) {
           totalKwh += parseBR(v);
         }
-        if (totalKwh > 0) ConsumoTotal = formatBR(totalKwh);
+        if (totalKwh > 0) ConsumoTotal = stripDecimalZero(formatBR(totalKwh));
       }
     }
     ValorConsumoForaPonta = findRValueNearLine(lines, flat, /Consumo\s+em\s+kWh(?!.*Ponta)/i);
@@ -1003,7 +1010,7 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
     const f = ConsumoForaPonta ? parseBR(ConsumoForaPonta) : 0;
     const it = ConsumoIntermediaria ? parseBR(ConsumoIntermediaria) : 0;
     const total = p + f + it;
-    if (total > 0) ConsumoTotal = formatBR(total);
+    if (total > 0) ConsumoTotal = stripDecimalZero(formatBR(total));
   }
 
   // ===== DEMANDA (text-based, will be overridden by table data if available) =====

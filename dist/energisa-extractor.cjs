@@ -63,6 +63,10 @@ function findNumNearLine(lines, startIdx, direction, maxDist, mustBeOnlyNum) {
   }
   return EMPTY;
 }
+function stripDecimalZero(s) {
+  if (s.endsWith(",00")) return s.slice(0, -3);
+  return s;
+}
 function findIntNearLine(lines, startIdx, direction, maxDist) {
   for (let i = startIdx + direction; i >= 0 && i < lines.length; i += direction) {
     if (Math.abs(i - startIdx) > maxDist) break;
@@ -419,7 +423,7 @@ function extractEnergisaData(rawText, tableExtraction) {
               const foraNum = foraRest.substring(0, commaPos + 3);
               const parts = foraNum.split(",");
               const intPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-              if (!ConsumoForaPonta) ConsumoForaPonta = intPart + "," + parts[1];
+              if (!ConsumoForaPonta) ConsumoForaPonta = stripDecimalZero(intPart + "," + parts[1]);
             }
           }
         }
@@ -482,8 +486,8 @@ function extractEnergisaData(rawText, tableExtraction) {
         prefixCandidates.sort((a, b) => b.score - a.score);
         if (prefixCandidates.length > 0) {
           const best = prefixCandidates[0];
-          if (!ConsumoPonta && best.results.has("Ponta")) ConsumoPonta = best.results.get("Ponta").value;
-          if (!ConsumoForaPonta && best.results.has("ForaPonta")) ConsumoForaPonta = best.results.get("ForaPonta").value;
+          if (!ConsumoPonta && best.results.has("Ponta")) ConsumoPonta = stripDecimalZero(best.results.get("Ponta").value);
+          if (!ConsumoForaPonta && best.results.has("ForaPonta")) ConsumoForaPonta = stripDecimalZero(best.results.get("ForaPonta").value);
           found = true;
         }
         if (!found) {
@@ -491,8 +495,8 @@ function extractEnergisaData(rawText, tableExtraction) {
             for (let prefix = 0; prefix <= 3; prefix++) {
               const result = tryExtract(sec.data, prefix);
               if (result && result.numeric >= 100) {
-                if (sec.period === "Ponta" && !ConsumoPonta) ConsumoPonta = result.value;
-                if (sec.period === "ForaPonta" && !ConsumoForaPonta) ConsumoForaPonta = result.value;
+                if (sec.period === "Ponta" && !ConsumoPonta) ConsumoPonta = stripDecimalZero(result.value);
+                if (sec.period === "ForaPonta" && !ConsumoForaPonta) ConsumoForaPonta = stripDecimalZero(result.value);
                 break;
               }
             }
@@ -750,7 +754,7 @@ function extractEnergisaData(rawText, tableExtraction) {
         for (const v of kwhValues) {
           totalKwh += parseBR(v);
         }
-        if (totalKwh > 0) ConsumoTotal = formatBR(totalKwh);
+        if (totalKwh > 0) ConsumoTotal = stripDecimalZero(formatBR(totalKwh));
       }
     }
     ValorConsumoForaPonta = findRValueNearLine(lines, flat, /Consumo\s+em\s+kWh(?!.*Ponta)/i);
@@ -760,7 +764,7 @@ function extractEnergisaData(rawText, tableExtraction) {
     const f = ConsumoForaPonta ? parseBR(ConsumoForaPonta) : 0;
     const it = ConsumoIntermediaria ? parseBR(ConsumoIntermediaria) : 0;
     const total = p + f + it;
-    if (total > 0) ConsumoTotal = formatBR(total);
+    if (total > 0) ConsumoTotal = stripDecimalZero(formatBR(total));
   }
   let DemandaContratadaPonta = EMPTY;
   let DemandaContratadaForaPonta = EMPTY;
