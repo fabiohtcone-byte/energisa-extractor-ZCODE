@@ -120,6 +120,20 @@ function findNumNearLine(lines: string[], startIdx: number, direction: 1 | -1, m
   return EMPTY;
 }
 
+// Find a BR-format integer number near a line (e.g., "1.346" or "12.929" without decimal places)
+// This is needed because consumption kWh values are often displayed as integers in PDFs.
+function findIntNearLine(lines: string[], startIdx: number, direction: 1 | -1, maxDist: number): string {
+  for (let i = startIdx + direction; i >= 0 && i < lines.length; i += direction) {
+    if (Math.abs(i - startIdx) > maxDist) break;
+    const line = lines[i];
+    // Match a BR-format integer: "1.346" or "12.929" or "346" (no decimal comma)
+    // Must be the whole line (or most of it) to avoid matching prices or other numbers
+    const m = line.match(/^(\d{1,2}(?:\.\d{3})+|\d{3,6})$/);
+    if (m) return m[1];
+  }
+  return EMPTY;
+}
+
 // ===================== MAIN EXTRACTOR =====================
 
 export function extractEnergisaData(rawText: string, tableExtraction?: TableExtraction): EnergisaInvoiceData {
@@ -595,39 +609,62 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
           return { value: intPart + ',' + parts[1], numeric };
         };
 
-        // Try each prefix length and find the one that gives valid values for all available sections
-        // We try from LARGEST prefix (3) down to 0, and pick the FIRST valid one.
-        // Larger prefix = more prefix digits stripped = more likely the correct consumption value.
+        // Try each prefix length and find the one that gives valid values for all available sections.
+        // We try from SMALLEST prefix (0) up to 3, collecting all valid candidates.
         // The prefix is typically 1-2 digits encoding meter reading info.
+        // We score candidates: prefer values in the typical Grupo A consumption range (100-50,000),
+        // with Fora Ponta > Ponta and reasonable ratio (1-15).
         let found = false;
-        for (let prefix = 3; prefix >= 0; prefix--) {
+        // Collect all valid prefix candidates, then pick the best one
+        const prefixCandidates: { prefix: number; results: Map<string, { value: string; numeric: number }>; score: number }[] = [];
+        for (let prefix = 0; prefix <= 3; prefix++) {
           const results = new Map<string, { value: string; numeric: number }>();
           let allValid = true;
           for (const sec of periodSections) {
             const result = tryExtract(sec.data, prefix);
             if (!result) { allValid = false; break; }
             if (result.numeric < 100) { allValid = false; break; }
+            // Reject values with leading zeros (e.g., "01346" from prefix=1 on "101346,00...")
+            if (result.value.startsWith('0') && result.value.length > 3) { allValid = false; break; }
             results.set(sec.period, result);
           }
           if (allValid && results.size > 0) {
             // Additional validation: Fora Ponta / Ponta ratio should be reasonable (0.1 - 20)
-            // Typical ratios in Grupo A are 6-13; ratios > 20 indicate wrong prefix
+            // Typical ratios in Grupo A are 3-15; ratios > 20 indicate wrong prefix
             const pontaR = results.get('Ponta');
             const foraR = results.get('ForaPonta');
             if (pontaR && foraR) {
               const ratio = foraR.numeric / pontaR.numeric;
               if (ratio < 0.1 || ratio > 20) continue; // skip this prefix
+              // Score: prefer values in typical Grupo A range (100-50000) and reasonable ratio
+              // Penalize very large values (likely wrong prefix with too few digits stripped)
+              const inRangePonta = (pontaR.numeric >= 100 && pontaR.numeric <= 50000) ? 2000 : 0;
+              const inRangeFora = (foraR.numeric >= 100 && foraR.numeric <= 50000) ? 2000 : 0;
+              const ratioScore = (ratio >= 1 && ratio <= 15) ? 1000 : 0; // bonus for typical ratio
+              const rangeScore = inRangePonta + inRangeFora + ratioScore;
+              prefixCandidates.push({ prefix, results, score: rangeScore });
+            } else {
+              // Only one period found — score based on range
+              let rangeScore = 0;
+              for (const r of results.values()) {
+                if (r.numeric >= 100 && r.numeric <= 50000) rangeScore += 2000;
+              }
+              prefixCandidates.push({ prefix, results, score: rangeScore });
             }
-            if (!ConsumoPonta && results.has('Ponta')) ConsumoPonta = results.get('Ponta')!.value;
-            if (!ConsumoForaPonta && results.has('ForaPonta')) ConsumoForaPonta = results.get('ForaPonta')!.value;
-            found = true;
-            break;
           }
+        }
+        // Sort by score descending (prefer larger values with typical ratio)
+        prefixCandidates.sort((a, b) => b.score - a.score);
+        if (prefixCandidates.length > 0) {
+          const best = prefixCandidates[0];
+          if (!ConsumoPonta && best.results.has('Ponta')) ConsumoPonta = best.results.get('Ponta')!.value;
+          if (!ConsumoForaPonta && best.results.has('ForaPonta')) ConsumoForaPonta = best.results.get('ForaPonta')!.value;
+          found = true;
         }
         if (!found) {
           // Fallback: try each section independently with per-section prefix
           for (const sec of periodSections) {
-            for (let prefix = 3; prefix >= 0; prefix--) {
+            for (let prefix = 0; prefix <= 3; prefix++) {
               const result = tryExtract(sec.data, prefix);
               if (result && result.numeric >= 100) {
                 if (sec.period === 'Ponta' && !ConsumoPonta) ConsumoPonta = result.value;
@@ -653,6 +690,66 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
       if (fpIdx >= 0) {
         const val = findNumNearLine(lines, fpIdx, 1, 8, false);
         if (val && parseBR(val) >= 10) ConsumoForaPonta = val;
+      }
+    }
+    // Strategy 3b: findIntNearLine — for consumption displayed as integers (e.g., "1.346" or "12.929")
+    // Many PDFs (especially Elektro) show consumption kWh as integers without decimal places.
+    // The findNumNearLine above only matches BR numbers with ,XX decimal format.
+    if (!ConsumoPonta) {
+      const pontaIdx = findLine(lines, /Consumo\s+em\s+kWh.*Ponta(?!.*Fora)/i);
+      if (pontaIdx >= 0) {
+        const val = findIntNearLine(lines, pontaIdx, 1, 8);
+        if (val && parseBR(val) >= 10) ConsumoPonta = val;
+      }
+    }
+    if (!ConsumoForaPonta) {
+      const fpIdx = findLine(lines, /Consumo\s+em\s+kWh.*Fora\s*Ponta/i);
+      if (fpIdx >= 0) {
+        const val = findIntNearLine(lines, fpIdx, 1, 8);
+        if (val && parseBR(val) >= 10) ConsumoForaPonta = val;
+      }
+    }
+    // Strategy 3c: Garbled pdf-parse format where consumption is merged with KWH unit
+    // e.g., "1.346KWH0,61783822,70" → ConsumoPonta = 1.346
+    // e.g., "12.929KWH0,400305.171,60" → ConsumoForaPonta = 12.929
+    if (!ConsumoPonta || !ConsumoForaPonta) {
+      for (const line of lines) {
+        // Match "NNN.NNNKWH" pattern (integer BR number followed by KWH)
+        const garbledPonta = line.match(/^(\d{1,2}(?:\.\d{3})+)KWH/i);
+        if (garbledPonta && parseBR(garbledPonta[1]) >= 10) {
+          // Check if this line is near a "Consumo em kWh - Ponta" label or
+          // appears in the "Itens da Fatura" section
+          if (!ConsumoPonta) ConsumoPonta = garbledPonta[1];
+          continue;
+        }
+        const garbledFora = line.match(/^(\d{1,2}(?:\.\d{3})+)KWH/i);
+        if (garbledFora && parseBR(garbledFora[1]) >= 10) {
+          // If we already set Ponta from this strategy, this must be Fora Ponta
+          if (ConsumoPonta && !ConsumoForaPonta) ConsumoForaPonta = garbledFora[1];
+        }
+      }
+    }
+    // Strategy 3d: Garbled format with integer followed by KWH on same line
+    // Search all lines for "NNNKWH" or "N.NNNKWH" patterns after "Itens da Fatura"
+    if ((!ConsumoPonta || !ConsumoForaPonta) && isSplitTariff) {
+      const itensIdx = lines.findIndex(l => /Itens\s+da\s+Fatura/i.test(l));
+      if (itensIdx >= 0) {
+        const consumptionCandidates: string[] = [];
+        for (let i = itensIdx + 1; i < Math.min(itensIdx + 30, lines.length); i++) {
+          // Match "1.346KWH" or "12.929KWH" or "1346KWH"
+          const m = lines[i].match(/^(\d{1,2}(?:\.\d{3})+|\d{3,6})KWH/i);
+          if (m && parseBR(m[1]) >= 10) {
+            consumptionCandidates.push(m[1]);
+          }
+        }
+        if (consumptionCandidates.length >= 2) {
+          if (!ConsumoPonta) ConsumoPonta = consumptionCandidates[0];
+          if (!ConsumoForaPonta) ConsumoForaPonta = consumptionCandidates[1];
+        } else if (consumptionCandidates.length === 1) {
+          // Only one found — if Ponta is already set from another strategy, this is Fora Ponta
+          if (ConsumoPonta && !ConsumoForaPonta) ConsumoForaPonta = consumptionCandidates[0];
+          else if (!ConsumoPonta) ConsumoPonta = consumptionCandidates[0];
+        }
       }
     }
     // Intermediária (Tarifa Branca / 3-period AZUL)
@@ -1055,6 +1152,45 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
       }
     }
 
+    // Strategy 4e: Value prefixed before "Demanda Todos os Período" on the same line
+    // pdf-parse sometimes merges columns, producing: "37Demanda Todos os Período - kW"
+    if (!DemandaContratadaPonta && !DemandaContratadaForaPonta) {
+      const preValMatch = flat.match(/(\d+(?:[.,]\d+)?)\s*Demanda\s+Todos\s+(?:os\s+)?Per[ií]odo/i);
+      if (preValMatch) {
+        const val = preValMatch[1].replace('.', ',');
+        DemandaContratadaPonta = val;
+        DemandaContratadaForaPonta = val;
+      }
+    }
+
+    // Strategy 4f: "Grandezas Contratadas" section with "Demanda" and a single value
+    // For Elektro Horária Verde: "Grandezas Contratadas" → "Demanda Todos os Período - kW 37"
+    if (!DemandaContratadaPonta && !DemandaContratadaForaPonta) {
+      const grandIdx = lines.findIndex(l => /Grandezas\s+Contratadas/i.test(l));
+      if (grandIdx >= 0) {
+        for (let i = grandIdx + 1; i < Math.min(grandIdx + 8, lines.length); i++) {
+          // Match "Demanda Todos os Período - kW 37" or "Demanda Todos os Periodo - kW 37"
+          const m = lines[i].match(/Demanda\s+Todos\s+(?:os\s+)?Per[ií]odo\s*-\s*kW\s+(\d+(?:[.,]\d+)?)/i);
+          if (m) {
+            const val = m[1].replace('.', ',');
+            DemandaContratadaPonta = val;
+            DemandaContratadaForaPonta = val;
+            break;
+          }
+          // Also match just a number after "Demanda Todos" on a line
+          if (/Demanda\s+Todos/i.test(lines[i]) && /Per[ií]odo/i.test(lines[i])) {
+            const numM = lines[i].match(/(\d+(?:[.,]\d+)?)\s*$/);
+            if (numM) {
+              const val = numM[1].replace('.', ',');
+              DemandaContratadaPonta = val;
+              DemandaContratadaForaPonta = val;
+              break;
+            }
+          }
+        }
+      }
+    }
+
     DemandaMedidaPonta = findQtyNearLine(lines, /Demanda\s+Medida.*Ponta(?!.*Fora)/i);
     DemandaMedidaForaPonta = findQtyNearLine(lines, /Demanda\s+Medida.*Fora\s*Ponta/i);
     DemandaFaturadaPonta = findQtyNearLine(lines, /Demanda\s+Fatur[ae]da.*Ponta(?!.*Fora)/i) || DemandaMedidaPonta;
@@ -1408,6 +1544,13 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
         } else {
           if (item.quantidade) DemandaMedidaForaPonta = item.quantidade;
           if (item.valor) ValorDemandaForaPonta = item.valor;
+        }
+      }
+      // Demanda Todos os Período (Horária Verde) — same demand for Ponta and Fora Ponta
+      else if (/Demanda\s+Todos/i.test(lbl) && /Per[ií]odo/i.test(lbl)) {
+        if (item.quantidade) {
+          if (!DemandaContratadaPonta) DemandaContratadaPonta = item.quantidade;
+          if (!DemandaContratadaForaPonta) DemandaContratadaForaPonta = item.quantidade;
         }
       }
       // Ultrapassagem

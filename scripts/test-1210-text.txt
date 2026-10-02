@@ -1,0 +1,133 @@
+
+
+R Baldomero Leituga, 2032 - Jd Primavera
+CEP: 79610-270 - Tres Lagoas  (Ms) - MS
+CNPJ 02.328.280/0002-78
+INSC. ESTADUAL 283041269
+1.210.273.045-90
+EMPRESA DE SANEAMENTO DE MATO GROSSO DO SUL S.A.SANESUL
+CNPJ - ********000120   IE: 281042489
+R SANTOS DUMONT, 250 - ANL 004 855
+CENTRO
+ANAURILANDIA  (MS) - MS - CEP 79770-000
+B3  SERVICO PUBLICO / TRATAMENTO/DISTR AGUA/SANEAM - ESTADUAL
+CONVENCIONAL / TRIFASICO
+Julho/2026
+R$5.087,8923/08/2026
+18/06/202620/07/20263318/08/2026
+NOTA FISCAL No. 5219928 - SÉRIE 0 DATA DE EMISSÃO: 22/07/2026
+Consulte Chave de Acesso em:
+https://nf3e.sefaz.ms.gov.br/ws/NF3eConsulta?wsdl
+Chave de Acesso
+5026 0702 3282 8000 0278 6600 0005 2199 2810 0680 7978
+Protocolo de Autorização: 1502600009277307 22/07/2026 16:33:03
+America/Sao_Paulo
+CONSUMO TE
+CONSUMO TUSD
+AD.B.AMAR.
+kWh
+kWh
+kWh
+4.963
+4.963
+4.963
+0,400304
+0,601148
+0,023711
+1.986,71
+2.983,50
+117,68
+69,75
+104,75
+4,13
+1.986,71
+2.983,49
+117,68
+17%
+17%
+17%
+337,74
+507,19
+20,00
+0,318200
+0,477850
+0,018850
+ICMS
+COFINS
+PIS
+5087,88
+4222,95
+4222,95
+17%
+3,48%
+0,75%
+864,93
+146,96
+31,67
+3T5035554CONSUMO kWhTP673257228814963
+JUL26
+JUN26
+MAY26
+APR26
+MAR26
+FEB26
+JAN26
+DEC25
+NOV25
+OCT25
+SEP25
+AUG25
+JUL25
+4963
+4834
+5466
+5113
+5692
+5412
+5959
+6072
+5952
+5473
+6027
+5634
+5676
+32
+30
+33
+28
+30
+29
+32
+30
+32
+29
+31
+31
+31
+FatDias
+BandeiraTarifaria Amarela:19/06-20/07
+FATURA AGRUPADA - NAO RECEBER
+Mantenha seu cadastro atualizado e contribua para a correta gestao do seu contrato de fornecimento.
+Seu Código
+Controle Nº
+01-202610410680797-00
+Vencimento
+23/08/2026
+Total R$
+R$ 5.087,89
+Conta em Débito Automático
+Considerar esta conta quitada somente após o débito em sua conta corrente. Se por algum motivo de
+seu conhecimento não ocorrer o débito automático, pague esta conta em qualquer rede conveniada.
+1.210.273.045-90
+NÃO RECEBER - FATURA AGRUPADA
+Julho/2026
+12154059
+23/08/2026
+R$5.087,89
+DANFELEKB (V1.00)
+
+EMPRESA DE SANEAMENTO DE MATO GROSSO DO SUL S.A.SANESUL
+Rua Euclides da Cunha, 975
+Jardim Dso Estados
+CEP: 79020-230 - Campo Grande - MS
+DANFELEKB (V1.00)

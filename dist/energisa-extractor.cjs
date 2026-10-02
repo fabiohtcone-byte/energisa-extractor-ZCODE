@@ -63,6 +63,15 @@ function findNumNearLine(lines, startIdx, direction, maxDist, mustBeOnlyNum) {
   }
   return EMPTY;
 }
+function findIntNearLine(lines, startIdx, direction, maxDist) {
+  for (let i = startIdx + direction; i >= 0 && i < lines.length; i += direction) {
+    if (Math.abs(i - startIdx) > maxDist) break;
+    const line = lines[i];
+    const m = line.match(/^(\d{1,2}(?:\.\d{3})+|\d{3,6})$/);
+    if (m) return m[1];
+  }
+  return EMPTY;
+}
 function extractEnergisaData(rawText, tableExtraction) {
   const tableData = tableExtraction?.items;
   const tributosFromTable = tableExtraction ? { pis: tableExtraction.pisTotal, cofins: tableExtraction.cofinsTotal, icms: tableExtraction.icmsTotal } : null;
@@ -430,7 +439,8 @@ function extractEnergisaData(rawText, tableExtraction) {
           return { value: intPart + "," + parts[1], numeric };
         };
         let found = false;
-        for (let prefix = 3; prefix >= 0; prefix--) {
+        const prefixCandidates = [];
+        for (let prefix = 0; prefix <= 3; prefix++) {
           const results = /* @__PURE__ */ new Map();
           let allValid = true;
           for (const sec of periodSections) {
@@ -443,6 +453,10 @@ function extractEnergisaData(rawText, tableExtraction) {
               allValid = false;
               break;
             }
+            if (result.value.startsWith("0") && result.value.length > 3) {
+              allValid = false;
+              break;
+            }
             results.set(sec.period, result);
           }
           if (allValid && results.size > 0) {
@@ -451,16 +465,30 @@ function extractEnergisaData(rawText, tableExtraction) {
             if (pontaR && foraR) {
               const ratio = foraR.numeric / pontaR.numeric;
               if (ratio < 0.1 || ratio > 20) continue;
+              const inRangePonta = pontaR.numeric >= 100 && pontaR.numeric <= 5e4 ? 2e3 : 0;
+              const inRangeFora = foraR.numeric >= 100 && foraR.numeric <= 5e4 ? 2e3 : 0;
+              const ratioScore = ratio >= 1 && ratio <= 15 ? 1e3 : 0;
+              const rangeScore = inRangePonta + inRangeFora + ratioScore;
+              prefixCandidates.push({ prefix, results, score: rangeScore });
+            } else {
+              let rangeScore = 0;
+              for (const r of results.values()) {
+                if (r.numeric >= 100 && r.numeric <= 5e4) rangeScore += 2e3;
+              }
+              prefixCandidates.push({ prefix, results, score: rangeScore });
             }
-            if (!ConsumoPonta && results.has("Ponta")) ConsumoPonta = results.get("Ponta").value;
-            if (!ConsumoForaPonta && results.has("ForaPonta")) ConsumoForaPonta = results.get("ForaPonta").value;
-            found = true;
-            break;
           }
+        }
+        prefixCandidates.sort((a, b) => b.score - a.score);
+        if (prefixCandidates.length > 0) {
+          const best = prefixCandidates[0];
+          if (!ConsumoPonta && best.results.has("Ponta")) ConsumoPonta = best.results.get("Ponta").value;
+          if (!ConsumoForaPonta && best.results.has("ForaPonta")) ConsumoForaPonta = best.results.get("ForaPonta").value;
+          found = true;
         }
         if (!found) {
           for (const sec of periodSections) {
-            for (let prefix = 3; prefix >= 0; prefix--) {
+            for (let prefix = 0; prefix <= 3; prefix++) {
               const result = tryExtract(sec.data, prefix);
               if (result && result.numeric >= 100) {
                 if (sec.period === "Ponta" && !ConsumoPonta) ConsumoPonta = result.value;
@@ -484,6 +512,52 @@ function extractEnergisaData(rawText, tableExtraction) {
       if (fpIdx >= 0) {
         const val = findNumNearLine(lines, fpIdx, 1, 8, false);
         if (val && parseBR(val) >= 10) ConsumoForaPonta = val;
+      }
+    }
+    if (!ConsumoPonta) {
+      const pontaIdx = findLine(lines, /Consumo\s+em\s+kWh.*Ponta(?!.*Fora)/i);
+      if (pontaIdx >= 0) {
+        const val = findIntNearLine(lines, pontaIdx, 1, 8);
+        if (val && parseBR(val) >= 10) ConsumoPonta = val;
+      }
+    }
+    if (!ConsumoForaPonta) {
+      const fpIdx = findLine(lines, /Consumo\s+em\s+kWh.*Fora\s*Ponta/i);
+      if (fpIdx >= 0) {
+        const val = findIntNearLine(lines, fpIdx, 1, 8);
+        if (val && parseBR(val) >= 10) ConsumoForaPonta = val;
+      }
+    }
+    if (!ConsumoPonta || !ConsumoForaPonta) {
+      for (const line of lines) {
+        const garbledPonta = line.match(/^(\d{1,2}(?:\.\d{3})+)KWH/i);
+        if (garbledPonta && parseBR(garbledPonta[1]) >= 10) {
+          if (!ConsumoPonta) ConsumoPonta = garbledPonta[1];
+          continue;
+        }
+        const garbledFora = line.match(/^(\d{1,2}(?:\.\d{3})+)KWH/i);
+        if (garbledFora && parseBR(garbledFora[1]) >= 10) {
+          if (ConsumoPonta && !ConsumoForaPonta) ConsumoForaPonta = garbledFora[1];
+        }
+      }
+    }
+    if ((!ConsumoPonta || !ConsumoForaPonta) && isSplitTariff) {
+      const itensIdx = lines.findIndex((l) => /Itens\s+da\s+Fatura/i.test(l));
+      if (itensIdx >= 0) {
+        const consumptionCandidates = [];
+        for (let i = itensIdx + 1; i < Math.min(itensIdx + 30, lines.length); i++) {
+          const m = lines[i].match(/^(\d{1,2}(?:\.\d{3})+|\d{3,6})KWH/i);
+          if (m && parseBR(m[1]) >= 10) {
+            consumptionCandidates.push(m[1]);
+          }
+        }
+        if (consumptionCandidates.length >= 2) {
+          if (!ConsumoPonta) ConsumoPonta = consumptionCandidates[0];
+          if (!ConsumoForaPonta) ConsumoForaPonta = consumptionCandidates[1];
+        } else if (consumptionCandidates.length === 1) {
+          if (ConsumoPonta && !ConsumoForaPonta) ConsumoForaPonta = consumptionCandidates[0];
+          else if (!ConsumoPonta) ConsumoPonta = consumptionCandidates[0];
+        }
       }
     }
     const interIdx = findLine(lines, /Consumo\s+em\s+kWh.*Intermedi[áa]ria/i);
@@ -782,6 +856,37 @@ function extractEnergisaData(rawText, tableExtraction) {
         }
       }
     }
+    if (!DemandaContratadaPonta && !DemandaContratadaForaPonta) {
+      const preValMatch = flat.match(/(\d+(?:[.,]\d+)?)\s*Demanda\s+Todos\s+(?:os\s+)?Per[ií]odo/i);
+      if (preValMatch) {
+        const val = preValMatch[1].replace(".", ",");
+        DemandaContratadaPonta = val;
+        DemandaContratadaForaPonta = val;
+      }
+    }
+    if (!DemandaContratadaPonta && !DemandaContratadaForaPonta) {
+      const grandIdx = lines.findIndex((l) => /Grandezas\s+Contratadas/i.test(l));
+      if (grandIdx >= 0) {
+        for (let i = grandIdx + 1; i < Math.min(grandIdx + 8, lines.length); i++) {
+          const m = lines[i].match(/Demanda\s+Todos\s+(?:os\s+)?Per[ií]odo\s*-\s*kW\s+(\d+(?:[.,]\d+)?)/i);
+          if (m) {
+            const val = m[1].replace(".", ",");
+            DemandaContratadaPonta = val;
+            DemandaContratadaForaPonta = val;
+            break;
+          }
+          if (/Demanda\s+Todos/i.test(lines[i]) && /Per[ií]odo/i.test(lines[i])) {
+            const numM = lines[i].match(/(\d+(?:[.,]\d+)?)\s*$/);
+            if (numM) {
+              const val = numM[1].replace(".", ",");
+              DemandaContratadaPonta = val;
+              DemandaContratadaForaPonta = val;
+              break;
+            }
+          }
+        }
+      }
+    }
     DemandaMedidaPonta = findQtyNearLine(lines, /Demanda\s+Medida.*Ponta(?!.*Fora)/i);
     DemandaMedidaForaPonta = findQtyNearLine(lines, /Demanda\s+Medida.*Fora\s*Ponta/i);
     DemandaFaturadaPonta = findQtyNearLine(lines, /Demanda\s+Fatur[ae]da.*Ponta(?!.*Fora)/i) || DemandaMedidaPonta;
@@ -1038,6 +1143,11 @@ function extractEnergisaData(rawText, tableExtraction) {
         } else {
           if (item.quantidade) DemandaMedidaForaPonta = item.quantidade;
           if (item.valor) ValorDemandaForaPonta = item.valor;
+        }
+      } else if (/Demanda\s+Todos/i.test(lbl) && /Per[ií]odo/i.test(lbl)) {
+        if (item.quantidade) {
+          if (!DemandaContratadaPonta) DemandaContratadaPonta = item.quantidade;
+          if (!DemandaContratadaForaPonta) DemandaContratadaForaPonta = item.quantidade;
         }
       } else if (/(?:Ultrapassagem|Ultrap)/i.test(lbl) && /Demanda/i.test(lbl) && !/Não\s*Consumida/i.test(lbl)) {
         if (!isFora) {
