@@ -1,0 +1,619 @@
+     1→'use client'
+     2→
+     3→import { useState, useCallback, useRef } from 'react';
+     4→import { toast } from 'sonner';
+     5→import { Button } from '@/components/ui/button';
+     6→import { Badge } from '@/components/ui/badge';
+     7→import { Progress } from '@/components/ui/progress';
+     8→import { FIELD_LABELS, FIELD_CATEGORIES, type EnergisaInvoiceData } from '@/lib/energisa-fields';
+     9→import {
+    10→  Upload,
+    11→  FileText,
+    12→  Download,
+    13→  Trash2,
+    14→  CheckCircle2,
+    15→  AlertCircle,
+    16→  Zap,
+    17→  BarChart3,
+    18→  FileSpreadsheet,
+    19→  Bug,
+    20→  Loader2,
+    21→  Calendar,
+    22→  Receipt,
+    23→  DollarSign,
+    24→  MapPin,
+    25→  Tag,
+    26→  TrendingUp,
+    27→  Shield,
+    28→  ArrowUpRight,
+    29→  Sparkles,
+    30→  Building2,
+    31→  Hash,
+    32→  Clock,
+    33→  Gauge,
+    34→  CircleDot,
+    35→  BatteryCharging,
+    36→  Sun,
+    37→  PiggyBank,
+    38→  CircleDollarSign,
+    39→  Minus,
+    40→  Plus,
+    41→  X,
+    42→} from 'lucide-react';
+    43→
+    44→interface FileProgress {
+    45→  fileName: string;
+    46→  status: 'pending' | 'processing' | 'done' | 'error';
+    47→  result?: ExtractionResult;
+    48→  errorMsg?: string;
+    49→}
+    50→
+    51→interface ExtractionResult {
+    52→  fileName: string;
+    53→  data: EnergisaInvoiceData;
+    54→  stats: {
+    55→    extractedCount: number;
+    56→    totalFields: number;
+    57→    extractionRate: number;
+    58→    pageCount: number;
+    59→  };
+    60→  rawText?: string;
+    61→}
+    62→
+    63→/* ── Category visual config ── */
+    64→const CAT_CFG: Record<string, { icon: React.ReactNode; accent: string; soft: string; ring: string }> = {
+    65→  'Identificação':                    { icon: <Building2 className="h-3.5 w-3.5" />,  accent: 'text-blue-700',    soft: 'bg-blue-50',    ring: 'ring-blue-200' },
+    66→  'Datas e Documentos':              { icon: <Calendar className="h-3.5 w-3.5" />,   accent: 'text-violet-700',  soft: 'bg-violet-50',  ring: 'ring-violet-200' },
+    67→  'Tarifa':                           { icon: <Tag className="h-3.5 w-3.5" />,        accent: 'text-indigo-700',  soft: 'bg-indigo-50',  ring: 'ring-indigo-200' },
+    68→  'Consumo (kWh)':                    { icon: <Zap className="h-3.5 w-3.5" />,       accent: 'text-emerald-700', soft: 'bg-emerald-50', ring: 'ring-emerald-200' },
+    69→  'Demanda Contratada (kW)':         { icon: <Shield className="h-3.5 w-3.5" />,    accent: 'text-sky-700',     soft: 'bg-sky-50',     ring: 'ring-sky-200' },
+    70→  'Demanda Medida (kW)':             { icon: <Gauge className="h-3.5 w-3.5" />,     accent: 'text-teal-700',    soft: 'bg-teal-50',    ring: 'ring-teal-200' },
+    71→  'Demanda Faturada (kW)':           { icon: <TrendingUp className="h-3.5 w-3.5" />, accent: 'text-cyan-700',    soft: 'bg-cyan-50',    ring: 'ring-cyan-200' },
+    72→  'Ultrapassagem (kW)':              { icon: <ArrowUpRight className="h-3.5 w-3.5" />, accent: 'text-orange-700', soft: 'bg-orange-50',  ring: 'ring-orange-200' },
+    73→  'Demanda Não Consumida (kW)':      { icon: <Minus className="h-3.5 w-3.5" />,     accent: 'text-rose-700',    soft: 'bg-rose-50',    ring: 'ring-rose-200' },
+    74→  'Reativa Excedente (kWh)':         { icon: <BatteryCharging className="h-3.5 w-3.5" />, accent: 'text-amber-700', soft: 'bg-amber-50',  ring: 'ring-amber-200' },
+    75→  'Valores - Consumo (R$)':          { icon: <CircleDollarSign className="h-3.5 w-3.5" />, accent: 'text-green-700', soft: 'bg-green-50', ring: 'ring-green-200' },
+    76→  'Valores - Demanda (R$)':          { icon: <CircleDollarSign className="h-3.5 w-3.5" />, accent: 'text-emerald-700', soft: 'bg-emerald-50', ring: 'ring-emerald-200' },
+    77→  'Valores - Ultrapassagem (R$)':    { icon: <CircleDollarSign className="h-3.5 w-3.5" />, accent: 'text-orange-700', soft: 'bg-orange-50', ring: 'ring-orange-200' },
+    78→  'Valores - Demanda Não Consumida (R$)': { icon: <CircleDollarSign className="h-3.5 w-3.5" />, accent: 'text-rose-700', soft: 'bg-rose-50', ring: 'ring-rose-200' },
+    79→  'Valores - Reativa Excedente (R$)':{ icon: <CircleDollarSign className="h-3.5 w-3.5" />, accent: 'text-amber-700', soft: 'bg-amber-50', ring: 'ring-amber-200' },
+    80→  'Tributos e Encargos (R$)':        { icon: <PiggyBank className="h-3.5 w-3.5" />,  accent: 'text-red-700',     soft: 'bg-red-50',     ring: 'ring-red-200' },
+    81→  'Energia Injetada GDI oUC':        { icon: <Sun className="h-3.5 w-3.5" />,        accent: 'text-lime-700',    soft: 'bg-lime-50',    ring: 'ring-lime-200' },
+    82→  'Energia Injetada GDI mUC':        { icon: <Sun className="h-3.5 w-3.5" />,        accent: 'text-lime-700',    soft: 'bg-lime-50',    ring: 'ring-lime-200' },
+    83→  'Geração Distribuída':             { icon: <Sparkles className="h-3.5 w-3.5" />,   accent: 'text-green-700',   soft: 'bg-green-50',   ring: 'ring-green-200' },
+    84→  'Total':                           { icon: <DollarSign className="h-3.5 w-3.5" />,  accent: 'text-slate-800',   soft: 'bg-slate-100',  ring: 'ring-slate-300' },
+    85→};
+    86→const FALLBACK_CFG = { icon: <Tag className="h-3.5 w-3.5" />, accent: 'text-slate-700', soft: 'bg-slate-50', ring: 'ring-slate-200' };
+    87→
+    88→/* ── Helpers ── */
+    89→function shortenLabel(label: string): string {
+    90→  return label
+    91→    .replace(/^Demanda (Contratada|Medida|Faturada) /, '')
+    92→    .replace(/^Demanda Potência Não Consumida - /, 'Não Consumida ')
+    93→    .replace(/^Valor (Consumo|Demanda|Ultrapassagem|Reativa Excedente|Não Consumida) /, '')
+    94→    .replace(/^Energia Atv Injetada GDI /, '')
+    95→    .replace(/^Consumo em kWh \(Grupo B\)/, 'Consumo kWh')
+    96→    .replace(/^Consumo \(R\$\) \(Grupo B\)/, 'Consumo R$')
+    97→    .replace(/^Ultrapassagem /, '')
+    98→    .replace(/^Reativa Excedente /, '')
+    99→    .replace(/^Energia Reativa Total/, 'Total')
+   100→    .replace(/^Saldo Acumulado GD/, 'Saldo GD')
+   101→    .replace(/\s*\(kWh\)\s*/, '')
+   102→    .replace(/\s*\(kW\)\s*/, '')
+   103→    .replace(/\s*\(R\$\)\s*/, '')
+   104→    .trim();
+   105→}
+   106→
+   107→/* ═══════════════════════════════════════════════
+   108→   MAIN COMPONENT
+   109→   ═══════════════════════════════════════════════ */
+   110→export default function Home() {
+   111→  const [results, setResults] = useState<ExtractionResult[]>([]);
+   112→  const [isProcessing, setIsProcessing] = useState(false);
+   113→  const [isDragging, setIsDragging] = useState(false);
+   114→  [isDragging]; // used in className
+   115→  const [activeTab, setActiveTab] = useState<'upload' | 'results'>('upload');
+   116→  const [debugMode, setDebugMode] = useState(false);
+   117→  const [fileProgress, setFileProgress] = useState<FileProgress[]>([]);
+   118→  const fileInputRef = useRef<HTMLInputElement>(null);
+   119→
+   120→  /* ── file processing ── */
+   121→  const processFiles = useCallback(async (files: FileList | File[]) => {
+   122→    const pdfFiles = Array.from(files).filter((f) => f.type === 'application/pdf');
+   123→    if (pdfFiles.length === 0) { toast.error('Selecione ao menos um arquivo PDF.'); return; }
+   124→    setIsProcessing(true);
+   125→    const newResults: ExtractionResult[] = [];
+   126→    setFileProgress(pdfFiles.map((f) => ({ fileName: f.name, status: 'pending' as const })));
+   127→
+   128→    for (let i = 0; i < pdfFiles.length; i++) {
+   129→      const file = pdfFiles[i];
+   130→      setFileProgress((p) => p.map((x, idx) => idx === i ? { ...x, status: 'processing' as const } : x));
+   131→      try {
+   132→        const fd = new FormData(); fd.append('file', file);
+   133→        const res = await fetch('/api/extract-pdf', { method: 'POST', body: fd });
+   134→        const json = await res.json();
+   135→        if (!res.ok) {
+   136→          setFileProgress((p) => p.map((x, idx) => idx === i ? { ...x, status: 'error' as const, errorMsg: json.error } : x));
+   137→          toast.error(`${file.name}: ${json.error}`);
+   138→        } else {
+   139→          const er: ExtractionResult = { fileName: file.name, data: json.data, stats: json.stats, rawText: json.rawText };
+   140→          newResults.push(er);
+   141→          setFileProgress((p) => p.map((x, idx) => idx === i ? { ...x, status: 'done' as const, result: er } : x));
+   142→          toast.success(`${file.name}: ${json.stats.extractedCount}/${json.stats.totalFields} campos (${json.stats.extractionRate}%)`);
+   143→        }
+   144→      } catch {
+   145→        setFileProgress((p) => p.map((x, idx) => idx === i ? { ...x, status: 'error' as const, errorMsg: 'Erro ao processar' } : x));
+   146→        toast.error(`${file.name}: Erro ao processar.`);
+   147→      }
+   148→    }
+   149→
+   150→    setResults((prev) => {
+   151→      const updated = [...newResults];
+   152→      for (const e of prev) {
+   153→        const uc = e.data.UC.replace(/\D/g, '');
+   154→        if (uc && !updated.some((r) => r.data.UC.replace(/\D/g, '') === uc)) updated.push(e);
+   155→      }
+   156→      for (const n of newResults) {
+   157→        const uc = n.data.UC.replace(/\D/g, '');
+   158→        if (uc && prev.some((r) => r.data.UC.replace(/\D/g, '') === uc)) toast.info(`UC ${n.data.UC} atualizada.`);
+   159→      }
+   160→      return updated;
+   161→    });
+   162→    setIsProcessing(false);
+   163→    setFileProgress([]);
+   164→    if (newResults.length > 0) setActiveTab('results');
+   165→  }, []);
+   166→
+   167→  const handleDrop = useCallback((e: React.DragEvent) => { e.preventDefault(); setIsDragging(false); if (e.dataTransfer.files.length > 0) processFiles(e.dataTransfer.files); }, [processFiles]);
+   168→  const handleDragOver = useCallback((e: React.DragEvent) => { e.preventDefault(); setIsDragging(true); }, []);
+   169→  const handleDragLeave = useCallback(() => setIsDragging(false), []);
+   170→  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => { if (e.target.files?.length) { processFiles(e.target.files); e.target.value = ''; } }, [processFiles]);
+   171→  const clearAll = useCallback(() => { setResults([]); setActiveTab('upload'); toast.info('Faturas removidas.'); }, []);
+   172→  const removeResult = useCallback((i: number) => { setResults((p) => p.filter((_, x) => x !== i)); toast.info('Fatura removida.'); }, []);
+   173→
+   174→  const exportToExcel = useCallback(async () => {
+   175→    if (!results.length) { toast.error('Nenhuma fatura.'); return; }
+   176→    try {
+   177→      const res = await fetch('/api/export-excel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ invoices: results.map((r) => ({ ...r.data, _fileName: r.fileName })) }) });
+   178→      if (!res.ok) { toast.error('Erro ao gerar Excel.'); return; }
+   179→      const blob = await res.blob(); const url = URL.createObjectURL(blob);
+   180→      const a = document.createElement('a'); a.href = url; a.download = 'faturas_energisa.xlsx';
+   181→      document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+   182→      toast.success('Excel exportado!');
+   183→    } catch { toast.error('Erro ao exportar.'); }
+   184→  }, [results]);
+   185→
+   186→  /* ═══════════════════════════════════════════════
+   187→     RENDER
+   188→     ═══════════════════════════════════════════════ */
+   189→  return (
+   190→    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col">
+   191→
+   192→      {/* ══════════ HEADER ══════════ */}
+   193→      <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/80 backdrop-blur-xl">
+   194→        <div className="max-w-[1400px] mx-auto px-6 h-14 flex items-center justify-between">
+   195→          {/* Logo */}
+   196→          <div className="flex items-center gap-3">
+   197→            <div className="relative h-8 w-8 rounded-lg bg-gradient-to-br from-blue-500 to-sky-500 flex items-center justify-center shadow-lg shadow-blue-500/25">
+   198→              <Zap className="h-4 w-4 text-white" />
+   199→            </div>
+   200→            <div className="flex items-baseline gap-2">
+   201→              <span className="text-sm font-semibold tracking-tight text-slate-800">ENERGISA</span>
+   202→              <span className="text-[11px] text-slate-400 font-medium">Extractor</span>
+   203→            </div>
+   204→          </div>
+   205→
+   206→          {/* Nav pills */}
+   207→          <nav className="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5 border border-slate-200">
+   208→            <button
+   209→              onClick={() => setActiveTab('upload')}
+   210→              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+   211→                activeTab === 'upload'
+   212→                  ? 'bg-white text-slate-800 shadow-sm'
+   213→                  : 'text-slate-500 hover:text-slate-700'
+   214→              }`}
+   215→            >
+   216→              Upload
+   217→            </button>
+   218→            <button
+   219→              onClick={() => results.length > 0 && setActiveTab('results')}
+   220→              disabled={results.length === 0}
+   221→              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+   222→                activeTab === 'results'
+   223→                  ? 'bg-white text-slate-800 shadow-sm'
+   224→                  : 'text-slate-500 hover:text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed'
+   225→              }`}
+   226→            >
+   227→              Resultados {results.length > 0 && <span className="ml-1 text-blue-600">({results.length})</span>}
+   228→            </button>
+   229→          </nav>
+   230→
+   231→          {/* Actions */}
+   232→          <div className="flex items-center gap-2">
+   233→            {results.length > 0 && (
+   234→              <button
+   235→                onClick={exportToExcel}
+   236→                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 transition-all"
+   237→              >
+   238→                <Download className="h-3.5 w-3.5" />
+   239→                <span className="hidden sm:inline">Excel</span>
+   240→              </button>
+   241→            )}
+   242→          </div>
+   243→        </div>
+   244→      </header>
+   245→
+   246→      {/* ══════════ MAIN ══════════ */}
+   247→      <main className="flex-1 max-w-[1400px] mx-auto w-full px-6 py-8">
+   248→
+   249→        {/* ══════════ UPLOAD TAB ══════════ */}
+   250→        {activeTab === 'upload' && (
+   251→          <div className="space-y-8">
+   252→            {/* Hero */}
+   253→            <div className="text-center max-w-xl mx-auto pt-8 pb-2">
+   254→              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-600 text-[11px] font-medium mb-6">
+   255→                <Sparkles className="h-3 w-3" />
+   256→                Extração automática de 40+ campos
+   257→              </div>
+   258→              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-800 mb-3">
+   259→                Extraia dados de faturas<br />
+   260→                <span className="bg-gradient-to-r from-blue-600 to-sky-500 bg-clip-text text-transparent">ENERGISA</span> em segundos
+   261→              </h1>
+   262→              <p className="text-sm text-slate-500 leading-relaxed">
+   263→                Arraste PDFs de faturas de energia e obtenha consumo, demanda, tributos e mais — pronto para Excel.
+   264→              </p>
+   265→            </div>
+   266→
+   267→            {/* Upload zone */}
+   268→            <div
+   269→              onDrop={handleDrop}
+   270→              onDragOver={handleDragOver}
+   271→              onDragLeave={handleDragLeave}
+   272→              onClick={() => fileInputRef.current?.click()}
+   273→              className={`
+   274→                relative group cursor-pointer rounded-2xl border border-dashed transition-all duration-300
+   275→                ${isProcessing ? 'pointer-events-none opacity-50 border-slate-300' : isDragging ? 'border-blue-400 bg-blue-50/50 scale-[1.01]' : 'border-slate-300 bg-white hover:border-blue-400 hover:bg-blue-50/30'}
+   276→              `}
+   277→            >
+   278→              <input ref={fileInputRef} type="file" accept="application/pdf" multiple onChange={handleFileChange} className="hidden" />
+   279→              <div className="p-12 sm:p-16 flex flex-col items-center gap-4">
+   280→                {!isProcessing && (
+   281→                  <>
+   282→                    <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-blue-100 to-sky-100 border border-blue-200 flex items-center justify-center">
+   283→                      <Upload className="h-6 w-6 text-blue-500" />
+   284→                    </div>
+   285→                    <div className="text-center">
+   286→                      <p className="text-sm font-medium text-slate-700">Arraste faturas PDF aqui</p>
+   287→                      <p className="text-xs text-slate-400 mt-1">ou clique para selecionar</p>
+   288→                    </div>
+   289→                    <label
+   290→                      onClick={(e) => e.stopPropagation()}
+   291→                      className="flex items-center gap-2 mt-2 cursor-pointer select-none"
+   292→                    >
+   293→                      <input type="checkbox" checked={debugMode} onChange={(e) => setDebugMode(e.target.checked)} className="rounded border-slate-300 bg-white text-blue-500 focus:ring-blue-500/30" />
+   294→                      <Bug className="h-3 w-3 text-slate-400" />
+   295→                      <span className="text-[11px] text-slate-400">Debug</span>
+   296→                    </label>
+   297→                  </>
+   298→                )}
+   299→
+   300→                {/* Processing */}
+   301→                {isProcessing && fileProgress.length > 0 && (
+   302→                  <div className="w-full max-w-lg mx-auto space-y-4">
+   303→                    <div className="flex items-center justify-between text-xs">
+   304→                      <span className="text-slate-600 font-medium">Processando faturas</span>
+   305→                      <span className="text-blue-600 font-mono">
+   306→                        {fileProgress.filter((p) => p.status === 'done' || p.status === 'error').length}/{fileProgress.length}
+   307→                      </span>
+   308→                    </div>
+   309→                    <Progress
+   310→                      value={(fileProgress.filter((p) => p.status === 'done' || p.status === 'error').length / fileProgress.length) * 100}
+   311→                      className="h-1 bg-slate-200 [&>div]:bg-gradient-to-r [&>div]:from-blue-500 [&>div]:to-sky-400 [&>div]:rounded-full"
+   312→                    />
+   313→                    <div className="space-y-2 max-h-56 overflow-y-auto">
+   314→                      {fileProgress.map((fp, i) => (
+   315→                        <div key={i} className={`flex items-center gap-3 px-3 py-2 rounded-lg text-xs ${
+   316→                          fp.status === 'processing' ? 'bg-blue-50 border border-blue-200' :
+   317→                          fp.status === 'error' ? 'bg-red-50 border border-red-200' :
+   318→                          fp.status === 'done' ? 'bg-slate-50' : 'bg-white'
+   319→                        }`}>
+   320→                          <div className="flex-shrink-0">
+   321→                            {fp.status === 'pending' && <div className="h-4 w-4 rounded-full border border-slate-300" />}
+   322→                            {fp.status === 'processing' && <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />}
+   323→                            {fp.status === 'done' && <CheckCircle2 className="h-4 w-4 text-emerald-500" />}
+   324→                            {fp.status === 'error' && <AlertCircle className="h-4 w-4 text-red-500" />}
+   325→                          </div>
+   326→                          <span className={`flex-1 truncate ${fp.status === 'processing' ? 'text-blue-700' : fp.status === 'error' ? 'text-red-600' : 'text-slate-600'}`}>
+   327→                            {fp.fileName}
+   328→                          </span>
+   329→                          {fp.status === 'done' && fp.result && (
+   330→                            <span className="text-emerald-600 font-mono">{fp.result.stats.extractionRate}%</span>
+   331→                          )}
+   332→                        </div>
+   333→                      ))}
+   334→                    </div>
+   335→                  </div>
+   336→                )}
+   337→              </div>
+   338→            </div>
+   339→
+   340→            {/* Feature pills */}
+   341→            <div className="flex flex-wrap justify-center gap-3">
+   342→              {[
+   343→                { icon: <Zap className="h-3.5 w-3.5" />, label: '40+ Campos', desc: 'UC, consumo, demanda, tributos' },
+   344→                { icon: <FileSpreadsheet className="h-3.5 w-3.5" />, label: 'Exportar Excel', desc: 'Com Gerência e LOCINS' },
+   345→                { icon: <Sparkles className="h-3.5 w-3.5" />, label: 'Multi-modelo', desc: 'Conv., Azul, Verde, GDI' },
+   346→              ].map((f, i) => (
+   347→                <div key={i} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white border border-slate-200 shadow-sm">
+   348→                  <div className="text-slate-500">{f.icon}</div>
+   349→                  <div>
+   350→                    <p className="text-xs font-medium text-slate-700">{f.label}</p>
+   351→                    <p className="text-[10px] text-slate-400">{f.desc}</p>
+   352→                  </div>
+   353→                </div>
+   354→              ))}
+   355→            </div>
+   356→
+   357→            {/* Existing results quick bar */}
+   358→            {results.length > 0 && (
+   359→              <div className="flex items-center justify-between px-5 py-3 rounded-xl bg-white border border-slate-200 shadow-sm">
+   360→                <span className="text-xs text-slate-500">{results.length} fatura{results.length !== 1 ? 's' : ''} processada{results.length !== 1 ? 's' : ''}</span>
+   361→                <div className="flex gap-2">
+   362→                  <button onClick={clearAll} className="text-xs text-red-500/70 hover:text-red-500 transition-colors flex items-center gap-1">
+   363→                    <Trash2 className="h-3 w-3" /> Limpar
+   364→                  </button>
+   365→                  <button onClick={() => setActiveTab('results')} className="text-xs text-blue-600 hover:text-blue-700 transition-colors flex items-center gap-1">
+   366→                    Ver resultados <ArrowUpRight className="h-3 w-3" />
+   367→                  </button>
+   368→                </div>
+   369→              </div>
+   370→            )}
+   371→          </div>
+   372→        )}
+   373→
+   374→        {/* ══════════ RESULTS TAB ══════════ */}
+   375→        {activeTab === 'results' && (
+   376→          <div className="space-y-8">
+   377→            {results.length === 0 ? (
+   378→              <div className="text-center py-20">
+   379→                <FileText className="h-10 w-10 text-slate-300 mx-auto mb-3" />
+   380→                <p className="text-sm text-slate-400">Nenhuma fatura processada.</p>
+   381→              </div>
+   382→            ) : (
+   383→              results.map((result, idx) => {
+   384→                const d = result.data;
+   385→                const rate = result.stats.extractionRate;
+   386→                const isGood = rate >= 70;
+   387→                const isMid = rate >= 40 && !isGood;
+   388→
+   389→                return (
+   390→                  <div key={`${result.fileName}-${idx}`} className="space-y-5">
+   391→
+   392→                    {/* ─── INVOICE HEADER ─── */}
+   393→                    <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+   394→                      {/* Top accent line */}
+   395→                      <div className={`h-0.5 w-full ${
+   396→                        isGood ? 'bg-gradient-to-r from-blue-500 to-sky-400' :
+   397→                        isMid ? 'bg-gradient-to-r from-amber-400 to-yellow-400' :
+   398→                        'bg-gradient-to-r from-red-400 to-rose-400'
+   399→                      }`} />
+   400→
+   401→                      <div className="p-6">
+   402→                        {/* Row 1: file + key info */}
+   403→                        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+   404→                          <div className="flex items-start gap-4 min-w-0">
+   405→                            <div className="h-10 w-10 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center flex-shrink-0">
+   406→                              <FileText className="h-5 w-5 text-slate-500" />
+   407→                            </div>
+   408→                            <div className="min-w-0">
+   409→                              <h2 className="text-sm font-semibold text-slate-800 truncate">{result.fileName}</h2>
+   410→                              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5">
+   411→                                {d.UC && (
+   412→                                  <span className="inline-flex items-center gap-1 text-xs text-blue-600">
+   413→                                    <MapPin className="h-3 w-3" />
+   414→                                    <span className="font-mono">{d.UC}</span>
+   415→                                  </span>
+   416→                                )}
+   417→                                {d.Cidade && <span className="text-xs text-slate-500">{d.Cidade}</span>}
+   418→                                {d.MesReferencia && (
+   419→                                  <span className="inline-flex items-center gap-1 text-xs text-violet-600">
+   420→                                    <Calendar className="h-3 w-3" />{d.MesReferencia}
+   421→                                  </span>
+   422→                                )}
+   423→                                {d.ModalidadeTarifaria && (
+   424→                                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+   425→                                    {d.ModalidadeTarifaria}
+   426→                                  </span>
+   427→                                )}
+   428→                                {d.Subgrupo && (
+   429→                                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+   430→                                    {d.Subgrupo}
+   431→                                  </span>
+   432→                                )}
+   433→                              </div>
+   434→                            </div>
+   435→                          </div>
+   436→
+   437→                          {/* Right: KPIs */}
+   438→                          <div className="flex items-center gap-5 flex-shrink-0">
+   439→                            {d.ValorTotal && (
+   440→                              <div className="text-right">
+   441→                                <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-0.5">Valor Total</p>
+   442→                                <p className="text-xl font-bold font-mono bg-gradient-to-r from-blue-600 to-sky-500 bg-clip-text text-transparent">
+   443→                                  R$ {d.ValorTotal}
+   444→                                </p>
+   445→                              </div>
+   446→                            )}
+   447→                            <div className="text-right">
+   448→                              <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-0.5">Extração</p>
+   449→                              <div className="flex items-center gap-2">
+   450→                                <div className="h-1.5 w-16 rounded-full bg-slate-200 overflow-hidden">
+   451→                                  <div
+   452→                                    className={`h-full rounded-full ${
+   453→                                      isGood ? 'bg-emerald-500' : isMid ? 'bg-amber-500' : 'bg-red-500'
+   454→                                    }`}
+   455→                                    style={{ width: `${rate}%` }}
+   456→                                  />
+   457→                                </div>
+   458→                                <span className={`text-sm font-bold font-mono ${
+   459→                                  isGood ? 'text-emerald-600' : isMid ? 'text-amber-600' : 'text-red-600'
+   460→                                }`}>
+   461→                                  {rate}%
+   462→                                </span>
+   463→                              </div>
+   464→                            </div>
+   465→                            <button
+   466→                              onClick={() => removeResult(idx)}
+   467→                              className="h-8 w-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all"
+   468→                            >
+   469→                              <X className="h-3.5 w-3.5" />
+   470→                            </button>
+   471→                          </div>
+   472→                        </div>
+   473→
+   474→                        {/* Quick stats strip */}
+   475→                        <div className="flex flex-wrap gap-4 mt-5 pt-4 border-t border-slate-100">
+   476→                          {[
+   477→                            { v: d.ConsumoTotal, l: 'Consumo', u: 'kWh', icon: <Zap className="h-3 w-3 text-blue-500" /> },
+   478→                            { v: d.ConsumoPonta, l: 'Ponta', u: 'kWh', icon: null },
+   479→                            { v: d.ConsumoForaPonta, l: 'FP', u: 'kWh', icon: null },
+   480→                            { v: d.Vencimento, l: 'Vencimento', u: '', icon: <Clock className="h-3 w-3 text-violet-500" /> },
+   481→                            { v: d.NotaFiscal, l: 'NF', u: '', icon: <Hash className="h-3 w-3 text-slate-400" /> },
+   482→                          ].filter(x => x.v).map((s, i) => (
+   483→                            <div key={i} className="flex items-center gap-1.5 text-xs">
+   484→                              {s.icon}
+   485→                              <span className="text-slate-400">{s.l}:</span>
+   486→                              <span className="font-mono text-slate-700">{s.v}{s.u && <span className="text-slate-400 ml-0.5">{s.u}</span>}</span>
+   487→                            </div>
+   488→                          ))}
+   489→                          <div className="flex items-center gap-1.5 text-xs text-slate-400">
+   490→                            <FileText className="h-3 w-3" />{result.stats.pageCount} pág.
+   491→                          </div>
+   492→                        </div>
+   493→                      </div>
+   494→                    </div>
+   495→
+   496→                    {/* ─── CATEGORY GRID ─── */}
+   497→                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+   498→                      {FIELD_CATEGORIES.map((cat) => {
+   499→                        const cfg = CAT_CFG[cat.category] || FALLBACK_CFG;
+   500→                        const extracted = cat.fields.filter((f) => d[f]).length;
+   501→                        const total = cat.fields.length;
+   502→                        const catRate = Math.round((extracted / total) * 100);
+   503→                        const hasData = extracted > 0;
+   504→
+   505→                        return (
+   506→                          <div
+   507→                            key={cat.category}
+   508→                            className={`rounded-xl border p-4 transition-all duration-200 ${
+   509→                              hasData
+   510→                                ? `bg-white border-slate-200 hover:border-slate-300 hover:shadow-sm`
+   511→                                : `bg-slate-50/50 border-slate-100 opacity-40`
+   512→                            }`}
+   513→                          >
+   514→                            {/* Cat header */}
+   515→                            <div className="flex items-center justify-between mb-3">
+   516→                              <div className="flex items-center gap-2">
+   517→                                <span className={cfg.accent}>{cfg.icon}</span>
+   518→                                <span className={`text-xs font-semibold ${cfg.accent}`}>{cat.category}</span>
+   519→                              </div>
+   520→                              <span className={`text-[10px] font-bold font-mono px-1.5 py-0.5 rounded-md ${
+   521→                                catRate === 100 ? 'bg-emerald-50 text-emerald-600' :
+   522→                                catRate > 0 ? 'bg-amber-50 text-amber-600' :
+   523→                                'bg-slate-100 text-slate-400'
+   524→                              }`}>
+   525→                                {extracted}/{total}
+   526→                              </span>
+   527→                            </div>
+   528→
+   529→                            {/* Fields */}
+   530→                            <div className="space-y-1">
+   531→                              {cat.fields.map((fk) => {
+   532→                                const val = d[fk];
+   533→                                const empty = !val;
+   534→                                const label = shortenLabel(FIELD_LABELS[fk]);
+   535→                                return (
+   536→                                  <div
+   537→                                    key={fk}
+   538→                                    className={`flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-xs ${
+   539→                                      empty ? 'bg-slate-50/50' : 'bg-slate-50'
+   540→                                    }`}
+   541→                                  >
+   542→                                    <span className={`truncate ${empty ? 'text-slate-300' : 'text-slate-600'}`}>
+   543→                                      {label}
+   544→                                    </span>
+   545→                                    {empty ? (
+   546→                                      <span className="text-slate-300 flex-shrink-0">—</span>
+   547→                                    ) : (
+   548→                                      <span className="font-mono text-[11px] font-medium text-slate-800 bg-white px-1.5 py-0.5 rounded border border-slate-200 flex-shrink-0">
+   549→                                        {val}
+   550→                                      </span>
+   551→                                    )}
+   552→                                  </div>
+   553→                                );
+   554→                              })}
+   555→                            </div>
+   556→                          </div>
+   557→                        );
+   558→                      })}
+   559→                    </div>
+   560→
+   561→                    {/* ─── CAMPOS MANUAIS ─── */}
+   562→                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 flex items-center gap-4">
+   563→                      <AlertCircle className="h-4 w-4 text-amber-600 flex-shrink-0" />
+   564→                      <span className="text-xs text-amber-700">
+   565→                        Campos para preenchimento manual no Excel:
+   566→                      </span>
+   567→                      <div className="flex gap-2">
+   568→                        <span className="text-[10px] font-medium px-2 py-1 rounded-md bg-amber-100 text-amber-800 border border-amber-200">Gerência</span>
+   569→                        <span className="text-[10px] font-medium px-2 py-1 rounded-md bg-amber-100 text-amber-800 border border-amber-200">LOCINS</span>
+   570→                      </div>
+   571→                    </div>
+   572→
+   573→                    {/* Debug raw text */}
+   574→                    {debugMode && result.rawText && (
+   575→                      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+   576→                        <p className="text-xs font-medium text-amber-700 mb-2 flex items-center gap-1.5">
+   577→                          <Bug className="h-3 w-3" /> Texto Bruto
+   578→                        </p>
+   579→                        <pre className="text-[10px] leading-tight text-slate-600 bg-slate-800 rounded-lg p-3 overflow-auto max-h-72 font-mono whitespace-pre-wrap break-all border border-slate-700">
+   580→                          {result.rawText}
+   581→                        </pre>
+   582→                      </div>
+   583→                    )}
+   584→                  </div>
+   585→                );
+   586→              })
+   587→            )}
+   588→
+   589→            {/* Export bar */}
+   590→            {results.length > 0 && (
+   591→              <div className="flex items-center justify-between px-5 py-3 rounded-xl bg-white border border-slate-200 shadow-sm">
+   592→                <div className="flex items-center gap-2 text-xs text-slate-500">
+   593→                  <FileSpreadsheet className="h-4 w-4" />
+   594→                  <span><strong className="text-slate-700">{results.length}</strong> fatura{results.length !== 1 ? 's' : ''} pronta{results.length !== 1 ? 's' : ''} para exportação</span>
+   595→                </div>
+   596→                <button
+   597→                  onClick={exportToExcel}
+   598→                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium bg-gradient-to-r from-blue-600 to-sky-500 text-white shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 transition-all"
+   599→                >
+   600→                  <Download className="h-3.5 w-3.5" />
+   601→                  Exportar Excel
+   602→                </button>
+   603→              </div>
+   604→            )}
+   605→          </div>
+   606→        )}
+   607→      </main>
+   608→
+   609→      {/* ══════════ FOOTER ══════════ */}
+   610→      <footer className="border-t border-slate-200 mt-auto">
+   611→        <div className="max-w-[1400px] mx-auto px-6 py-3 flex items-center justify-between">
+   612→          <span className="text-[10px] text-slate-400">ENERGISA Extractor</span>
+   613→          <span className="text-[10px] text-slate-400">Colunas em amarelo no Excel devem ser preenchidas manualmente</span>
+   614→        </div>
+   615→      </footer>
+   616→    </div>
+   617→  );
+   618→}
+   619→
