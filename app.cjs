@@ -121,6 +121,12 @@ console.log('Static cache entries:', staticCache.size);
 // Keep-alive: track last request time
 let lastReq = Date.now();
 
+// Request serialization: queue extraction requests to prevent concurrent processing
+// (concurrent pdf-parse/child process operations cause native V8 crashes)
+let extractQueue = Promise.resolve();
+let lastExtractEnd = 0;
+const MIN_EXTRACT_INTERVAL = 2000; // 2s minimum between extractions for stability
+
 const srv = http.createServer(async (req, res) => {
   lastReq = Date.now();
   const p = new URL(req.url, 'http://x').pathname;
@@ -131,46 +137,61 @@ const srv = http.createServer(async (req, res) => {
       const body = await readBody(req);
       console.log('[extract] body received:', body.length, 'bytes');
 
-      // Support two upload modes:
-      // 1. Multipart form-data (standard browser upload)
-      // 2. Binary body with X-Filename header (simple API upload)
-      let fileBuffer = null;
-      let fileName = 'upload.pdf';
+      // Queue extraction (one at a time, with minimum interval for stability)
+      return new Promise((resolve) => {
+        extractQueue = extractQueue.then(async () => {
+          // Enforce minimum interval between extractions
+          const wait = Math.max(0, MIN_EXTRACT_INTERVAL - (Date.now() - lastExtractEnd));
+          if (wait > 0) await new Promise(r => setTimeout(r, wait));
+          
+          try {
+            // Support two upload modes:
+            // 1. Multipart form-data (standard browser upload)
+            // 2. Binary body with X-Filename header (simple API upload)
+            let fileBuffer = null;
+            let fileName = 'upload.pdf';
 
-      const contentType = req.headers['content-type'] || '';
-      if (contentType.includes('multipart/form-data')) {
-        const bm = contentType.match(/boundary=([\w\-\.]+)/);
-        if (!bm) { console.log('[extract] no boundary'); return json(res, { error: 'invalid multipart' }, 400); }
-        const parts = parseMultipart(body, bm[1]);
-        console.log('[extract] multipart parts:', parts.length);
-        const fp = parts.find(x => x.name === 'file' && x.body.length > 0);
-        if (!fp) { console.log('[extract] no file part'); return json(res, { error: 'no file' }, 400); }
-        fileBuffer = fp.body;
-        fileName = fp.filename || fileName;
-      } else {
-        // Binary body - the entire body is the PDF file
-        fileBuffer = body;
-        fileName = req.headers['x-filename'] || fileName;
-      }
+            const contentType = req.headers['content-type'] || '';
+            if (contentType.includes('multipart/form-data')) {
+              const bm = contentType.match(/boundary=([\w\-\.]+)/);
+              if (!bm) { console.log('[extract] no boundary'); json(res, { error: 'invalid multipart' }, 400); resolve(); return; }
+              const parts = parseMultipart(body, bm[1]);
+              console.log('[extract] multipart parts:', parts.length);
+              const fp = parts.find(x => x.name === 'file' && x.body.length > 0);
+              if (!fp) { console.log('[extract] no file part'); json(res, { error: 'no file' }, 400); resolve(); return; }
+              fileBuffer = fp.body;
+              fileName = fp.filename || fileName;
+            } else {
+              fileBuffer = body;
+              fileName = req.headers['x-filename'] || fileName;
+            }
 
-      console.log('[extract] file:', fileName, fileBuffer.length, 'bytes');
-      const pd = await pdfParse(fileBuffer);
-      console.log('[extract] pdf parsed, pages:', pd.numpages, 'text:', pd.text.length);
-      let td = null;
-      try {
-        td = await extractTableChildProcess(fileBuffer);
-        if (td) console.log('[extract] table extraction: items:', td.items?.length);
-      } catch(e) {
-        console.log('[extract] table extraction failed:', e.message?.substring(0, 60));
-        td = null;
-      }
-      if (!pd.text || !pd.text.trim()) { console.log('[extract] no text in pdf'); return json(res, { error: 'Sem texto' }, 422); }
-      const ext = extractEnergisaData(pd.text, td);
-      const vals = Object.values(ext), cnt = vals.filter(v => v !== '').length;
-      console.log('[extract] extraction done, fields:', cnt, '/', vals.length);
-      const result = { success: true, data: ext, stats: { extractedCount: cnt, totalFields: vals.length, extractionRate: Math.round(cnt/vals.length*100), pageCount: pd.numpages, tableItems: td?.items?.length ?? 0 } };
-      console.log('[extract] sending response');
-      return json(res, result);
+            console.log('[extract] file:', fileName, fileBuffer.length, 'bytes');
+            const pd = await pdfParse(fileBuffer);
+            console.log('[extract] pdf parsed, pages:', pd.numpages, 'text:', pd.text.length);
+            let td = null;
+            try {
+              td = await extractTableChildProcess(fileBuffer);
+              if (td) console.log('[extract] table extraction: items:', td.items?.length);
+            } catch(e) {
+              console.log('[extract] table extraction failed:', e.message?.substring(0, 60));
+              td = null;
+            }
+            if (!pd.text || !pd.text.trim()) { console.log('[extract] no text in pdf'); json(res, { error: 'Sem texto' }, 422); resolve(); return; }
+            const ext = extractEnergisaData(pd.text, td);
+            const vals = Object.values(ext), cnt = vals.filter(v => v !== '').length;
+            console.log('[extract] extraction done, fields:', cnt, '/', vals.length);
+            const result = { success: true, data: ext, stats: { extractedCount: cnt, totalFields: vals.length, extractionRate: Math.round(cnt/vals.length*100), pageCount: pd.numpages, tableItems: td?.items?.length ?? 0 } };
+            console.log('[extract] sending response');
+            json(res, result);
+          } catch (e) {
+            console.error('[extract] error:', e.message);
+            if (!res.headersSent) json(res, { error: e.message }, 500);
+          }
+          lastExtractEnd = Date.now();
+          resolve();
+        });
+      });
     }
     if (p === '/api/export-excel' && req.method === 'POST') {
       const body = await readBody(req); let parsed;

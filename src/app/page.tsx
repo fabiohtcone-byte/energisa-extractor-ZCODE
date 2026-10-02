@@ -119,49 +119,64 @@ export default function Home() {
 
   /* ── file processing ── */
   const processFiles = useCallback(async (files: FileList | File[]) => {
-    const pdfFiles = Array.from(files).filter((f) => f.type === 'application/pdf');
+    // Accept PDFs by MIME type OR by .pdf extension (some browsers report empty type)
+    const pdfFiles = Array.from(files).filter((f) => f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf'));
     if (pdfFiles.length === 0) { toast.error('Selecione ao menos um arquivo PDF.'); return; }
     setIsProcessing(true);
     const newResults: ExtractionResult[] = [];
     setFileProgress(pdfFiles.map((f) => ({ fileName: f.name, status: 'pending' as const })));
 
-    for (let i = 0; i < pdfFiles.length; i++) {
-      const file = pdfFiles[i];
-      setFileProgress((p) => p.map((x, idx) => idx === i ? { ...x, status: 'processing' as const } : x));
-      try {
-        const fd = new FormData(); fd.append('file', file);
-        const res = await fetch('/api/extract-pdf', { method: 'POST', body: fd });
-        const json = await res.json();
-        if (!res.ok) {
-          setFileProgress((p) => p.map((x, idx) => idx === i ? { ...x, status: 'error' as const, errorMsg: json.error } : x));
-          toast.error(`${file.name}: ${json.error}`);
-        } else {
-          const er: ExtractionResult = { fileName: file.name, data: json.data, stats: json.stats, rawText: json.rawText };
-          newResults.push(er);
-          setFileProgress((p) => p.map((x, idx) => idx === i ? { ...x, status: 'done' as const, result: er } : x));
-          toast.success(`${file.name}: ${json.stats.extractedCount}/${json.stats.totalFields} campos (${json.stats.extractionRate}%)`);
+    try {
+      for (let i = 0; i < pdfFiles.length; i++) {
+        const file = pdfFiles[i];
+        setFileProgress((p) => p.map((x, idx) => idx === i ? { ...x, status: 'processing' as const } : x));
+        try {
+          const fd = new FormData(); fd.append('file', file);
+          // Timeout: abort fetch after 30 seconds to prevent UI from hanging forever
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 30000);
+          let res: Response;
+          try {
+            res = await fetch('/api/extract-pdf', { method: 'POST', body: fd, signal: controller.signal });
+          } finally {
+            clearTimeout(timeoutId);
+          }
+          const json = await res.json();
+          if (!res.ok) {
+            setFileProgress((p) => p.map((x, idx) => idx === i ? { ...x, status: 'error' as const, errorMsg: json.error } : x));
+            toast.error(`${file.name}: ${json.error}`);
+          } else {
+            const er: ExtractionResult = { fileName: file.name, data: json.data, stats: json.stats, rawText: json.rawText };
+            newResults.push(er);
+            setFileProgress((p) => p.map((x, idx) => idx === i ? { ...x, status: 'done' as const, result: er } : x));
+            toast.success(`${file.name}: ${json.stats.extractedCount}/${json.stats.totalFields} campos (${json.stats.extractionRate}%)`);
+          }
+        } catch (err) {
+          const isTimeout = err instanceof DOMException && err.name === 'AbortError';
+          const msg = isTimeout ? 'Tempo esgotado (30s)' : 'Erro ao processar';
+          setFileProgress((p) => p.map((x, idx) => idx === i ? { ...x, status: 'error' as const, errorMsg: msg } : x));
+          toast.error(`${file.name}: ${msg}.`);
         }
-      } catch {
-        setFileProgress((p) => p.map((x, idx) => idx === i ? { ...x, status: 'error' as const, errorMsg: 'Erro ao processar' } : x));
-        toast.error(`${file.name}: Erro ao processar.`);
       }
-    }
 
-    setResults((prev) => {
-      const updated = [...newResults];
-      for (const e of prev) {
-        const uc = e.data.UC.replace(/\D/g, '');
-        if (uc && !updated.some((r) => r.data.UC.replace(/\D/g, '') === uc)) updated.push(e);
-      }
-      for (const n of newResults) {
-        const uc = n.data.UC.replace(/\D/g, '');
-        if (uc && prev.some((r) => r.data.UC.replace(/\D/g, '') === uc)) toast.info(`UC ${n.data.UC} atualizada.`);
-      }
-      return updated;
-    });
-    setIsProcessing(false);
-    setFileProgress([]);
-    if (newResults.length > 0) setActiveTab('results');
+      setResults((prev) => {
+        const updated = [...newResults];
+        for (const e of prev) {
+          const uc = e.data.UC.replace(/\D/g, '');
+          if (uc && !updated.some((r) => r.data.UC.replace(/\D/g, '') === uc)) updated.push(e);
+        }
+        for (const n of newResults) {
+          const uc = n.data.UC.replace(/\D/g, '');
+          if (uc && prev.some((r) => r.data.UC.replace(/\D/g, '') === uc)) toast.info(`UC ${n.data.UC} atualizada.`);
+        }
+        return updated;
+      });
+      if (newResults.length > 0) setActiveTab('results');
+    } finally {
+      // ALWAYS reset processing state, even if something unexpected happens
+      setIsProcessing(false);
+      setFileProgress([]);
+    }
   }, []);
 
   const handleDrop = useCallback((e: React.DragEvent) => { e.preventDefault(); setIsDragging(false); if (e.dataTransfer.files.length > 0) processFiles(e.dataTransfer.files); }, [processFiles]);
@@ -174,13 +189,21 @@ export default function Home() {
   const exportToExcel = useCallback(async () => {
     if (!results.length) { toast.error('Nenhuma fatura.'); return; }
     try {
-      const res = await fetch('/api/export-excel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ invoices: results.map((r) => ({ ...r.data, _fileName: r.fileName })) }) });
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+      let res: Response;
+      try {
+        res = await fetch('/api/export-excel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ invoices: results.map((r) => ({ ...r.data, _fileName: r.fileName })) }), signal: controller.signal });
+      } finally { clearTimeout(timeoutId); }
       if (!res.ok) { toast.error('Erro ao gerar Excel.'); return; }
       const blob = await res.blob(); const url = URL.createObjectURL(blob);
       const a = document.createElement('a'); a.href = url; a.download = 'faturas_energisa.xlsx';
       document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
       toast.success('Excel exportado!');
-    } catch { toast.error('Erro ao exportar.'); }
+    } catch (err) {
+      const isTimeout = err instanceof DOMException && err.name === 'AbortError';
+      toast.error(isTimeout ? 'Tempo esgotado ao exportar.' : 'Erro ao exportar.');
+    }
   }, [results]);
 
   /* ═══════════════════════════════════════════════
