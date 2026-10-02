@@ -175,3 +175,24 @@ Stage Summary:
 - HTML pages no longer cached immutably — browser will always fetch fresh HTML
 - Server restarted with correct cache headers
 - Grupo B extraction verified working for all test PDFs
+
+---
+Task ID: 5
+Agent: Main Agent
+Task: Corrigir extração de Consumo e Demanda para faturas Elektro/Energisa Grupo A Horária Verde
+
+Work Log:
+- Identificou bug: findNumNearLine pegava preço unitário (0,61) ao invés do consumo em kWh para tarifas Verde/Azul
+- Reescreveu lógica de consumo para tarifas split: Strategy 1 (KWH+value) → Strategy 2 (compressed data) → Strategy 3 (findNumNearLine com validação >= 10 kWh)
+- Melhorou parsing de dados comprimidos: heurística de prefix tenta do maior (3) ao menor (0), com validação de razão ForaPonta/Ponta (0.1-20)
+- Adicionou suporte a "Demanda Todos os Período" para Horária Verde: valor único atribuído a ambas DemandaContratadaPonta e DemandaContratadaForaPonta
+- Para tarifa Verde: se só uma demanda encontrada, atribui a ambas (Ponta e Fora Ponta) pois na Horária Verde a demanda é igual para todos os períodos
+- Adicionou lógica similar para DemandaMedida, DemandaFaturada e ValorDemanda na tarifa Verde
+- Recompilou CJS e testou: Verde PDFs corretos, AZUL sem regressão, Convencional sem regressão
+- Reiniciou servidor e testou via API: valores corretos retornados
+
+Stage Summary:
+- 8092005187.PDF (VERDE A4): ConsumoPonta=1.198,96, ConsumoForaPonta=10.900,10, DemandaContratadaPonta=61, DemandaContratadaForaPonta=61 (era 0,61 / 0,61 / vazio / 61)
+- 33836.PDF (VERDE A4): ConsumoPonta=2.281,28, ConsumoForaPonta=27.674,02, DemandaContratadaPonta=69, DemandaContratadaForaPonta=69 (era 826,44 / 826,44 / vazio / 69)
+- "Demanda Todos os Período" agora suportado para Elektro/Energisa Horária Verde
+- Zero regressões em PDFs AZUL e Convencional
