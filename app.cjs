@@ -139,7 +139,7 @@ const srv = http.createServer(async (req, res) => {
 
       const contentType = req.headers['content-type'] || '';
       if (contentType.includes('multipart/form-data')) {
-        const bm = contentType.match(/boundary=([\w\-]+)/);
+        const bm = contentType.match(/boundary=([\w\-\.]+)/);
         if (!bm) { console.log('[extract] no boundary'); return json(res, { error: 'invalid multipart' }, 400); }
         const parts = parseMultipart(body, bm[1]);
         console.log('[extract] multipart parts:', parts.length);

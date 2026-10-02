@@ -504,9 +504,9 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
   // ===== MODALIDADE TARIFÁRIA =====
   const ModalidadeTarifaria = (() => {
     if (/CONVENCIONAL/i.test(flat)) return 'CONVENCIONAL';
-    if (/AZUL/i.test(flat) && /HOR[ÁA]RIO/i.test(flat)) return 'HORÁRIO AZUL';
+    if (/AZUL/i.test(flat) && /HOR[ÁA]RI[OA]/i.test(flat)) return 'HORÁRIO AZUL';
     if (/AZUL/i.test(flat)) return 'AZUL';
-    if (/VERDE/i.test(flat) && /HOR[ÁA]RIO/i.test(flat)) return 'HORÁRIO VERDE';
+    if (/VERDE/i.test(flat) && /HOR[ÁA]RI[OA]/i.test(flat)) return 'HORÁRIO VERDE';
     if (/VERDE/i.test(flat)) return 'VERDE';
     return EMPTY;
   })();
@@ -690,6 +690,26 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
       if (fpIdx >= 0) {
         const val = findNumNearLine(lines, fpIdx, 1, 8, false);
         if (val && parseBR(val) >= 10) ConsumoForaPonta = val;
+      }
+    }
+    // Strategy 3a: Label and value on the SAME LINE (e.g., "Consumo em kWh - Ponta KWH 1.346 0,61 822,70")
+    // pdf-parse or table layout may merge the label and values into one line.
+    // Look for the consumption kWh value right after "KWH" on the same line as the label.
+    if (!ConsumoPonta) {
+      for (const line of lines) {
+        if (/Consumo\s+em\s+kWh.*Ponta/i.test(line) && !/Fora/i.test(line)) {
+          // Try KWH followed by integer (e.g., "KWH 1.346" or "KWH1.346")
+          const m = line.match(/KWH\s*(\d{1,2}(?:\.\d{3})+|\d{3,6})/i);
+          if (m && parseBR(m[1]) >= 10) { ConsumoPonta = m[1]; break; }
+        }
+      }
+    }
+    if (!ConsumoForaPonta) {
+      for (const line of lines) {
+        if (/Consumo\s+em\s+kWh.*Fora\s*Ponta/i.test(line)) {
+          const m = line.match(/KWH\s*(\d{1,2}(?:\.\d{3})+|\d{3,6})/i);
+          if (m && parseBR(m[1]) >= 10) { ConsumoForaPonta = m[1]; break; }
+        }
       }
     }
     // Strategy 3b: findIntNearLine — for consumption displayed as integers (e.g., "1.346" or "12.929")
@@ -1127,25 +1147,33 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
       }
     }
 
-    // Strategy 4d: "Demanda Todos" with value on next line
+    // Strategy 4d: "Demanda Todos" with value on same line or next line
     if (!DemandaContratadaPonta && !DemandaContratadaForaPonta) {
       const todosLineIdx = lines.findIndex(l => /Demanda\s+Todos/i.test(l) && /Per[ií]odo/i.test(l));
       if (todosLineIdx >= 0) {
-        // Check same line first
-        const sameLine = lines[todosLineIdx].match(/(\d+(?:[.,]\d+)?)\s*$/);
-        if (sameLine) {
-          const val = sameLine[1].replace('.', ',');
+        // Check same line first: "Demanda Todos os Período - kW 37" pattern
+        const sameLineWithKw = lines[todosLineIdx].match(/-\s*kW\s+(\d+(?:[.,]\d+)?)/i);
+        if (sameLineWithKw) {
+          const val = sameLineWithKw[1].replace('.', ',');
           DemandaContratadaPonta = val;
           DemandaContratadaForaPonta = val;
         } else {
-          // Check next line
-          for (let i = todosLineIdx + 1; i < Math.min(todosLineIdx + 4, lines.length); i++) {
-            const m = lines[i].match(/^(\d+(?:[.,]\d+)?)$/);
-            if (m) {
-              const val = m[1].replace('.', ',');
-              DemandaContratadaPonta = val;
-              DemandaContratadaForaPonta = val;
-              break;
+          // Check for number at end of line (when line doesn't end with "- kW")
+          const sameLineNum = lines[todosLineIdx].match(/(\d+(?:[.,]\d+)?)\s*$/);
+          if (sameLineNum && !/-\s*kW\s*$/i.test(lines[todosLineIdx])) {
+            const val = sameLineNum[1].replace('.', ',');
+            DemandaContratadaPonta = val;
+            DemandaContratadaForaPonta = val;
+          } else {
+            // Check next line(s) for standalone number
+            for (let i = todosLineIdx + 1; i < Math.min(todosLineIdx + 4, lines.length); i++) {
+              const m = lines[i].match(/^(\d+(?:[.,]\d+)?)$/);
+              if (m) {
+                const val = m[1].replace('.', ',');
+                DemandaContratadaPonta = val;
+                DemandaContratadaForaPonta = val;
+                break;
+              }
             }
           }
         }

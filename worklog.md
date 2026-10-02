@@ -196,3 +196,29 @@ Stage Summary:
 - 33836.PDF (VERDE A4): ConsumoPonta=2.281,28, ConsumoForaPonta=27.674,02, DemandaContratadaPonta=69, DemandaContratadaForaPonta=69 (era 826,44 / 826,44 / vazio / 69)
 - "Demanda Todos os Período" agora suportado para Elektro/Energisa Horária Verde
 - Zero regressões em PDFs AZUL e Convencional
+
+---
+Task ID: 1
+Agent: main
+Task: Fix Elektro Group A HORÁRIA VERDE extraction - values not being extracted
+
+Work Log:
+- Explored project structure and identified extraction pipeline: app.cjs → dist/energisa-extractor.cjs → extractEnergisaData()
+- Found root cause #1: ModalidadeTarifaria regex `HOR[ÁA]RIO` didn't match Portuguese feminine form "HORÁRIA" (only matched "HORÁRIO")
+- Found root cause #2: Text-based consumption extraction failed when labels and values were on the same line (e.g., "Consumo em kWh - Ponta KWH 1.346")
+- Found root cause #3: Demanda Todos os Período extraction could miss value when "- kW" suffix was present on same line
+- Fixed regex: `HOR[ÁA]RIO` → `HOR[ÁA]RI[OA]` to match both HORÁRIO and HORÁRIA
+- Added Strategy 3a: Extract consumption values from same line when label contains "KWH" followed by number
+- Improved Strategy 4d: Better handling of "Demanda Todos os Período - kW 37" pattern
+- Fixed corrupted known-ucs.ts file (had stray text appended)
+- Rebuilt dist/energisa-extractor.cjs and Next.js app
+- Restarted production server
+- Verified: ConsumoPonta=1.346, ConsumoForaPonta=12.929, Demanda=37, ModalidadeTarifaria=HORÁRIO VERDE
+- All existing Energisa PDFs still work correctly
+
+Stage Summary:
+- Fixed 3 extraction bugs for Elektro Group A HORÁRIA VERDE tariff
+- ModalidadeTarifaria now correctly detected as "HORÁRIO VERDE" (was "VERDE")
+- Consumption values now extracted in text-only mode (was empty without table data)
+- Demanda Todos os Período now extracted from more format variations
+- Server restarted with updated extraction code

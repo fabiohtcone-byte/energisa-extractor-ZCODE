@@ -7052,5 +7052,6 @@ const knownUCs = new Set([
 18357,
 18356,
 18355,
-18354,
-18353,e you sure this is a UC number? No, it's not. These are sequential numbers from 18353 to 249354. This is definitely not a UC list - the text file contains sequential invoice page numbers or line numbers, not UC numbers. The file is just a list of sequential numbers from the invoice, not UCs. Let me re-read the original text more carefully. The text starts with 
+]);
+
+export default knownUCs;

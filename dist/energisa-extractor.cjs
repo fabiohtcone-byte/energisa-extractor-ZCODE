@@ -358,9 +358,9 @@ function extractEnergisaData(rawText, tableExtraction) {
   })();
   const ModalidadeTarifaria = (() => {
     if (/CONVENCIONAL/i.test(flat)) return "CONVENCIONAL";
-    if (/AZUL/i.test(flat) && /HOR[ÁA]RIO/i.test(flat)) return "HOR\xC1RIO AZUL";
+    if (/AZUL/i.test(flat) && /HOR[ÁA]RI[OA]/i.test(flat)) return "HOR\xC1RIO AZUL";
     if (/AZUL/i.test(flat)) return "AZUL";
-    if (/VERDE/i.test(flat) && /HOR[ÁA]RIO/i.test(flat)) return "HOR\xC1RIO VERDE";
+    if (/VERDE/i.test(flat) && /HOR[ÁA]RI[OA]/i.test(flat)) return "HOR\xC1RIO VERDE";
     if (/VERDE/i.test(flat)) return "VERDE";
     return EMPTY;
   })();
@@ -512,6 +512,28 @@ function extractEnergisaData(rawText, tableExtraction) {
       if (fpIdx >= 0) {
         const val = findNumNearLine(lines, fpIdx, 1, 8, false);
         if (val && parseBR(val) >= 10) ConsumoForaPonta = val;
+      }
+    }
+    if (!ConsumoPonta) {
+      for (const line of lines) {
+        if (/Consumo\s+em\s+kWh.*Ponta/i.test(line) && !/Fora/i.test(line)) {
+          const m = line.match(/KWH\s*(\d{1,2}(?:\.\d{3})+|\d{3,6})/i);
+          if (m && parseBR(m[1]) >= 10) {
+            ConsumoPonta = m[1];
+            break;
+          }
+        }
+      }
+    }
+    if (!ConsumoForaPonta) {
+      for (const line of lines) {
+        if (/Consumo\s+em\s+kWh.*Fora\s*Ponta/i.test(line)) {
+          const m = line.match(/KWH\s*(\d{1,2}(?:\.\d{3})+|\d{3,6})/i);
+          if (m && parseBR(m[1]) >= 10) {
+            ConsumoForaPonta = m[1];
+            break;
+          }
+        }
       }
     }
     if (!ConsumoPonta) {
@@ -838,19 +860,26 @@ function extractEnergisaData(rawText, tableExtraction) {
     if (!DemandaContratadaPonta && !DemandaContratadaForaPonta) {
       const todosLineIdx = lines.findIndex((l) => /Demanda\s+Todos/i.test(l) && /Per[ií]odo/i.test(l));
       if (todosLineIdx >= 0) {
-        const sameLine = lines[todosLineIdx].match(/(\d+(?:[.,]\d+)?)\s*$/);
-        if (sameLine) {
-          const val = sameLine[1].replace(".", ",");
+        const sameLineWithKw = lines[todosLineIdx].match(/-\s*kW\s+(\d+(?:[.,]\d+)?)/i);
+        if (sameLineWithKw) {
+          const val = sameLineWithKw[1].replace(".", ",");
           DemandaContratadaPonta = val;
           DemandaContratadaForaPonta = val;
         } else {
-          for (let i = todosLineIdx + 1; i < Math.min(todosLineIdx + 4, lines.length); i++) {
-            const m = lines[i].match(/^(\d+(?:[.,]\d+)?)$/);
-            if (m) {
-              const val = m[1].replace(".", ",");
-              DemandaContratadaPonta = val;
-              DemandaContratadaForaPonta = val;
-              break;
+          const sameLineNum = lines[todosLineIdx].match(/(\d+(?:[.,]\d+)?)\s*$/);
+          if (sameLineNum && !/-\s*kW\s*$/i.test(lines[todosLineIdx])) {
+            const val = sameLineNum[1].replace(".", ",");
+            DemandaContratadaPonta = val;
+            DemandaContratadaForaPonta = val;
+          } else {
+            for (let i = todosLineIdx + 1; i < Math.min(todosLineIdx + 4, lines.length); i++) {
+              const m = lines[i].match(/^(\d+(?:[.,]\d+)?)$/);
+              if (m) {
+                const val = m[1].replace(".", ",");
+                DemandaContratadaPonta = val;
+                DemandaContratadaForaPonta = val;
+                break;
+              }
             }
           }
         }
