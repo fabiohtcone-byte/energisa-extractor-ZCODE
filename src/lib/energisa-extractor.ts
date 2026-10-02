@@ -37,6 +37,7 @@ export interface EnergisaInvoiceData {
   ConsumoTotal: string;
   ConsumoGrupoB_kWh: string;
   ConsumoGrupoB_Valor: string;
+  DemandaContratada: string;
   DemandaContratadaPonta: string;
   DemandaContratadaForaPonta: string;
   DemandaMedidaPonta: string;
@@ -785,6 +786,51 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
     ValorConsumoPonta = findRValueNearLine(lines, flat, /Consumo\s+em\s+kWh.*Ponta(?!.*Fora)(?!.*Intermedi)/i);
     ValorConsumoIntermediaria = findRValueNearLine(lines, flat, /Consumo\s+em\s+kWh.*Intermedi[áa]ria/i);
     ValorConsumoForaPonta = findRValueNearLine(lines, flat, /Consumo\s+em\s+kWh.*Fora\s*Ponta/i);
+
+    // Strategy 4: "CONSUMO PONTA TE" / "CONSUMO FORA PONTA TE" columnar format
+    // Some PDFs (e.g., SANESUL/Elektro) show consumption in a columnar layout:
+    //   "CONSUMO PONTA TE"     "1.509"
+    //   "CONSUMO PONTA TUSD"   "1.509"
+    //   "CONSUMO FORA PONTA TE"  "10.024"
+    //   "CONSUMO FORA PONTA TUSD" "10.024"
+    // Labels and values are on separate lines. The values appear as integers
+    // (1.509 = 1509 kWh in BR format, or 1.509 with dot as thousands sep).
+    if (!ConsumoPonta || !ConsumoForaPonta) {
+      const cpTeIdx = lines.findIndex(l => /^CONSUMO\s+PONTA\s+(TE|TUSD)$/i.test(l));
+      const cfpTeIdx = lines.findIndex(l => /^CONSUMO\s+FORA\s+PONTA\s+(TE|TUSD)$/i.test(l));
+      if (cpTeIdx >= 0 || cfpTeIdx >= 0) {
+        // Find the first label line and look for numeric values after all labels
+        const firstLabelIdx = Math.min(
+          cpTeIdx >= 0 ? cpTeIdx : Infinity,
+          cfpTeIdx >= 0 ? cfpTeIdx : Infinity
+        );
+        // Collect numeric values after the labels (skip unit labels like "kWh", "kW")
+        const consumptionValues: string[] = [];
+        for (let i = firstLabelIdx + 1; i < Math.min(firstLabelIdx + 30, lines.length); i++) {
+          if (/^(kWh|kW)$/i.test(lines[i])) continue;
+          // Match BR integer with dot thousands separator (e.g., "1.509", "10.024") or plain integer
+          const m = lines[i].match(/^(\d{1,2}(?:\.\d{3})+|\d{3,6})$/);
+          if (m && parseBR(m[1]) >= 1) {
+            consumptionValues.push(m[1]);
+            if (consumptionValues.length >= 4) break; // TE+TUSD for Ponta + TE+TUSD for Fora Ponta
+          }
+        }
+        // Deduplicate consecutive identical values (TE and TUSD have same consumption)
+        const uniqueValues: string[] = [];
+        for (const v of consumptionValues) {
+          if (uniqueValues.length === 0 || v !== uniqueValues[uniqueValues.length - 1]) {
+            uniqueValues.push(v);
+          }
+        }
+        if (uniqueValues.length >= 2) {
+          if (!ConsumoPonta) ConsumoPonta = uniqueValues[0];
+          if (!ConsumoForaPonta) ConsumoForaPonta = uniqueValues[1];
+        } else if (uniqueValues.length === 1) {
+          // Only one unique value — might be Ponta only (Fora Ponta may be 0 or not shown)
+          if (!ConsumoPonta) ConsumoPonta = uniqueValues[0];
+        }
+      }
+    }
   } else {
     for (const line of lines) {
       // Only match "KWH" + space + number (e.g., "KWH 2829")
@@ -1014,6 +1060,7 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
   }
 
   // ===== DEMANDA (text-based, will be overridden by table data if available) =====
+  let DemandaContratada = EMPTY;
   let DemandaContratadaPonta = EMPTY;
   let DemandaContratadaForaPonta = EMPTY;
   let DemandaMedidaPonta = EMPTY;
@@ -1107,16 +1154,28 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
       }
     }
 
-    // ===== DEMANDA TODOS OS PERÍODO (Horária Verde) =====
+    // ===== DEMANDA TODOS OS PERÍODOS (Horária Verde / Sem separação Ponta/Fora) =====
     // For Grupo A Horária Verde, the demand is the SAME for all periods.
-    // The invoice may show "Demanda Todos os Período - kW <value>" or
-    // just a single value between "Demanda ponta - kW" and "Demanda fora ponta - kW"
-    // In this case, both DemandaContratadaPonta and DemandaContratadaForaPonta = same value.
-    if (!DemandaContratadaPonta || !DemandaContratadaForaPonta) {
-      // Strategy 4a: "Demanda Todos os Período" explicit label
-      const todosMatch = flat.match(/Demanda\s+Todos\s+(?:os\s+)?Per[ií]odo\s*-\s*kW\s+(\d+(?:[.,]\d+)?)/i);
+    // The invoice may show:
+    //   "Demanda Todos os Períodos:30 kW"  (colon separator, common in Energisa)
+    //   "Demanda Todos os Período - kW <value>"
+    // When found, set DemandaContratada (single field) AND copy to both Ponta/ForaPonta.
+    if (!DemandaContratada) {
+      // Strategy 4a: "Demanda Todos os Períodos:<value> kW" (colon format)
+      const todosColonMatch = flat.match(/Demanda\s+Todos\s+(?:os\s+)?Per[ií]odos?\s*:\s*(\d+(?:[.,]\d+)?)\s*kW/i);
+      if (todosColonMatch) {
+        const val = todosColonMatch[1].replace('.', ',');
+        DemandaContratada = val;
+        if (!DemandaContratadaPonta) DemandaContratadaPonta = val;
+        if (!DemandaContratadaForaPonta) DemandaContratadaForaPonta = val;
+      }
+    }
+    if (!DemandaContratada) {
+      // Strategy 4a2: "Demanda Todos os Período - kW <value>" (dash format)
+      const todosMatch = flat.match(/Demanda\s+Todos\s+(?:os\s+)?Per[ií]odos?\s*-\s*kW\s+(\d+(?:[.,]\d+)?)/i);
       if (todosMatch) {
         const val = todosMatch[1].replace('.', ',');
+        DemandaContratada = val;
         if (!DemandaContratadaPonta) DemandaContratadaPonta = val;
         if (!DemandaContratadaForaPonta) DemandaContratadaForaPonta = val;
       }
@@ -1130,6 +1189,10 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
         DemandaContratadaPonta = DemandaContratadaForaPonta;
       } else if (DemandaContratadaPonta && !DemandaContratadaForaPonta) {
         DemandaContratadaForaPonta = DemandaContratadaPonta;
+      }
+      // If both Ponta and ForaPonta are set but DemandaContratada isn't, derive it
+      if (!DemandaContratada && DemandaContratadaPonta && DemandaContratadaPonta === DemandaContratadaForaPonta) {
+        DemandaContratada = DemandaContratadaPonta;
       }
     }
 
@@ -1155,31 +1218,43 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
     }
 
     // Strategy 4d: "Demanda Todos" with value on same line or next line
-    if (!DemandaContratadaPonta && !DemandaContratadaForaPonta) {
+    if (!DemandaContratada && !DemandaContratadaPonta && !DemandaContratadaForaPonta) {
       const todosLineIdx = lines.findIndex(l => /Demanda\s+Todos/i.test(l) && /Per[ií]odo/i.test(l));
       if (todosLineIdx >= 0) {
         // Check same line first: "Demanda Todos os Período - kW 37" pattern
         const sameLineWithKw = lines[todosLineIdx].match(/-\s*kW\s+(\d+(?:[.,]\d+)?)/i);
         if (sameLineWithKw) {
           const val = sameLineWithKw[1].replace('.', ',');
+          DemandaContratada = val;
           DemandaContratadaPonta = val;
           DemandaContratadaForaPonta = val;
         } else {
-          // Check for number at end of line (when line doesn't end with "- kW")
-          const sameLineNum = lines[todosLineIdx].match(/(\d+(?:[.,]\d+)?)\s*$/);
-          if (sameLineNum && !/-\s*kW\s*$/i.test(lines[todosLineIdx])) {
-            const val = sameLineNum[1].replace('.', ',');
+          // Check for "Demanda Todos os Períodos:<value> kW" pattern (colon)
+          const sameLineColon = lines[todosLineIdx].match(/:\s*(\d+(?:[.,]\d+)?)\s*kW/i);
+          if (sameLineColon) {
+            const val = sameLineColon[1].replace('.', ',');
+            DemandaContratada = val;
             DemandaContratadaPonta = val;
             DemandaContratadaForaPonta = val;
           } else {
-            // Check next line(s) for standalone number
-            for (let i = todosLineIdx + 1; i < Math.min(todosLineIdx + 4, lines.length); i++) {
-              const m = lines[i].match(/^(\d+(?:[.,]\d+)?)$/);
-              if (m) {
-                const val = m[1].replace('.', ',');
-                DemandaContratadaPonta = val;
-                DemandaContratadaForaPonta = val;
-                break;
+            // Check for number at end of line (when line doesn't end with "- kW")
+            const sameLineNum = lines[todosLineIdx].match(/(\d+(?:[.,]\d+)?)\s*$/);
+            if (sameLineNum && !/-\s*kW\s*$/i.test(lines[todosLineIdx])) {
+              const val = sameLineNum[1].replace('.', ',');
+              DemandaContratada = val;
+              DemandaContratadaPonta = val;
+              DemandaContratadaForaPonta = val;
+            } else {
+              // Check next line(s) for standalone number
+              for (let i = todosLineIdx + 1; i < Math.min(todosLineIdx + 4, lines.length); i++) {
+                const m = lines[i].match(/^(\d+(?:[.,]\d+)?)$/);
+                if (m) {
+                  const val = m[1].replace('.', ',');
+                  DemandaContratada = val;
+                  DemandaContratadaPonta = val;
+                  DemandaContratadaForaPonta = val;
+                  break;
+                }
               }
             }
           }
@@ -1189,10 +1264,11 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
 
     // Strategy 4e: Value prefixed before "Demanda Todos os Período" on the same line
     // pdf-parse sometimes merges columns, producing: "37Demanda Todos os Período - kW"
-    if (!DemandaContratadaPonta && !DemandaContratadaForaPonta) {
+    if (!DemandaContratada && !DemandaContratadaPonta && !DemandaContratadaForaPonta) {
       const preValMatch = flat.match(/(\d+(?:[.,]\d+)?)\s*Demanda\s+Todos\s+(?:os\s+)?Per[ií]odo/i);
       if (preValMatch) {
         const val = preValMatch[1].replace('.', ',');
+        DemandaContratada = val;
         DemandaContratadaPonta = val;
         DemandaContratadaForaPonta = val;
       }
@@ -1200,7 +1276,7 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
 
     // Strategy 4f: "Grandezas Contratadas" section with "Demanda" and a single value
     // For Elektro Horária Verde: "Grandezas Contratadas" → "Demanda Todos os Período - kW 37"
-    if (!DemandaContratadaPonta && !DemandaContratadaForaPonta) {
+    if (!DemandaContratada && !DemandaContratadaPonta && !DemandaContratadaForaPonta) {
       const grandIdx = lines.findIndex(l => /Grandezas\s+Contratadas/i.test(l));
       if (grandIdx >= 0) {
         for (let i = grandIdx + 1; i < Math.min(grandIdx + 8, lines.length); i++) {
@@ -1208,6 +1284,16 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
           const m = lines[i].match(/Demanda\s+Todos\s+(?:os\s+)?Per[ií]odo\s*-\s*kW\s+(\d+(?:[.,]\d+)?)/i);
           if (m) {
             const val = m[1].replace('.', ',');
+            DemandaContratada = val;
+            DemandaContratadaPonta = val;
+            DemandaContratadaForaPonta = val;
+            break;
+          }
+          // Match "Demanda Todos os Períodos:30 kW" (colon format)
+          const mColon = lines[i].match(/Demanda\s+Todos\s+(?:os\s+)?Per[ií]odos?\s*:\s*(\d+(?:[.,]\d+)?)\s*kW/i);
+          if (mColon) {
+            const val = mColon[1].replace('.', ',');
+            DemandaContratada = val;
             DemandaContratadaPonta = val;
             DemandaContratadaForaPonta = val;
             break;
@@ -1217,6 +1303,7 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
             const numM = lines[i].match(/(\d+(?:[.,]\d+)?)\s*$/);
             if (numM) {
               const val = numM[1].replace('.', ',');
+              DemandaContratada = val;
               DemandaContratadaPonta = val;
               DemandaContratadaForaPonta = val;
               break;
@@ -1584,6 +1671,7 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
       // Demanda Todos os Período (Horária Verde) — same demand for Ponta and Fora Ponta
       else if (/Demanda\s+Todos/i.test(lbl) && /Per[ií]odo/i.test(lbl)) {
         if (item.quantidade) {
+          if (!DemandaContratada) DemandaContratada = item.quantidade;
           if (!DemandaContratadaPonta) DemandaContratadaPonta = item.quantidade;
           if (!DemandaContratadaForaPonta) DemandaContratadaForaPonta = item.quantidade;
         }
@@ -1733,7 +1821,7 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
     MesReferencia, AnoLeitura, Vencimento, NotaFiscal,
     ModalidadeTarifaria, Subgrupo,
     ConsumoPonta, ConsumoIntermediaria, ConsumoForaPonta, ConsumoTotal, ConsumoGrupoB_kWh, ConsumoGrupoB_Valor,
-    DemandaContratadaPonta, DemandaContratadaForaPonta,
+    DemandaContratada, DemandaContratadaPonta, DemandaContratadaForaPonta,
     DemandaMedidaPonta, DemandaMedidaForaPonta,
     DemandaFaturadaPonta, DemandaFaturadaForaPonta,
     UltrapassagemPonta, UltrapassagemForaPonta,
@@ -1914,6 +2002,7 @@ export const FIELD_LABELS: Record<keyof EnergisaInvoiceData, string> = {
   ConsumoTotal: 'Consumo Total (kWh)',
   ConsumoGrupoB_kWh: 'Consumo em kWh (Grupo B)',
   ConsumoGrupoB_Valor: 'Consumo (R$) (Grupo B)',
+  DemandaContratada: 'Demanda Contratada (kW)',
   DemandaContratadaPonta: 'Demanda Contratada Ponta (kW)',
   DemandaContratadaForaPonta: 'Demanda Contratada Fora Ponta (kW)',
   DemandaMedidaPonta: 'Demanda Medida Ponta (kW)',
@@ -1956,7 +2045,7 @@ export const FIELD_CATEGORIES: { category: string; fields: (keyof EnergisaInvoic
   { category: 'Datas e Documentos', fields: ['MesReferencia', 'AnoLeitura', 'Vencimento', 'NotaFiscal'] },
   { category: 'Tarifa', fields: ['ModalidadeTarifaria', 'Subgrupo'] },
   { category: 'Consumo (kWh)', fields: ['ConsumoPonta', 'ConsumoIntermediaria', 'ConsumoForaPonta', 'ConsumoTotal', 'ConsumoGrupoB_kWh'] },
-  { category: 'Demanda Contratada (kW)', fields: ['DemandaContratadaPonta', 'DemandaContratadaForaPonta'] },
+  { category: 'Demanda Contratada (kW)', fields: ['DemandaContratada', 'DemandaContratadaPonta', 'DemandaContratadaForaPonta'] },
   { category: 'Demanda Medida (kW)', fields: ['DemandaMedidaPonta', 'DemandaMedidaForaPonta'] },
   { category: 'Demanda Faturada (kW)', fields: ['DemandaFaturadaPonta', 'DemandaFaturadaForaPonta'] },
   { category: 'Ultrapassagem (kW)', fields: ['UltrapassagemPonta', 'UltrapassagemForaPonta'] },

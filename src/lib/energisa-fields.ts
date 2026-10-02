@@ -40,6 +40,7 @@ export interface EnergisaInvoiceData {
   ConsumoTotal: string;
   ConsumoGrupoB_kWh: string;
   ConsumoGrupoB_Valor: string;
+  DemandaContratada: string;
   DemandaContratadaPonta: string;
   DemandaContratadaForaPonta: string;
   DemandaMedidaPonta: string;
@@ -96,6 +97,7 @@ export const FIELD_LABELS: Record<keyof EnergisaInvoiceData, string> = {
   ConsumoTotal: 'Consumo Total (kWh)',
   ConsumoGrupoB_kWh: 'Consumo em kWh (Grupo B)',
   ConsumoGrupoB_Valor: 'Consumo (R$) (Grupo B)',
+  DemandaContratada: 'Demanda Contratada (kW)',
   DemandaContratadaPonta: 'Demanda Contratada Ponta (kW)',
   DemandaContratadaForaPonta: 'Demanda Contratada Fora Ponta (kW)',
   DemandaMedidaPonta: 'Demanda Medida Ponta (kW)',
@@ -138,7 +140,7 @@ export const FIELD_CATEGORIES: { category: string; fields: (keyof EnergisaInvoic
   { category: 'Datas e Documentos', fields: ['MesReferencia', 'AnoLeitura', 'Vencimento', 'NotaFiscal'] },
   { category: 'Tarifa', fields: ['ModalidadeTarifaria', 'Subgrupo'] },
   { category: 'Consumo (kWh)', fields: ['ConsumoPonta', 'ConsumoIntermediaria', 'ConsumoForaPonta', 'ConsumoTotal', 'ConsumoGrupoB_kWh'] },
-  { category: 'Demanda Contratada (kW)', fields: ['DemandaContratadaPonta', 'DemandaContratadaForaPonta'] },
+  { category: 'Demanda Contratada (kW)', fields: ['DemandaContratada', 'DemandaContratadaPonta', 'DemandaContratadaForaPonta'] },
   { category: 'Demanda Medida (kW)', fields: ['DemandaMedidaPonta', 'DemandaMedidaForaPonta'] },
   { category: 'Demanda Faturada (kW)', fields: ['DemandaFaturadaPonta', 'DemandaFaturadaForaPonta'] },
   { category: 'Ultrapassagem (kW)', fields: ['UltrapassagemPonta', 'UltrapassagemForaPonta'] },
