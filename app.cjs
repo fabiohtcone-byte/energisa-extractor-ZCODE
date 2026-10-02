@@ -127,15 +127,23 @@ let extractQueue = Promise.resolve();
 let lastExtractEnd = 0;
 const MIN_EXTRACT_INTERVAL = 2000; // 2s minimum between extractions for stability
 
+// File-based logging for debugging
+const logFile = path.join(ROOT, 'extract-debug.log');
+function log(msg) {
+  const line = new Date().toISOString() + ' ' + msg + '\n';
+  console.log(msg);
+  try { fs.appendFileSync(logFile, line); } catch(e) {}
+}
+
 const srv = http.createServer(async (req, res) => {
   lastReq = Date.now();
   const p = new URL(req.url, 'http://x').pathname;
   try {
     if (p === '/api/health') return json(res, { status: 'ok', uptime: process.uptime(), pid: process.pid, memory: Math.round(process.memoryUsage().rss / 1024 / 1024) + 'MB' });
     if (p === '/api/extract-pdf' && req.method === 'POST') {
-      console.log('[extract] request started, content-type:', req.headers['content-type']?.substring(0, 80));
+      log('[extract] request started, content-type:' + (req.headers['content-type'] || '').substring(0, 80));
       const body = await readBody(req);
-      console.log('[extract] body received:', body.length, 'bytes');
+      log('[extract] body received: ' + body.length + ' bytes');
 
       // Queue extraction (one at a time, with minimum interval for stability)
       return new Promise((resolve) => {
@@ -154,11 +162,12 @@ const srv = http.createServer(async (req, res) => {
             const contentType = req.headers['content-type'] || '';
             if (contentType.includes('multipart/form-data')) {
               const bm = contentType.match(/boundary=([\w\-\.]+)/);
-              if (!bm) { console.log('[extract] no boundary'); json(res, { error: 'invalid multipart' }, 400); resolve(); return; }
+              if (!bm) { log('[extract] no boundary'); json(res, { error: 'invalid multipart' }, 400); resolve(); return; }
               const parts = parseMultipart(body, bm[1]);
-              console.log('[extract] multipart parts:', parts.length);
+              log('[extract] multipart parts: ' + parts.length);
+              for (const pt of parts) log('[extract] part: name=' + pt.name + ' filename=' + pt.filename + ' bodyLen=' + pt.body.length);
               const fp = parts.find(x => x.name === 'file' && x.body.length > 0);
-              if (!fp) { console.log('[extract] no file part'); json(res, { error: 'no file' }, 400); resolve(); return; }
+              if (!fp) { log('[extract] no file part'); json(res, { error: 'no file' }, 400); resolve(); return; }
               fileBuffer = fp.body;
               fileName = fp.filename || fileName;
             } else {
@@ -166,26 +175,26 @@ const srv = http.createServer(async (req, res) => {
               fileName = req.headers['x-filename'] || fileName;
             }
 
-            console.log('[extract] file:', fileName, fileBuffer.length, 'bytes');
+            log('[extract] file: ' + fileName + ' ' + fileBuffer.length + ' bytes');
             const pd = await pdfParse(fileBuffer);
-            console.log('[extract] pdf parsed, pages:', pd.numpages, 'text:', pd.text.length);
+            log('[extract] pdf parsed, pages: ' + pd.numpages + ' text: ' + pd.text.length);
             let td = null;
             try {
               td = await extractTableChildProcess(fileBuffer);
-              if (td) console.log('[extract] table extraction: items:', td.items?.length);
+              if (td) log('[extract] table extraction: items: ' + (td.items?.length || 0));
             } catch(e) {
-              console.log('[extract] table extraction failed:', e.message?.substring(0, 60));
+              log('[extract] table extraction failed: ' + (e.message || '').substring(0, 60));
               td = null;
             }
-            if (!pd.text || !pd.text.trim()) { console.log('[extract] no text in pdf'); json(res, { error: 'Sem texto' }, 422); resolve(); return; }
+            if (!pd.text || !pd.text.trim()) { log('[extract] no text in pdf'); json(res, { error: 'Sem texto' }, 422); resolve(); return; }
             const ext = extractEnergisaData(pd.text, td);
             const vals = Object.values(ext), cnt = vals.filter(v => v !== '').length;
-            console.log('[extract] extraction done, fields:', cnt, '/', vals.length);
+            log('[extract] extraction done, fields: ' + cnt + ' / ' + vals.length);
             const result = { success: true, data: ext, stats: { extractedCount: cnt, totalFields: vals.length, extractionRate: Math.round(cnt/vals.length*100), pageCount: pd.numpages, tableItems: td?.items?.length ?? 0 } };
-            console.log('[extract] sending response');
+            log('[extract] sending response');
             json(res, result);
           } catch (e) {
-            console.error('[extract] error:', e.message);
+            log('[extract] ERROR: ' + e.message + ' stack: ' + (e.stack || '').substring(0, 300));
             if (!res.headersSent) json(res, { error: e.message }, 500);
           }
           lastExtractEnd = Date.now();
@@ -278,29 +287,21 @@ const srv = http.createServer(async (req, res) => {
     if (p.startsWith('/_next/')) return sendCachedFile(res, path.join(BUILD, p.replace('/_next', '')));
     if (p === '/' || p === '/index.html') return sendCachedFile(res, path.join(BUILD, 'server', 'app', 'index.html'), true);
     res.writeHead(404); res.end('404');
-  } catch (e) { console.error('[server] Error on', p, ':', e.message, e.stack?.substring(0, 300)); if (!res.headersSent) json(res, { error: e.message }, 500); else console.error('[server] Headers already sent, cannot send error'); }
+  } catch (e) { log('[server] Error on ' + p + ': ' + e.message + ' ' + (e.stack || '').substring(0, 300)); if (!res.headersSent) json(res, { error: e.message }, 500); else log('[server] Headers already sent, cannot send error'); }
 });
 
-// Ignore SIGTERM/SIGHUP to stay alive in container
-try { process.on('SIGTERM', () => console.log('Ignored SIGTERM')); } catch(e) {}
-try { process.on('SIGHUP', () => console.log('Ignored SIGHUP')); } catch(e) {}
+// Ignore signals to stay alive in container
+try { process.on('SIGTERM', () => log('Ignored SIGTERM')); } catch(e) {}
+try { process.on('SIGHUP', () => log('Ignored SIGHUP')); } catch(e) {}
+try { process.on('SIGINT', () => log('Ignored SIGINT')); } catch(e) {}
 
-srv.listen(3000, '0.0.0.0', () => console.log('> Ready on :3000'));
+srv.listen(3000, '0.0.0.0', () => log('> Ready on :3000'));
 
 // Global error handlers to prevent crashes
 process.on('uncaughtException', (err) => {
-  console.error('uncaught:', err.message, err.stack?.substring(0, 200));
-  // Don't exit on signal registration errors, pdfjs warnings, or worker thread errors
-  if (err.message && (
-    err.message.includes('uv_signal_start') ||
-    err.message.includes('standardFontDataUrl') ||
-    err.message.includes('UnknownErrorException') ||
-    err.message.includes('worker') ||
-    err.message.includes('read ECONNRESET') ||
-    err.message.includes('write EPIPE')
-  )) return;
-  // For other errors, log but don't crash
+  log('uncaught: ' + err.message + ' ' + (err.stack || '').substring(0, 300));
+  // Never exit - log and continue
 });
 process.on('unhandledRejection', (err) => {
-  console.error('unhandled:', err?.message || err, err?.stack?.substring(0, 200));
+  log('unhandled: ' + (err?.message || err) + ' ' + ((err?.stack || '')).substring(0, 200));
 });
