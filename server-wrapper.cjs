@@ -1,41 +1,51 @@
-#!/usr/bin/env node
-// Cluster-based server wrapper that auto-restarts on crash
-// Uses Node.js cluster module for reliable crash recovery
-const cluster = require('cluster');
+// Server wrapper that keeps the server alive and restarts on crash
+const { spawn } = require('child_process');
 const path = require('path');
+const fs = require('fs');
 
-if (cluster.isPrimary) {
-  const APP_PATH = path.join(__dirname, 'app.cjs');
-  let restartCount = 0;
-  let lastRestart = 0;
-  
-  console.log(`[cluster] Primary PID=${process.pid}`);
-  
-  // Fork the worker
-  const worker = cluster.fork();
-  
-  cluster.on('exit', (worker, code, signal) => {
-    const now = Date.now();
-    const elapsed = now - lastRestart;
-    console.log(`[cluster] Worker exited: code=${code} signal=${signal} pid=${worker.process.pid}`);
-    
-    // Crash loop protection: if restart within 3s, wait longer
-    const delay = elapsed < 3000 ? 5000 : 1000;
-    
-    setTimeout(() => {
-      restartCount++;
-      lastRestart = Date.now();
-      console.log(`[cluster] Restarting worker (#${restartCount})...`);
-      cluster.fork();
-    }, delay);
-  });
-  
-  lastRestart = Date.now();
-  
-  // Ignore signals to keep primary alive
-  process.on('SIGHUP', () => console.log('[cluster] Ignored SIGHUP'));
-  
-} else {
-  // Worker process: load the actual server
-  require('./app.cjs');
+const LOG_FILE = '/home/z/my-project/server-output.log';
+let logStream = fs.createWriteStream(LOG_FILE, { flags: 'a' });
+
+function writeLog(msg) {
+  try { logStream.write(new Date().toISOString() + ' ' + msg + '\n'); } catch(e) {}
 }
+
+function startServer() {
+  writeLog('Starting server...');
+  const child = spawn('node', ['--max-old-space-size=512', '/home/z/my-project/app.cjs'], {
+    stdio: ['ignore', 'pipe', 'pipe'],
+    cwd: '/home/z/my-project',
+    env: { ...process.env, NODE_ENV: 'production' }
+  });
+
+  child.stdout.on('data', d => {
+    try { logStream.write(d); } catch(e) {}
+  });
+  child.stderr.on('data', d => {
+    try { logStream.write(d); } catch(e) {}
+  });
+
+  child.on('exit', (code, sig) => {
+    writeLog('Server exited: code=' + code + ' signal=' + sig + ' - restarting in 2s');
+    setTimeout(startServer, 2000);
+  });
+
+  child.on('error', e => {
+    writeLog('Server error: ' + e.message + ' - restarting in 2s');
+    setTimeout(startServer, 2000);
+  });
+
+  // Save PID
+  fs.writeFileSync('/home/z/my-project/server.pid', String(child.pid));
+  writeLog('Server PID: ' + child.pid);
+  return child;
+}
+
+startServer();
+
+// Keep alive
+setInterval(() => {}, 60000);
+
+// Handle signals
+process.on('SIGTERM', () => { writeLog('Wrapper received SIGTERM, shutting down'); process.exit(0); });
+process.on('SIGINT', () => { writeLog('Wrapper received SIGINT, shutting down'); process.exit(0); });

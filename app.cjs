@@ -116,7 +116,7 @@ try {
   };
   walkDir(path.join(BUILD, 'static'));
 } catch(e) {}
-console.log('Static cache entries:', staticCache.size);
+// Will log after log function is defined below
 
 // Keep-alive: track last request time
 let lastReq = Date.now();
@@ -127,13 +127,15 @@ let extractQueue = Promise.resolve();
 let lastExtractEnd = 0;
 const MIN_EXTRACT_INTERVAL = 2000; // 2s minimum between extractions for stability
 
-// File-based logging for debugging
+// Safe logging - ONLY use async WriteStream, never console.log/process.stdout
+// (console.log under nohup can cause EIO crashes when the pipe breaks)
 const logFile = path.join(ROOT, 'extract-debug.log');
+let logStream = null;
+try { logStream = fs.createWriteStream(logFile, { flags: 'a' }); } catch(e) {}
 function log(msg) {
-  const line = new Date().toISOString() + ' ' + msg + '\n';
-  console.log(msg);
-  try { fs.appendFileSync(logFile, line); } catch(e) {}
+  try { if (logStream && logStream.writable) logStream.write(new Date().toISOString() + ' ' + msg + '\n'); } catch(e) {}
 }
+log('Static cache entries: ' + staticCache.size);
 
 const srv = http.createServer(async (req, res) => {
   lastReq = Date.now();
