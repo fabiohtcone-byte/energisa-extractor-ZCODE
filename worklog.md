@@ -242,3 +242,26 @@ Stage Summary:
 - Daemon process keeps server alive automatically
 - All 24 PDFs accessible, extraction tested for CONVENCIONAL, AZUL, VERDE, GDI types
 - Caddy proxy verified working on port 81
+
+---
+Task ID: fix-extraction-errors
+Agent: Main Agent
+Task: Fix extraction errors - PDFs returning empty responses
+
+Work Log:
+- Investigated "ERRO NA EXTRAÇÃO" report
+- Found root cause #1: Node.js pdfjs-dist prints warnings before JSON output, causing JSON parse failure in Python server
+- Found root cause #2: Python HTTP server (server.py) was being killed by container when spawning Node subprocess for PDF processing
+- Fixed server.py: Added extract_json_from_stdout() to skip warnings and find JSON start
+- Created scripts/extract-from-file.cjs: New extraction script that takes a file path instead of stdin (avoids memory pressure)
+- Updated server.py: Changed to save PDF to temp file then call extract-from-file.cjs via subprocess
+- Updated app.cjs: Changed extract-pdf endpoint to use temp file + extract-from-file.cjs (primary), with in-process fallback
+- Added /api/health endpoint to server.py
+- Fixed daemon-server.py: Now uses node app.cjs (was incorrectly changed to python3 server.py)
+- Restarted server with daemon for auto-recovery
+
+Stage Summary:
+- ALL 24 PDFs now extract successfully (was 22/24, now 24/24)
+- Previously failing PDFs now work: 1.210.273.045-90.pdf, 181829004568.pdf
+- Server stable: 123s+ uptime, 81MB memory, daemon auto-restart enabled
+- Extraction approach: HTTP → multipart parse → save temp file → node child process → JSON response

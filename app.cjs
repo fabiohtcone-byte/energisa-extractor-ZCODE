@@ -178,23 +178,52 @@ const srv = http.createServer(async (req, res) => {
             }
 
             log('[extract] file: ' + fileName + ' ' + fileBuffer.length + ' bytes');
-            const pd = await pdfParse(fileBuffer);
-            log('[extract] pdf parsed, pages: ' + pd.numpages + ' text: ' + pd.text.length);
-            let td = null;
-            try {
-              td = await extractTableChildProcess(fileBuffer);
-              if (td) log('[extract] table extraction: items: ' + (td.items?.length || 0));
-            } catch(e) {
-              log('[extract] table extraction failed: ' + (e.message || '').substring(0, 60));
-              td = null;
+
+            // Save PDF to temp file and call extract-from-file.cjs (more stable than in-process)
+            const tmpFile = path.join(ROOT, 'tmp_extract_' + Date.now() + '_' + Math.random().toString(36).slice(2) + '.pdf');
+            fs.writeFileSync(tmpFile, fileBuffer);
+            
+            const extractResult = await new Promise((resolveExtract) => {
+              execFile('node', [path.join(ROOT, 'scripts/extract-from-file.cjs'), tmpFile], {
+                timeout: 30000,
+                maxBuffer: 10 * 1024 * 1024,
+              }, (err, stdout) => {
+                try { fs.unlinkSync(tmpFile); } catch(e) {}
+                if (err) { log('[extract] child error: ' + err.message); resolveExtract(null); return; }
+                try {
+                  // Extract JSON from stdout (may have warnings before JSON)
+                  const str = stdout.toString('utf-8');
+                  const jsonStart = str.indexOf('{');
+                  if (jsonStart < 0) { resolveExtract(null); return; }
+                  resolveExtract(JSON.parse(str.substring(jsonStart)));
+                } catch(e) { log('[extract] parse error: ' + e.message); resolveExtract(null); }
+              });
+            });
+
+            if (extractResult && extractResult.success) {
+              log('[extract] extraction done, fields: ' + extractResult.stats.extractedCount + ' / ' + extractResult.stats.totalFields);
+              json(res, extractResult);
+            } else {
+              // Fallback to in-process extraction
+              log('[extract] child failed, falling back to in-process');
+              const pd = await pdfParse(fileBuffer);
+              log('[extract] pdf parsed, pages: ' + pd.numpages + ' text: ' + pd.text.length);
+              let td = null;
+              try {
+                td = await extractTableChildProcess(fileBuffer);
+                if (td) log('[extract] table extraction: items: ' + (td.items?.length || 0));
+              } catch(e) {
+                log('[extract] table extraction failed: ' + (e.message || '').substring(0, 60));
+                td = null;
+              }
+              if (!pd.text || !pd.text.trim()) { log('[extract] no text in pdf'); json(res, { error: 'Sem texto' }, 422); resolve(); return; }
+              const ext = extractEnergisaData(pd.text, td);
+              const vals = Object.values(ext), cnt = vals.filter(v => v !== '').length;
+              log('[extract] extraction done, fields: ' + cnt + ' / ' + vals.length);
+              const result = { success: true, data: ext, stats: { extractedCount: cnt, totalFields: vals.length, extractionRate: Math.round(cnt/vals.length*100), pageCount: pd.numpages, tableItems: td?.items?.length ?? 0 } };
+              log('[extract] sending response');
+              json(res, result);
             }
-            if (!pd.text || !pd.text.trim()) { log('[extract] no text in pdf'); json(res, { error: 'Sem texto' }, 422); resolve(); return; }
-            const ext = extractEnergisaData(pd.text, td);
-            const vals = Object.values(ext), cnt = vals.filter(v => v !== '').length;
-            log('[extract] extraction done, fields: ' + cnt + ' / ' + vals.length);
-            const result = { success: true, data: ext, stats: { extractedCount: cnt, totalFields: vals.length, extractionRate: Math.round(cnt/vals.length*100), pageCount: pd.numpages, tableItems: td?.items?.length ?? 0 } };
-            log('[extract] sending response');
-            json(res, result);
           } catch (e) {
             log('[extract] ERROR: ' + e.message + ' stack: ' + (e.stack || '').substring(0, 300));
             if (!res.headersSent) json(res, { error: e.message }, 500);
