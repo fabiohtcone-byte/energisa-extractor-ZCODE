@@ -187,21 +187,41 @@ function extractEnergisaData(rawText, tableExtraction) {
       const num = slashCtx[2].replace(/^0+/, "") || "0";
       if (num.length >= 3) return num;
     }
-    for (const line of lines) {
-      const m = line.match(/^(\d{1,2}\.\d{3}\.\d{3}\.\d{3}-\d{1,2})$/);
-      if (m && !isCnpjCpf(m[1])) return m[1];
+    {
+      let bestMatch = "";
+      let bestLineIdx = Infinity;
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const m4 = line.match(/^(\d{1,2}\.\d{3}\.\d{3}\.\d{3}-\d{1,2})$/);
+        if (m4 && !isCnpjCpf(m4[1]) && i < bestLineIdx) {
+          bestMatch = m4[1];
+          bestLineIdx = i;
+        }
+        const m3 = line.match(/^(\d{1,3}\.\d{3}\.\d{3}-\d{2})$/);
+        if (m3 && i < bestLineIdx) {
+          bestMatch = m3[1];
+          bestLineIdx = i;
+        }
+      }
+      if (bestMatch) return bestMatch;
     }
-    for (const line of lines) {
-      const m = line.match(/^(\d{1,3}\.\d{3}\.\d{3}-\d{2})$/);
-      if (m) return m[1];
-    }
-    for (const line of lines) {
-      const m = line.match(/(\d{1,2}\.\d{3}\.\d{3}\.\d{3}-\d{1,2})/);
-      if (m && line.length < 50 && !/CNPJ|CPF|CEP/i.test(line) && !isCnpjCpf(m[1])) return m[1];
-    }
-    for (const line of lines) {
-      const m = line.match(/(\d{1,3}\.\d{3}\.\d{3}-\d{2})/);
-      if (m && line.length < 40 && !/CNPJ|CPF|CEP/i.test(line)) return m[1];
+    {
+      let bestMatch = "";
+      let bestLineIdx = Infinity;
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const m4 = line.match(/(\d{1,2}\.\d{3}\.\d{3}\.\d{3}-\d{1,2})/);
+        if (m4 && line.length < 50 && !/CNPJ|CPF|CEP/i.test(line) && !isCnpjCpf(m4[1]) && i < bestLineIdx) {
+          bestMatch = m4[1];
+          bestLineIdx = i;
+        }
+        const m3 = line.match(/(\d{1,3}\.\d{3}\.\d{3}-\d{2})/);
+        if (m3 && line.length < 50 && !/CNPJ|CPF|CEP/i.test(line) && i < bestLineIdx) {
+          bestMatch = m3[1];
+          bestLineIdx = i;
+        }
+      }
+      if (bestMatch) return bestMatch;
     }
     const ucMat = flat.match(/MATR[IÍ]CULA\s*:\s*0*(\d{4,13})(?:-\d{4}-\d{2}-\d)?/i);
     if (ucMat) return ucMat[1];

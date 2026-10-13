@@ -259,26 +259,45 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
       const num = slashCtx[2].replace(/^0+/, '') || '0';
       if (num.length >= 3) return num;
     }
-    // Strategy 3: 4-group dotted format X.XXX.XXX.XXX-XX on its own line (12-digit UC)
-    // e.g., "1.409.407.051-47" → "140940705147"
-    for (const line of lines) {
-      const m = line.match(/^(\d{1,2}\.\d{3}\.\d{3}\.\d{3}-\d{1,2})$/);
-      if (m && !isCnpjCpf(m[1])) return m[1];
+    // Strategy 3+4: Collect BOTH 4-group and 3-group dotted formats on own lines,
+    // then pick the one that appears FIRST (first via of the document = the real UC).
+    // Previously S3 ran before S4 and could grab a second-via code (e.g., 2.835.230.051-35)
+    // instead of the real UC (e.g., 894.319.051-52).
+    {
+      let bestMatch = '';
+      let bestLineIdx = Infinity;
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        // 4-group: X.XXX.XXX.XXX-XX (12-digit UC, e.g., "1.409.407.051-47")
+        const m4 = line.match(/^(\d{1,2}\.\d{3}\.\d{3}\.\d{3}-\d{1,2})$/);
+        if (m4 && !isCnpjCpf(m4[1]) && i < bestLineIdx) {
+          bestMatch = m4[1]; bestLineIdx = i;
+        }
+        // 3-group: X.XXX.XXX-XX (e.g., "894.319.051-52")
+        const m3 = line.match(/^(\d{1,3}\.\d{3}\.\d{3}-\d{2})$/);
+        if (m3 && i < bestLineIdx) {
+          bestMatch = m3[1]; bestLineIdx = i;
+        }
+      }
+      if (bestMatch) return bestMatch;
     }
-    // Strategy 4: 3-group dotted format X.XXX.XXX-XX on its own line
-    for (const line of lines) {
-      const m = line.match(/^(\d{1,3}\.\d{3}\.\d{3}-\d{2})$/);
-      if (m) return m[1];
-    }
-    // Strategy 5: 4-group dotted format on a short line (not CNPJ/CPF/CEP)
-    for (const line of lines) {
-      const m = line.match(/(\d{1,2}\.\d{3}\.\d{3}\.\d{3}-\d{1,2})/);
-      if (m && line.length < 50 && !/CNPJ|CPF|CEP/i.test(line) && !isCnpjCpf(m[1])) return m[1];
-    }
-    // Strategy 6: 3-group dotted format on a short line (not CNPJ/CPF/CEP)
-    for (const line of lines) {
-      const m = line.match(/(\d{1,3}\.\d{3}\.\d{3}-\d{2})/);
-      if (m && line.length < 40 && !/CNPJ|CPF|CEP/i.test(line)) return m[1];
+    // Strategy 5+6: Both 4-group and 3-group dotted formats on short lines (not CNPJ/CPF/CEP).
+    // Pick whichever appears first in the document.
+    {
+      let bestMatch = '';
+      let bestLineIdx = Infinity;
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const m4 = line.match(/(\d{1,2}\.\d{3}\.\d{3}\.\d{3}-\d{1,2})/);
+        if (m4 && line.length < 50 && !/CNPJ|CPF|CEP/i.test(line) && !isCnpjCpf(m4[1]) && i < bestLineIdx) {
+          bestMatch = m4[1]; bestLineIdx = i;
+        }
+        const m3 = line.match(/(\d{1,3}\.\d{3}\.\d{3}-\d{2})/);
+        if (m3 && line.length < 50 && !/CNPJ|CPF|CEP/i.test(line) && i < bestLineIdx) {
+          bestMatch = m3[1]; bestLineIdx = i;
+        }
+      }
+      if (bestMatch) return bestMatch;
     }
     // Strategy 7: MATRÍCULA field — extended to support up to 13 digits
     // e.g., "MATRÍCULA:0140940705147-2025-08-6"
