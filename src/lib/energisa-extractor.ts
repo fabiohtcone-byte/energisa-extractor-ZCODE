@@ -341,15 +341,15 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
   // ===== MÊS REFERÊNCIA =====
   const MesReferencia = (() => {
     const meses = 'Janeiro|Fevereiro|Mar[çc]o|Abril|Maio|Junho|Julho|Agosto|Setembro|Outubro|Novembro|Dezembro';
-    const numToMonth: Record<string, string> = {
-      '01': 'Janeiro', '02': 'Fevereiro', '03': 'Março', '04': 'Abril',
-      '05': 'Maio', '06': 'Junho', '07': 'Julho', '08': 'Agosto',
-      '09': 'Setembro', '10': 'Outubro', '11': 'Novembro', '12': 'Dezembro',
-    };
+    // Use array to guarantee insertion order (JS objects reorder integer-like keys)
+    const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+    const numToMonth: Record<string, string> = {};
+    for (let i = 0; i < monthNames.length; i++) numToMonth[String(i + 1).padStart(2, '0')] = monthNames[i];
     const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
 
     // Helper: get Vencimento date components for sanity checks
-    const venMoneyMatch = flat.match(/(\d{2})\/(\d{2})\/(\d{4})\s*R\$/);
+    // Allow optional space between date and R$ (Energisa PDFs sometimes have no space)
+    const venMoneyMatch = flat.match(/(\d{2})\/(\d{2})\/(\d{4})\s*R\$/i) || flat.match(/(\d{2})\/(\d{2})\/(\d{4})R\$/i);
     const venMonth = venMoneyMatch ? parseInt(venMoneyMatch[2], 10) : 0;
     const venYear = venMoneyMatch ? parseInt(venMoneyMatch[3], 10) : 0;
 
@@ -386,7 +386,7 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
     for (const line of lines) {
       const m = line.match(new RegExp(`(${meses})\\s*/\\s*(\\d{4})`, 'i'));
       if (m && /\d{2}\/\d{2}\/\d{4}/.test(line)) {
-        const monthIdx = Object.values(numToMonth).indexOf(capitalize(m[1]));
+        const monthIdx = monthNames.indexOf(capitalize(m[1]));
         const monthNum = monthIdx + 1;
         if (isConsistentWithVencimento(monthNum, parseInt(m[2], 10))) {
           return `${capitalize(m[1])} / ${m[2]}`;
@@ -401,7 +401,7 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
       const context = flat.slice(start, m.index! + m[0].length).toLowerCase();
       if (/desde|até|a partir|inform|dispon|referência|ref\b/.test(context)) continue;
       // Also validate against Vencimento date
-      const monthIdx = Object.values(numToMonth).indexOf(capitalize(m[1]));
+      const monthIdx = monthNames.indexOf(capitalize(m[1]));
       const monthNum = monthIdx + 1;
       if (!isConsistentWithVencimento(monthNum, parseInt(m[2], 10))) continue;
       return `${capitalize(m[1])} / ${m[2]}`;

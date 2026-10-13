@@ -222,22 +222,11 @@ function extractEnergisaData(rawText, tableExtraction) {
   })();
   const MesReferencia = (() => {
     const meses = "Janeiro|Fevereiro|Mar[\xE7c]o|Abril|Maio|Junho|Julho|Agosto|Setembro|Outubro|Novembro|Dezembro";
-    const numToMonth = {
-      "01": "Janeiro",
-      "02": "Fevereiro",
-      "03": "Mar\xE7o",
-      "04": "Abril",
-      "05": "Maio",
-      "06": "Junho",
-      "07": "Julho",
-      "08": "Agosto",
-      "09": "Setembro",
-      "10": "Outubro",
-      "11": "Novembro",
-      "12": "Dezembro"
-    };
+    const monthNames = ["Janeiro", "Fevereiro", "Mar\xE7o", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+    const numToMonth = {};
+    for (let i = 0; i < monthNames.length; i++) numToMonth[String(i + 1).padStart(2, "0")] = monthNames[i];
     const capitalize = (s) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
-    const venMoneyMatch = flat.match(/(\d{2})\/(\d{2})\/(\d{4})\s*R\$/);
+    const venMoneyMatch = flat.match(/(\d{2})\/(\d{2})\/(\d{4})\s*R\$/i) || flat.match(/(\d{2})\/(\d{2})\/(\d{4})R\$/i);
     const venMonth = venMoneyMatch ? parseInt(venMoneyMatch[2], 10) : 0;
     const venYear = venMoneyMatch ? parseInt(venMoneyMatch[3], 10) : 0;
     const isConsistentWithVencimento = (month, year) => {
@@ -264,7 +253,7 @@ function extractEnergisaData(rawText, tableExtraction) {
     for (const line of lines) {
       const m = line.match(new RegExp(`(${meses})\\s*/\\s*(\\d{4})`, "i"));
       if (m && /\d{2}\/\d{2}\/\d{4}/.test(line)) {
-        const monthIdx = Object.values(numToMonth).indexOf(capitalize(m[1]));
+        const monthIdx = monthNames.indexOf(capitalize(m[1]));
         const monthNum = monthIdx + 1;
         if (isConsistentWithVencimento(monthNum, parseInt(m[2], 10))) {
           return `${capitalize(m[1])} / ${m[2]}`;
@@ -276,7 +265,7 @@ function extractEnergisaData(rawText, tableExtraction) {
       const start = Math.max(0, m.index - 20);
       const context = flat.slice(start, m.index + m[0].length).toLowerCase();
       if (/desde|até|a partir|inform|dispon|referência|ref\b/.test(context)) continue;
-      const monthIdx = Object.values(numToMonth).indexOf(capitalize(m[1]));
+      const monthIdx = monthNames.indexOf(capitalize(m[1]));
       const monthNum = monthIdx + 1;
       if (!isConsistentWithVencimento(monthNum, parseInt(m[2], 10))) continue;
       return `${capitalize(m[1])} / ${m[2]}`;
