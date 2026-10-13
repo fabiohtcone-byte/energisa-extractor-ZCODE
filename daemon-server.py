@@ -25,7 +25,7 @@ while True:
     if pid == 0:
         # Child: exec the server
         os.chdir('/home/z/my-project')
-        os.execvp('node', ['node', '/home/z/my-project/app.cjs'])
+        os.execvp('python3', ['python3', '/home/z/my-project/server.py'])
         os._exit(1)
     else:
         # Parent: wait for child, then restart

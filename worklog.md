@@ -222,3 +222,23 @@ Stage Summary:
 - Consumption values now extracted in text-only mode (was empty without table data)
 - Demanda Todos os Período now extracted from more format variations
 - Server restarted with updated extraction code
+
+---
+Task ID: recovery
+Agent: Main Agent
+Task: Recover server after context loss and fix server stability
+
+Work Log:
+- Identified that Node.js HTTP server (app.cjs) was crashing on multipart POST requests
+- Confirmed extraction modules work correctly when called directly (pdf-parse, extractEnergisaData)
+- Switched to Python server (server.py) which delegates to Node child processes for extraction
+- Updated daemon-server.py to use Python server instead of Node app.cjs
+- Started daemon-server.py with double-fork for container survival
+- Verified all PDF types extract correctly through Python server
+- Verified Caddy proxy (port 81 → 3000) working end-to-end
+
+Stage Summary:
+- Server stable: Python HTTP server + Node child process extraction
+- Daemon process keeps server alive automatically
+- All 24 PDFs accessible, extraction tested for CONVENCIONAL, AZUL, VERDE, GDI types
+- Caddy proxy verified working on port 81
