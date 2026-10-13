@@ -198,14 +198,40 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
   // ===== CIDADE =====
   // Pattern: "DOURADOS (AG: 10)" or "ANASTACIO MS (AG: 37)" or "RIO VERDE DE MATO GROSSO (AG: 37)"
   const Cidade = (() => {
+    // Strategy 1: Energisa format with (AG: XX)
     for (const line of lines.slice(0, 60)) {
-      // Match: CityName [StateAbbr] (AG: XX)
       const m = line.match(/([A-ZÀ-Ú][A-ZÀ-Ú\s]{3,30}?)\s+(?:MS|SP|PR|MT|GO|MG|RS)?\s*\(\s*AG\s*:\s*\d+\s*\)/i);
       if (m) {
         const name = m[1].trim().toUpperCase();
         const skip = ['SANESUL', 'ENERGISA', 'DISTRIBUIDORA', 'SA', 'EMPRESA DE SANEAMENTO',
           'RUA ', 'AV ', 'DOM.', 'ENDEREÇO', 'PAGADOR'];
-        if (name.length >= 4 && name.length <= 30 && !skip.some(s => name.startsWith(s))) return name;
+        if (name.length >= 4 && name.length <= 30 && !skip.some(s => name.startsWith(s))) {
+          // Title case: ARAL MOREIRA → Aral Moreira
+          return name.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+        }
+      }
+    }
+    // Strategy 2: SANESUL format "CITYNAME  (UF) - UF - CEP XXXXX-XXX"
+    // Also handles "CITYNAME  (UF) - MS" (without second UF/CEP)
+    for (const line of lines.slice(0, 60)) {
+      const m = line.match(/^([A-ZÀ-Ú][A-ZÀ-Ú\s]{2,30}?)\s+\([A-Z]{2}\)\s*-\s*[A-Z]{2}/i);
+      if (m) {
+        const name = m[1].trim();
+        const skip = ['SANESUL', 'ENERGISA', 'DISTRIBUIDORA', 'EMPRESA', 'SANEAMENTO',
+          'RUA ', 'AV ', 'DOM.', 'ENDEREÇO', 'PAGADOR', 'CENTRO', 'JD ', 'JARDIM'];
+        if (name.length >= 4 && name.length <= 30 && !skip.some(s => name.toUpperCase().startsWith(s.toUpperCase()))) {
+          return name.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+        }
+      }
+    }
+    // Strategy 3: "CEP: XXXXX-XXX - CityName (UF) - UF" (delivery address line in SANESUL)
+    for (const line of lines.slice(0, 60)) {
+      const m = line.match(/CEP\s*:\s*\d{5}-\d{3}\s*-\s*([A-ZÀ-Ú][A-ZÀ-Ú\s]{2,30}?)\s+\([A-Z]{2}\)/i);
+      if (m) {
+        const name = m[1].trim();
+        if (name.length >= 4 && name.length <= 30) {
+          return name.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+        }
       }
     }
     return EMPTY;
@@ -285,22 +311,41 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
   // ===== ENDEREÇO =====
   const Endereco = (() => {
     // Address line typically follows the city (AG: XX) line and starts with RUA, AV, AVE, LOT, ESTRADA, etc.
-    // Examples from real PDFs:
-    //   "RUA SALDANHA DA GAMA, 896 - 21.004.65.029401 LAD RE RA - 422 - 79370000"
-    //   "LOT RECANTO NUARA, S/N - 24.416.10.154000 PAT 01/REL01 2289 - 79190000"
-    //   "AVE MATO GROSSO DO SUL, SN - 12.029.07.090000 COX EAT 006 2243 - 79400000"
-    const STREET_RE = /^(RUA|AV[. ]|AVE |AVENIDA|ESTRADA|LOT |RODOVIA|TRAVESSA|ALAMEDA|PCA[. ]|PRACA)/i;
+    const STREET_RE = /^(RUA|AV[. ]|AVE |AVENIDA|ESTRADA|LOT |RODOVIA|ROD |TRAVESSA|ALAMEDA|PCA[. ]|PRACA|R\s+)/i;
 
     // Clean an address line: keep street + number, strip internal codes, keep CEP
     const extractCleanAddress = (line: string): string => {
       // Split at the first " - " that precedes an internal code pattern (XX.XXX.XX.XXXXXX)
       const beforeCodes = line.split(/\s*-\s*\d{2}\.\d{3}/)[0];
       let addr = (beforeCodes || line).trim();
+      // Remove concessionária address parts like "- CAMPO GRANDE / MS - CEP"
+      addr = addr.replace(/\s*[-,]?\s*[A-ZÀ-Ú]{3,}\s*\/\s*[A-Z]{2}\s*-\s*CEP/i, '');
+      addr = addr.replace(/\s*-\s*[A-ZÀ-Ú]+\s*\/\s*[A-Z]{2}\s*$/i, '');
+      // Remove internal codes like "2105315025000 SID 0041169" or "2100201020000 AQD 019 2274"
+      addr = addr.replace(/\s*-\s*\d{10,}\s+[A-Z]{3}\s+\d+/g, '');
+      // Remove codes like "21 031 15 279000 MAR 008 583"
+      addr = addr.replace(/\s*-\s*\d{2}\s+\d{3}\s+\d{2}\s+\d{4,}\s+[A-Z]{3}\s+\d{3}\s+\d{3}/g, '');
+      // Remove codes like "DOU 033 2431" or "ANL 004 855" or "ATB - JDM ADM 10601"
+      addr = addr.replace(/\s*-\s*[A-Z]{3}\s+\d{3}\s+\d{3,4}/g, '');
+      addr = addr.replace(/\s+[A-Z]{3}\s+\d{3}\s+\d{3,4}\b/g, '');
+      // Remove codes like "TLG 013090 CH02239"
+      addr = addr.replace(/\s*-\s*[A-Z]{3}\s+\d{6}\s+[A-Z]{2}\d+/g, '');
+      addr = addr.replace(/\s+[A-Z]{3}\s+\d{6}\s+[A-Z]{2}\d+/g, '');
+      // Remove "- ATB" and "- ATB - JDM ADM XXXXX" (bairro/admin codes)
+      addr = addr.replace(/\s*-\s*ATB(\s*-\s*[A-Z]{3}\s+[A-Z]{3}\s+\d+)?/gi, '');
+      // Remove codes like "- DOU EAB 502 HZ" or "- AQD RAE 012" (3-letter + 3-letter + number + optional letters)
+      addr = addr.replace(/\s*-\s*[A-Z]{3}\s+[A-Z]{3}\s+\d+\s*[A-Z]{0,3}/g, '');
+      // Remove remaining standalone 3-letter+number codes like "AQD 019 2274"
+      addr = addr.replace(/\s+[A-Z]{3}\s+\d{3}\s+\d{3,4}\b/g, '');
+      // Remove residual small numbers after code removal (e.g., "0 2274" from "0 - 2100201020000 AQD 019 2274")
+      addr = addr.replace(/,\s*(\d+)\s+\d{3,4}\b/g, ', $1');
+      // Add "CEP" prefix to bare CEP numbers at end (5-8 digits without "CEP" prefix)
+      addr = addr.replace(/\s*-\s*(\d{5}-?\d{3})\s*$/, ' - CEP $1');
       // Remove trailing dash
       addr = addr.replace(/\s*-\s*$/, '').trim();
-      // Append CEP if found at end of original line
+      // Append CEP if found at end of original line (only if not already present)
       const cepMatch = line.match(/(\d{5}-?\d{3})\s*$/);
-      if (cepMatch) addr += ' - CEP ' + cepMatch[1];
+      if (cepMatch && !addr.includes(cepMatch[1])) addr += ' - CEP ' + cepMatch[1];
       return addr;
     };
 
@@ -316,7 +361,19 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
       }
     }
 
-    // Strategy 2: Find address line near CNPJ/CPF line (appears before it)
+    // Strategy 2: SANESUL format — address line BEFORE "CITYNAME (UF) - UF - CEP"
+    for (let i = 0; i < Math.min(60, lines.length); i++) {
+      if (/^[A-ZÀ-Ú][A-ZÀ-Ú\s]{2,30}\s+\([A-Z]{2}\)\s*-\s*[A-Z]{2}/i.test(lines[i]) && i > 0) {
+        // Look backwards for a street line
+        for (let j = i - 1; j >= Math.max(0, i - 4); j--) {
+          if (STREET_RE.test(lines[j]) && !/SANESUL|ENERGISA|SANEAMENTO/i.test(lines[j])) {
+            return extractCleanAddress(lines[j]);
+          }
+        }
+      }
+    }
+
+    // Strategy 3: Find address line near CNPJ/CPF line (appears before it)
     for (let i = 0; i < lines.length; i++) {
       if (/CNPJ\/CPF/i.test(lines[i]) && i > 0) {
         if (STREET_RE.test(lines[i - 1])) {
@@ -325,13 +382,28 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
       }
     }
 
-    // Strategy 3: Look for "ENDEREÇO" label followed by address
+    // Strategy 4: Look for "ENDEREÇO" label followed by address
     for (let i = 0; i < lines.length; i++) {
       if (/^ENDERE[ÇC]O$/i.test(lines[i].trim()) && i + 1 < lines.length) {
         const next = lines[i + 1];
         const cleanAddr = next.replace(/\s*-\s*(SA[IÍ]DA|ENTRADA)\s+PARA\s+[^-]+/i, '')
           .replace(/\s*-\s*[A-ZÀ-Ú]+\s*\/\s*[A-Z]{2}\s*-\s*CEP\s+\d{5}-\d{3}/i, '').trim();
         if (cleanAddr.length > 5) return cleanAddr;
+      }
+    }
+
+    // Strategy 5: SANESUL — "R ..." line after UC number line (for B3 tariffs)
+    for (let i = 0; i < Math.min(20, lines.length); i++) {
+      // UC number line followed by SANESUL name, then CNPJ, then address
+      if (/SANESUL/i.test(lines[i])) {
+        for (let j = i + 1; j <= Math.min(i + 5, lines.length - 1); j++) {
+          if (STREET_RE.test(lines[j]) && !/SANESUL|ENERGISA|SANEAMENTO/i.test(lines[j])) {
+            // Check that the line after address has a city pattern
+            if (j + 1 < lines.length && /\([A-Z]{2}\)/i.test(lines[j + 1])) {
+              return extractCleanAddress(lines[j]);
+            }
+          }
+        }
       }
     }
 

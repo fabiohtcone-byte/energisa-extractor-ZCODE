@@ -130,7 +130,42 @@ function extractEnergisaData(rawText, tableExtraction) {
           "ENDERE\xC7O",
           "PAGADOR"
         ];
-        if (name.length >= 4 && name.length <= 30 && !skip.some((s) => name.startsWith(s))) return name;
+        if (name.length >= 4 && name.length <= 30 && !skip.some((s) => name.startsWith(s))) {
+          return name.split(" ").map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ");
+        }
+      }
+    }
+    for (const line of lines.slice(0, 60)) {
+      const m = line.match(/^([A-ZÀ-Ú][A-ZÀ-Ú\s]{2,30}?)\s+\([A-Z]{2}\)\s*-\s*[A-Z]{2}/i);
+      if (m) {
+        const name = m[1].trim();
+        const skip = [
+          "SANESUL",
+          "ENERGISA",
+          "DISTRIBUIDORA",
+          "EMPRESA",
+          "SANEAMENTO",
+          "RUA ",
+          "AV ",
+          "DOM.",
+          "ENDERE\xC7O",
+          "PAGADOR",
+          "CENTRO",
+          "JD ",
+          "JARDIM"
+        ];
+        if (name.length >= 4 && name.length <= 30 && !skip.some((s) => name.toUpperCase().startsWith(s.toUpperCase()))) {
+          return name.split(" ").map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ");
+        }
+      }
+    }
+    for (const line of lines.slice(0, 60)) {
+      const m = line.match(/CEP\s*:\s*\d{5}-\d{3}\s*-\s*([A-ZÀ-Ú][A-ZÀ-Ú\s]{2,30}?)\s+\([A-Z]{2}\)/i);
+      if (m) {
+        const name = m[1].trim();
+        if (name.length >= 4 && name.length <= 30) {
+          return name.split(" ").map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ");
+        }
       }
     }
     return EMPTY;
@@ -186,19 +221,41 @@ function extractEnergisaData(rawText, tableExtraction) {
   })();
   const cleanUC = UC.replace(/[.\-]/g, "");
   const Endereco = (() => {
-    const STREET_RE = /^(RUA|AV[. ]|AVE |AVENIDA|ESTRADA|LOT |RODOVIA|TRAVESSA|ALAMEDA|PCA[. ]|PRACA)/i;
+    const STREET_RE = /^(RUA|AV[. ]|AVE |AVENIDA|ESTRADA|LOT |RODOVIA|ROD |TRAVESSA|ALAMEDA|PCA[. ]|PRACA|R\s+)/i;
     const extractCleanAddress = (line) => {
       const beforeCodes = line.split(/\s*-\s*\d{2}\.\d{3}/)[0];
       let addr = (beforeCodes || line).trim();
+      addr = addr.replace(/\s*[-,]?\s*[A-ZÀ-Ú]{3,}\s*\/\s*[A-Z]{2}\s*-\s*CEP/i, "");
+      addr = addr.replace(/\s*-\s*[A-ZÀ-Ú]+\s*\/\s*[A-Z]{2}\s*$/i, "");
+      addr = addr.replace(/\s*-\s*\d{10,}\s+[A-Z]{3}\s+\d+/g, "");
+      addr = addr.replace(/\s*-\s*\d{2}\s+\d{3}\s+\d{2}\s+\d{4,}\s+[A-Z]{3}\s+\d{3}\s+\d{3}/g, "");
+      addr = addr.replace(/\s*-\s*[A-Z]{3}\s+\d{3}\s+\d{3,4}/g, "");
+      addr = addr.replace(/\s+[A-Z]{3}\s+\d{3}\s+\d{3,4}\b/g, "");
+      addr = addr.replace(/\s*-\s*[A-Z]{3}\s+\d{6}\s+[A-Z]{2}\d+/g, "");
+      addr = addr.replace(/\s+[A-Z]{3}\s+\d{6}\s+[A-Z]{2}\d+/g, "");
+      addr = addr.replace(/\s*-\s*ATB(\s*-\s*[A-Z]{3}\s+[A-Z]{3}\s+\d+)?/gi, "");
+      addr = addr.replace(/\s*-\s*[A-Z]{3}\s+[A-Z]{3}\s+\d+\s*[A-Z]{0,3}/g, "");
+      addr = addr.replace(/\s+[A-Z]{3}\s+\d{3}\s+\d{3,4}\b/g, "");
+      addr = addr.replace(/,\s*(\d+)\s+\d{3,4}\b/g, ", $1");
+      addr = addr.replace(/\s*-\s*(\d{5}-?\d{3})\s*$/, " - CEP $1");
       addr = addr.replace(/\s*-\s*$/, "").trim();
       const cepMatch = line.match(/(\d{5}-?\d{3})\s*$/);
-      if (cepMatch) addr += " - CEP " + cepMatch[1];
+      if (cepMatch && !addr.includes(cepMatch[1])) addr += " - CEP " + cepMatch[1];
       return addr;
     };
     for (let i = 0; i < Math.min(60, lines.length); i++) {
       if (/\(\s*AG\s*:\s*\d+\s*\)/.test(lines[i])) {
         for (let j = i + 1; j <= Math.min(i + 3, lines.length - 1); j++) {
           if (STREET_RE.test(lines[j])) {
+            return extractCleanAddress(lines[j]);
+          }
+        }
+      }
+    }
+    for (let i = 0; i < Math.min(60, lines.length); i++) {
+      if (/^[A-ZÀ-Ú][A-ZÀ-Ú\s]{2,30}\s+\([A-Z]{2}\)\s*-\s*[A-Z]{2}/i.test(lines[i]) && i > 0) {
+        for (let j = i - 1; j >= Math.max(0, i - 4); j--) {
+          if (STREET_RE.test(lines[j]) && !/SANESUL|ENERGISA|SANEAMENTO/i.test(lines[j])) {
             return extractCleanAddress(lines[j]);
           }
         }
@@ -216,6 +273,17 @@ function extractEnergisaData(rawText, tableExtraction) {
         const next = lines[i + 1];
         const cleanAddr = next.replace(/\s*-\s*(SA[IÍ]DA|ENTRADA)\s+PARA\s+[^-]+/i, "").replace(/\s*-\s*[A-ZÀ-Ú]+\s*\/\s*[A-Z]{2}\s*-\s*CEP\s+\d{5}-\d{3}/i, "").trim();
         if (cleanAddr.length > 5) return cleanAddr;
+      }
+    }
+    for (let i = 0; i < Math.min(20, lines.length); i++) {
+      if (/SANESUL/i.test(lines[i])) {
+        for (let j = i + 1; j <= Math.min(i + 5, lines.length - 1); j++) {
+          if (STREET_RE.test(lines[j]) && !/SANESUL|ENERGISA|SANEAMENTO/i.test(lines[j])) {
+            if (j + 1 < lines.length && /\([A-Z]{2}\)/i.test(lines[j + 1])) {
+              return extractCleanAddress(lines[j]);
+            }
+          }
+        }
       }
     }
     return EMPTY;
