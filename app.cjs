@@ -68,9 +68,24 @@ function parseMultipart(buf, boundary) {
 // Pre-load modules once (avoid clearing require.cache which can cause crashes)
 const pdfParse = require('pdf-parse');
 const { extractEnergisaData } = require('./dist/energisa-extractor.cjs');
+let extractTableFromPDF = null;
+try { const m = require('./dist/energisa-table-extractor.cjs'); extractTableFromPDF = m.extractTableFromPDF; } catch(e) {}
 const { execFile } = require('child_process');
-// Table extraction via child process - pdfjs-dist crashes when loaded in-process
-async function extractTableChildProcess(buffer) {
+// Table extraction — in-process (fast), with child-process fallback
+async function extractTableFast(buffer) {
+  // Try in-process first (much faster, ~30ms vs ~180ms child process)
+  if (extractTableFromPDF) {
+    try {
+      const result = await Promise.race([
+        extractTableFromPDF(buffer),
+        new Promise((_, r) => setTimeout(() => r(new Error('timeout')), 10000))
+      ]);
+      if (result && result.items && result.items.length > 0) return result;
+    } catch(e) {
+      log('[table] in-process failed, falling back to child process: ' + (e.message || '').substring(0, 60));
+    }
+  }
+  // Fallback to child process
   return new Promise((resolve) => {
     const tmpFile = path.join(ROOT, 'tmp_extract_' + Date.now() + '_' + Math.random().toString(36).slice(2) + '.pdf');
     try {
@@ -125,7 +140,7 @@ let lastReq = Date.now();
 // (concurrent pdf-parse/child process operations cause native V8 crashes)
 let extractQueue = Promise.resolve();
 let lastExtractEnd = 0;
-const MIN_EXTRACT_INTERVAL = 2000; // 2s minimum between extractions for stability
+const MIN_EXTRACT_INTERVAL = 200; // 200ms minimum between extractions (reduced from 2000ms for faster batch)
 
 // Safe logging - ONLY use async WriteStream, never console.log/process.stdout
 // (console.log under nohup can cause EIO crashes when the pipe breaks)
@@ -179,38 +194,15 @@ const srv = http.createServer(async (req, res) => {
 
             log('[extract] file: ' + fileName + ' ' + fileBuffer.length + ' bytes');
 
-            // Save PDF to temp file and call extract-from-file.cjs (more stable than in-process)
-            const tmpFile = path.join(ROOT, 'tmp_extract_' + Date.now() + '_' + Math.random().toString(36).slice(2) + '.pdf');
-            fs.writeFileSync(tmpFile, fileBuffer);
-            
-            const extractResult = await new Promise((resolveExtract) => {
-              execFile('node', [path.join(ROOT, 'scripts/extract-from-file.cjs'), tmpFile], {
-                timeout: 30000,
-                maxBuffer: 10 * 1024 * 1024,
-              }, (err, stdout) => {
-                try { fs.unlinkSync(tmpFile); } catch(e) {}
-                if (err) { log('[extract] child error: ' + err.message); resolveExtract(null); return; }
-                try {
-                  // Extract JSON from stdout (may have warnings before JSON)
-                  const str = stdout.toString('utf-8');
-                  const jsonStart = str.indexOf('{');
-                  if (jsonStart < 0) { resolveExtract(null); return; }
-                  resolveExtract(JSON.parse(str.substring(jsonStart)));
-                } catch(e) { log('[extract] parse error: ' + e.message); resolveExtract(null); }
-              });
-            });
-
-            if (extractResult && extractResult.success) {
-              log('[extract] extraction done, fields: ' + extractResult.stats.extractedCount + ' / ' + extractResult.stats.totalFields);
-              json(res, extractResult);
-            } else {
-              // Fallback to in-process extraction
-              log('[extract] child failed, falling back to in-process');
+            // In-process extraction (fast, ~100-200ms) — primary path
+            const t0 = Date.now();
+            let extractResult = null;
+            try {
               const pd = await pdfParse(fileBuffer);
               log('[extract] pdf parsed, pages: ' + pd.numpages + ' text: ' + pd.text.length);
               let td = null;
               try {
-                td = await extractTableChildProcess(fileBuffer);
+                td = await extractTableFast(fileBuffer);
                 if (td) log('[extract] table extraction: items: ' + (td.items?.length || 0));
               } catch(e) {
                 log('[extract] table extraction failed: ' + (e.message || '').substring(0, 60));
@@ -219,10 +211,39 @@ const srv = http.createServer(async (req, res) => {
               if (!pd.text || !pd.text.trim()) { log('[extract] no text in pdf'); json(res, { error: 'Sem texto' }, 422); resolve(); return; }
               const ext = extractEnergisaData(pd.text, td);
               const vals = Object.values(ext), cnt = vals.filter(v => v !== '').length;
-              log('[extract] extraction done, fields: ' + cnt + ' / ' + vals.length);
-              const result = { success: true, data: ext, stats: { extractedCount: cnt, totalFields: vals.length, extractionRate: Math.round(cnt/vals.length*100), pageCount: pd.numpages, tableItems: td?.items?.length ?? 0 } };
-              log('[extract] sending response');
-              json(res, result);
+              log('[extract] extraction done (in-process), fields: ' + cnt + ' / ' + vals.length + ' time: ' + (Date.now()-t0) + 'ms');
+              extractResult = { success: true, data: ext, stats: { extractedCount: cnt, totalFields: vals.length, extractionRate: Math.round(cnt/vals.length*100), pageCount: pd.numpages, tableItems: td?.items?.length ?? 0, processingTimeMs: Date.now() - t0 } };
+            } catch(e) {
+              log('[extract] in-process error, falling back to child: ' + (e.message || '').substring(0, 80));
+            }
+
+            // Fallback: child process extraction (slower but more isolated)
+            if (!extractResult) {
+              const tmpFile = path.join(ROOT, 'tmp_extract_' + Date.now() + '_' + Math.random().toString(36).slice(2) + '.pdf');
+              fs.writeFileSync(tmpFile, fileBuffer);
+              const childResult = await new Promise((resolveExtract) => {
+                execFile('node', [path.join(ROOT, 'scripts/extract-from-file.cjs'), tmpFile], {
+                  timeout: 30000, maxBuffer: 10 * 1024 * 1024,
+                }, (err, stdout) => {
+                  try { fs.unlinkSync(tmpFile); } catch(e) {}
+                  if (err) { resolveExtract(null); return; }
+                  try {
+                    const str = stdout.toString('utf-8');
+                    const jsonStart = str.indexOf('{');
+                    if (jsonStart < 0) { resolveExtract(null); return; }
+                    resolveExtract(JSON.parse(str.substring(jsonStart)));
+                  } catch(e) { resolveExtract(null); }
+                });
+              });
+              if (childResult && childResult.success) extractResult = childResult;
+            }
+
+            if (extractResult && extractResult.success) {
+              log('[extract] sending response, fields: ' + extractResult.stats.extractedCount + ' / ' + extractResult.stats.totalFields);
+              json(res, extractResult);
+            } else {
+              log('[extract] all extraction methods failed');
+              json(res, { error: 'Falha na extração' }, 500);
             }
           } catch (e) {
             log('[extract] ERROR: ' + e.message + ' stack: ' + (e.stack || '').substring(0, 300));
