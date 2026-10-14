@@ -245,20 +245,11 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
       return raw.length === 14 || raw.length === 11;
     };
 
-    // Strategy 1: Energisa slash format "NN/NNNNN-N" (e.g., "10/33836-8") — most reliable
-    for (const line of lines) {
-      const m = line.match(/^(?:\d{1,3}\/)?(\d{4,8})-\d$/);
-      if (m) {
-        const num = m[1].replace(/^0+/, '') || '0';
-        if (num.length >= 3) return num;
-      }
-    }
-    // Strategy 2: Slash format within a line near "Código:" (e.g., "Código: 10/33836-8")
-    const slashCtx = flat.match(/Código\s*:\s*(\d{1,3})\/(\d{4,8})-\d/i);
-    if (slashCtx) {
-      const num = slashCtx[2].replace(/^0+/, '') || '0';
-      if (num.length >= 3) return num;
-    }
+    // Strategy 1 (MOVED DOWN): Energisa slash format "NN/NNNNN-N" (e.g., "10/33836-8")
+    // This runs AFTER dotted formats because slash format can match non-UC codes
+    // in PDFs with long UCs (e.g., "109/19863147-7" is NOT a UC in 34700705168.pdf).
+    // For short-UC PDFs (33836, 1069, etc.) there are no dotted matches, so slash is the fallback.
+
     // Strategy 3+4: Collect BOTH 4-group and 3-group dotted formats on own lines.
     // Key insight from analysis of all PDFs:
     // - When ONLY 3-group exists → it's the UC (e.g., "7.247.051-86")
@@ -315,6 +306,21 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
       }
       if (s3matches.length > 0) { s3matches.sort((a, b) => a.line - b.line); return s3matches[0].val; }
       if (s4matches.length > 0) { s4matches.sort((a, b) => a.line - b.line); return s4matches[0].val; }
+    }
+    // Strategy 1: Energisa slash format "NN/NNNNN-N" (e.g., "10/33836-8")
+    // Runs after dotted formats because slash can match non-UC codes in long-UC PDFs.
+    for (const line of lines) {
+      const m = line.match(/^(?:\d{1,3}\/)?(\d{4,8})-\d$/);
+      if (m) {
+        const num = m[1].replace(/^0+/, '') || '0';
+        if (num.length >= 3) return num;
+      }
+    }
+    // Strategy 2: Slash format within a line near "Código:" (e.g., "Código: 10/33836-8")
+    const slashCtx = flat.match(/Código\s*:\s*(\d{1,3})\/(\d{4,8})-\d/i);
+    if (slashCtx) {
+      const num = slashCtx[2].replace(/^0+/, '') || '0';
+      if (num.length >= 3) return num;
     }
     // Strategy 7: MATRÍCULA field — extended to support up to 13 digits
     // e.g., "MATRÍCULA:0140940705147-2025-08-6"

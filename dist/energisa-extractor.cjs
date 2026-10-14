@@ -175,18 +175,6 @@ function extractEnergisaData(rawText, tableExtraction) {
       const raw = s.replace(/[.\-\/]/g, "");
       return raw.length === 14 || raw.length === 11;
     };
-    for (const line of lines) {
-      const m = line.match(/^(?:\d{1,3}\/)?(\d{4,8})-\d$/);
-      if (m) {
-        const num = m[1].replace(/^0+/, "") || "0";
-        if (num.length >= 3) return num;
-      }
-    }
-    const slashCtx = flat.match(/Código\s*:\s*(\d{1,3})\/(\d{4,8})-\d/i);
-    if (slashCtx) {
-      const num = slashCtx[2].replace(/^0+/, "") || "0";
-      if (num.length >= 3) return num;
-    }
     {
       const s3matches = [];
       const s4matches = [];
@@ -236,6 +224,18 @@ function extractEnergisaData(rawText, tableExtraction) {
         s4matches.sort((a, b) => a.line - b.line);
         return s4matches[0].val;
       }
+    }
+    for (const line of lines) {
+      const m = line.match(/^(?:\d{1,3}\/)?(\d{4,8})-\d$/);
+      if (m) {
+        const num = m[1].replace(/^0+/, "") || "0";
+        if (num.length >= 3) return num;
+      }
+    }
+    const slashCtx = flat.match(/Código\s*:\s*(\d{1,3})\/(\d{4,8})-\d/i);
+    if (slashCtx) {
+      const num = slashCtx[2].replace(/^0+/, "") || "0";
+      if (num.length >= 3) return num;
     }
     const ucMat = flat.match(/MATR[IÍ]CULA\s*:\s*0*(\d{4,13})(?:-\d{4}-\d{2}-\d)?/i);
     if (ucMat) return ucMat[1];
