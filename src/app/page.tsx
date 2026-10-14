@@ -407,7 +407,34 @@ export default function Home() {
                 <p className="text-sm text-slate-400">Nenhuma fatura processada.</p>
               </div>
             ) : (
-              results.map((result, idx) => {
+              <>
+                {/* Export bar — at the TOP */}
+                {results.length > 0 && (
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-5 py-4 rounded-xl bg-white border border-slate-200 shadow-sm">
+                    <div className="flex items-center gap-2 text-xs text-slate-500">
+                      <FileSpreadsheet className="h-4 w-4" />
+                      <span><strong className="text-slate-700">{results.length}</strong> fatura{results.length !== 1 ? 's' : ''} pronta{results.length !== 1 ? 's' : ''} para exportação</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={exportToExcel}
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium bg-gradient-to-r from-blue-600 to-sky-500 text-white shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 transition-all"
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                        Exportar Excel
+                      </button>
+                      <button
+                        onClick={exportToExcel}
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium bg-gradient-to-r from-emerald-600 to-green-500 text-white shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30 transition-all"
+                      >
+                        <Table2 className="h-3.5 w-3.5" />
+                        Excel Completo
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {results.map((result, idx) => {
                 const d = result.data;
                 const rate = result.stats.extractionRate;
                 const isGood = rate >= 70;
@@ -611,32 +638,8 @@ export default function Home() {
                   </div>
                 );
               })
-            )}
-
-            {/* Export bar */}
-            {results.length > 0 && (
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-5 py-4 rounded-xl bg-white border border-slate-200 shadow-sm">
-                <div className="flex items-center gap-2 text-xs text-slate-500">
-                  <FileSpreadsheet className="h-4 w-4" />
-                  <span><strong className="text-slate-700">{results.length}</strong> fatura{results.length !== 1 ? 's' : ''} pronta{results.length !== 1 ? 's' : ''} para exportação</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={exportToExcel}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium bg-gradient-to-r from-blue-600 to-sky-500 text-white shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 transition-all"
-                  >
-                    <Download className="h-3.5 w-3.5" />
-                    Exportar Excel
-                  </button>
-                  <button
-                    onClick={exportToExcel}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium bg-gradient-to-r from-emerald-600 to-green-500 text-white shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30 transition-all"
-                  >
-                    <Table2 className="h-3.5 w-3.5" />
-                    Excel Completo
-                  </button>
-                </div>
-              </div>
+            }
+              </>
             )}
           </div>
         )}
