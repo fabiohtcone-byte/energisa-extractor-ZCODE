@@ -240,6 +240,7 @@ const srv = http.createServer(async (req, res) => {
       const XLSX = require('xlsx');
       // Column order with ALL extracted fields
       const cols = [
+        ['Arquivo PDF',                             '_fileName'],
         ['UC',                                      'UC'],
         ['Gerência',                                null],
         ['LOCINS',                                  null],
@@ -302,10 +303,15 @@ const srv = http.createServer(async (req, res) => {
       ];
       const hdrs = cols.map(c => c[0]);
       const keys = cols.map(c => c[1]);
-      const rows = invoices.map(inv => keys.map(k => k === null ? '' : (inv[k] || '')));
+      const rows = invoices.map(inv => keys.map(k => {
+        if (k === null) return '';
+        if (k === '_fileName') return inv._fileName || '';
+        return inv[k] || '';
+      }));
       const ws = XLSX.utils.aoa_to_sheet([hdrs, ...rows]);
       ws['!cols'] = cols.map(c => {
         const l = c[0];
+        if (l.includes('Arquivo PDF')) return { wch: 28 };
         if (l.includes('UC') && !l.includes('GDI')) return { wch: 22 };
         if (l.includes('Gerência') || l.includes('LOCINS')) return { wch: 18 };
         if (l.includes('ENDEREÇO')) return { wch: 40 };

@@ -112,6 +112,7 @@ export async function POST(request: NextRequest) {
 
     // Column order EXACTLY as requested by user, then Consumo Médio at the end
     const cols: [string, string][] = [
+      ['Arquivo PDF',                             '_fileName'],
       ['UC',                                      'UC'],
       ['Gerência',                                '__empty__'],
       ['LOCINS',                                  '__empty__'],
@@ -191,6 +192,7 @@ export async function POST(request: NextRequest) {
           // Format with 2 decimal places and comma as decimal separator
           return avg > 0 ? avg.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '';
         }
+        if (k === '_fileName') return (inv as any)._fileName || '';
         return (inv[k as keyof EnergisaInvoiceData] as string) || '';
       });
     });
@@ -198,6 +200,7 @@ export async function POST(request: NextRequest) {
     const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
     ws['!cols'] = cols.map(c => {
       const l = c[0];
+      if (l.includes('Arquivo PDF')) return { wch: 28 };
       if (l.includes('UC') && !l.includes('GDI')) return { wch: 22 };
       if (l.includes('Gerência') || l.includes('LOCINS')) return { wch: 18 };
       if (l.includes('Consumo Médio')) return { wch: 20 };

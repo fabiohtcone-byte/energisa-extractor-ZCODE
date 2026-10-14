@@ -1,0 +1,642 @@
+     1→'use client'
+     2→
+     3→import { useState, useCallback, useRef } from 'react';
+     4→import { toast } from 'sonner';
+     5→import { Button } from '@/components/ui/button';
+     6→import { Badge } from '@/components/ui/badge';
+     7→import { Progress } from '@/components/ui/progress';
+     8→import { FIELD_LABELS, FIELD_CATEGORIES, type EnergisaInvoiceData } from '@/lib/energisa-fields';
+     9→import {
+    10→  Upload,
+    11→  FileText,
+    12→  Download,
+    13→  Trash2,
+    14→  CheckCircle2,
+    15→  AlertCircle,
+    16→  Zap,
+    17→  BarChart3,
+    18→  FileSpreadsheet,
+    19→  Bug,
+    20→  Loader2,
+    21→  Calendar,
+    22→  Receipt,
+    23→  DollarSign,
+    24→  MapPin,
+    25→  Tag,
+    26→  TrendingUp,
+    27→  Shield,
+    28→  ArrowUpRight,
+    29→  Sparkles,
+    30→  Building2,
+    31→  Hash,
+    32→  Clock,
+    33→  Gauge,
+    34→  CircleDot,
+    35→  BatteryCharging,
+    36→  Sun,
+    37→  PiggyBank,
+    38→  CircleDollarSign,
+    39→  Minus,
+    40→  Plus,
+    41→  X,
+    42→} from 'lucide-react';
+    43→
+    44→interface FileProgress {
+    45→  fileName: string;
+    46→  status: 'pending' | 'processing' | 'done' | 'error';
+    47→  result?: ExtractionResult;
+    48→  errorMsg?: string;
+    49→}
+    50→
+    51→interface ExtractionResult {
+    52→  fileName: string;
+    53→  data: EnergisaInvoiceData;
+    54→  stats: {
+    55→    extractedCount: number;
+    56→    totalFields: number;
+    57→    extractionRate: number;
+    58→    pageCount: number;
+    59→  };
+    60→  rawText?: string;
+    61→}
+    62→
+    63→/* ── Category visual config ── */
+    64→const CAT_CFG: Record<string, { icon: React.ReactNode; accent: string; soft: string; ring: string }> = {
+    65→  'Identificação':                    { icon: <Building2 className="h-3.5 w-3.5" />,  accent: 'text-blue-700',    soft: 'bg-blue-50',    ring: 'ring-blue-200' },
+    66→  'Datas e Documentos':              { icon: <Calendar className="h-3.5 w-3.5" />,   accent: 'text-violet-700',  soft: 'bg-violet-50',  ring: 'ring-violet-200' },
+    67→  'Tarifa':                           { icon: <Tag className="h-3.5 w-3.5" />,        accent: 'text-indigo-700',  soft: 'bg-indigo-50',  ring: 'ring-indigo-200' },
+    68→  'Consumo (kWh)':                    { icon: <Zap className="h-3.5 w-3.5" />,       accent: 'text-emerald-700', soft: 'bg-emerald-50', ring: 'ring-emerald-200' },
+    69→  'Demanda Contratada (kW)':         { icon: <Shield className="h-3.5 w-3.5" />,    accent: 'text-sky-700',     soft: 'bg-sky-50',     ring: 'ring-sky-200' },
+    70→  'Demanda Medida (kW)':             { icon: <Gauge className="h-3.5 w-3.5" />,     accent: 'text-teal-700',    soft: 'bg-teal-50',    ring: 'ring-teal-200' },
+    71→  'Demanda Faturada (kW)':           { icon: <TrendingUp className="h-3.5 w-3.5" />, accent: 'text-cyan-700',    soft: 'bg-cyan-50',    ring: 'ring-cyan-200' },
+    72→  'Ultrapassagem (kW)':              { icon: <ArrowUpRight className="h-3.5 w-3.5" />, accent: 'text-orange-700', soft: 'bg-orange-50',  ring: 'ring-orange-200' },
+    73→  'Demanda Não Consumida (kW)':      { icon: <Minus className="h-3.5 w-3.5" />,     accent: 'text-rose-700',    soft: 'bg-rose-50',    ring: 'ring-rose-200' },
+    74→  'Reativa Excedente (kWh)':         { icon: <BatteryCharging className="h-3.5 w-3.5" />, accent: 'text-amber-700', soft: 'bg-amber-50',  ring: 'ring-amber-200' },
+    75→  'Valores - Consumo (R$)':          { icon: <CircleDollarSign className="h-3.5 w-3.5" />, accent: 'text-green-700', soft: 'bg-green-50', ring: 'ring-green-200' },
+    76→  'Valores - Demanda (R$)':          { icon: <CircleDollarSign className="h-3.5 w-3.5" />, accent: 'text-emerald-700', soft: 'bg-emerald-50', ring: 'ring-emerald-200' },
+    77→  'Valores - Ultrapassagem (R$)':    { icon: <CircleDollarSign className="h-3.5 w-3.5" />, accent: 'text-orange-700', soft: 'bg-orange-50', ring: 'ring-orange-200' },
+    78→  'Valores - Demanda Não Consumida (R$)': { icon: <CircleDollarSign className="h-3.5 w-3.5" />, accent: 'text-rose-700', soft: 'bg-rose-50', ring: 'ring-rose-200' },
+    79→  'Valores - Reativa Excedente (R$)':{ icon: <CircleDollarSign className="h-3.5 w-3.5" />, accent: 'text-amber-700', soft: 'bg-amber-50', ring: 'ring-amber-200' },
+    80→  'Tributos e Encargos (R$)':        { icon: <PiggyBank className="h-3.5 w-3.5" />,  accent: 'text-red-700',     soft: 'bg-red-50',     ring: 'ring-red-200' },
+    81→  'Energia Injetada GDI oUC':        { icon: <Sun className="h-3.5 w-3.5" />,        accent: 'text-lime-700',    soft: 'bg-lime-50',    ring: 'ring-lime-200' },
+    82→  'Energia Injetada GDI mUC':        { icon: <Sun className="h-3.5 w-3.5" />,        accent: 'text-lime-700',    soft: 'bg-lime-50',    ring: 'ring-lime-200' },
+    83→  'Geração Distribuída':             { icon: <Sparkles className="h-3.5 w-3.5" />,   accent: 'text-green-700',   soft: 'bg-green-50',   ring: 'ring-green-200' },
+    84→  'Total':                           { icon: <DollarSign className="h-3.5 w-3.5" />,  accent: 'text-slate-800',   soft: 'bg-slate-100',  ring: 'ring-slate-300' },
+    85→};
+    86→const FALLBACK_CFG = { icon: <Tag className="h-3.5 w-3.5" />, accent: 'text-slate-700', soft: 'bg-slate-50', ring: 'ring-slate-200' };
+    87→
+    88→/* ── Helpers ── */
+    89→function shortenLabel(label: string): string {
+    90→  return label
+    91→    .replace(/^Demanda (Contratada|Medida|Faturada) /, '')
+    92→    .replace(/^Demanda Potência Não Consumida - /, 'Não Consumida ')
+    93→    .replace(/^Valor (Consumo|Demanda|Ultrapassagem|Reativa Excedente|Não Consumida) /, '')
+    94→    .replace(/^Energia Atv Injetada GDI /, '')
+    95→    .replace(/^Consumo em kWh \(Grupo B\)/, 'Consumo kWh')
+    96→    .replace(/^Consumo \(R\$\) \(Grupo B\)/, 'Consumo R$')
+    97→    .replace(/^Ultrapassagem /, '')
+    98→    .replace(/^Reativa Excedente /, '')
+    99→    .replace(/^Energia Reativa Total/, 'Total')
+   100→    .replace(/^Saldo Acumulado GD/, 'Saldo GD')
+   101→    .replace(/\s*\(kWh\)\s*/, '')
+   102→    .replace(/\s*\(kW\)\s*/, '')
+   103→    .replace(/\s*\(R\$\)\s*/, '')
+   104→    .trim();
+   105→}
+   106→
+   107→/* ═══════════════════════════════════════════════
+   108→   MAIN COMPONENT
+   109→   ═══════════════════════════════════════════════ */
+   110→export default function Home() {
+   111→  const [results, setResults] = useState<ExtractionResult[]>([]);
+   112→  const [isProcessing, setIsProcessing] = useState(false);
+   113→  const [isDragging, setIsDragging] = useState(false);
+   114→  [isDragging]; // used in className
+   115→  const [activeTab, setActiveTab] = useState<'upload' | 'results'>('upload');
+   116→  const [debugMode, setDebugMode] = useState(false);
+   117→  const [fileProgress, setFileProgress] = useState<FileProgress[]>([]);
+   118→  const fileInputRef = useRef<HTMLInputElement>(null);
+   119→
+   120→  /* ── file processing ── */
+   121→  const processFiles = useCallback(async (files: FileList | File[]) => {
+   122→    // Accept PDFs by MIME type OR by .pdf extension (some browsers report empty type)
+   123→    const pdfFiles = Array.from(files).filter((f) => f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf'));
+   124→    if (pdfFiles.length === 0) { toast.error('Selecione ao menos um arquivo PDF.'); return; }
+   125→    setIsProcessing(true);
+   126→    const newResults: ExtractionResult[] = [];
+   127→    setFileProgress(pdfFiles.map((f) => ({ fileName: f.name, status: 'pending' as const })));
+   128→
+   129→    try {
+   130→      for (let i = 0; i < pdfFiles.length; i++) {
+   131→        const file = pdfFiles[i];
+   132→        setFileProgress((p) => p.map((x, idx) => idx === i ? { ...x, status: 'processing' as const } : x));
+   133→        try {
+   134→          const fd = new FormData(); fd.append('file', file);
+   135→          // Timeout: abort fetch after 30 seconds to prevent UI from hanging forever
+   136→          const controller = new AbortController();
+   137→          const timeoutId = setTimeout(() => controller.abort(), 30000);
+   138→          let res: Response;
+   139→          try {
+   140→            res = await fetch('/api/extract-pdf', { method: 'POST', body: fd, signal: controller.signal });
+   141→          } finally {
+   142→            clearTimeout(timeoutId);
+   143→          }
+   144→          const json = await res.json();
+   145→          if (!res.ok) {
+   146→            setFileProgress((p) => p.map((x, idx) => idx === i ? { ...x, status: 'error' as const, errorMsg: json.error } : x));
+   147→            toast.error(`${file.name}: ${json.error}`);
+   148→          } else {
+   149→            const er: ExtractionResult = { fileName: file.name, data: json.data, stats: json.stats, rawText: json.rawText };
+   150→            newResults.push(er);
+   151→            setFileProgress((p) => p.map((x, idx) => idx === i ? { ...x, status: 'done' as const, result: er } : x));
+   152→            toast.success(`${file.name}: ${json.stats.extractedCount}/${json.stats.totalFields} campos (${json.stats.extractionRate}%)`);
+   153→          }
+   154→        } catch (err) {
+   155→          const isTimeout = err instanceof DOMException && err.name === 'AbortError';
+   156→          const msg = isTimeout ? 'Tempo esgotado (30s)' : 'Erro ao processar';
+   157→          setFileProgress((p) => p.map((x, idx) => idx === i ? { ...x, status: 'error' as const, errorMsg: msg } : x));
+   158→          toast.error(`${file.name}: ${msg}.`);
+   159→        }
+   160→      }
+   161→
+   162→      setResults((prev) => {
+   163→        const updated = [...newResults];
+   164→        for (const e of prev) {
+   165→          const uc = e.data.UC.replace(/\D/g, '');
+   166→          if (uc && !updated.some((r) => r.data.UC.replace(/\D/g, '') === uc)) updated.push(e);
+   167→        }
+   168→        for (const n of newResults) {
+   169→          const uc = n.data.UC.replace(/\D/g, '');
+   170→          if (uc && prev.some((r) => r.data.UC.replace(/\D/g, '') === uc)) toast.info(`UC ${n.data.UC} atualizada.`);
+   171→        }
+   172→        return updated;
+   173→      });
+   174→      if (newResults.length > 0) setActiveTab('results');
+   175→    } finally {
+   176→      // ALWAYS reset processing state, even if something unexpected happens
+   177→      setIsProcessing(false);
+   178→      setFileProgress([]);
+   179→    }
+   180→  }, []);
+   181→
+   182→  const handleDrop = useCallback((e: React.DragEvent) => { e.preventDefault(); setIsDragging(false); if (e.dataTransfer.files.length > 0) processFiles(e.dataTransfer.files); }, [processFiles]);
+   183→  const handleDragOver = useCallback((e: React.DragEvent) => { e.preventDefault(); setIsDragging(true); }, []);
+   184→  const handleDragLeave = useCallback(() => setIsDragging(false), []);
+   185→  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => { if (e.target.files?.length) { processFiles(e.target.files); e.target.value = ''; } }, [processFiles]);
+   186→  const clearAll = useCallback(() => { setResults([]); setActiveTab('upload'); toast.info('Faturas removidas.'); }, []);
+   187→  const removeResult = useCallback((i: number) => { setResults((p) => p.filter((_, x) => x !== i)); toast.info('Fatura removida.'); }, []);
+   188→
+   189→  const exportToExcel = useCallback(async () => {
+   190→    if (!results.length) { toast.error('Nenhuma fatura.'); return; }
+   191→    try {
+   192→      const controller = new AbortController();
+   193→      const timeoutId = setTimeout(() => controller.abort(), 30000);
+   194→      let res: Response;
+   195→      try {
+   196→        res = await fetch('/api/export-excel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ invoices: results.map((r) => ({ ...r.data, _fileName: r.fileName })) }), signal: controller.signal });
+   197→      } finally { clearTimeout(timeoutId); }
+   198→      if (!res.ok) { toast.error('Erro ao gerar Excel.'); return; }
+   199→      const blob = await res.blob(); const url = URL.createObjectURL(blob);
+   200→      const a = document.createElement('a'); a.href = url; a.download = 'faturas_energisa.xlsx';
+   201→      document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+   202→      toast.success('Excel exportado!');
+   203→    } catch (err) {
+   204→      const isTimeout = err instanceof DOMException && err.name === 'AbortError';
+   205→      toast.error(isTimeout ? 'Tempo esgotado ao exportar.' : 'Erro ao exportar.');
+   206→    }
+   207→  }, [results]);
+   208→
+   209→  /* ═══════════════════════════════════════════════
+   210→     RENDER
+   211→     ═══════════════════════════════════════════════ */
+   212→  return (
+   213→    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col">
+   214→
+   215→      {/* ══════════ HEADER ══════════ */}
+   216→      <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/80 backdrop-blur-xl">
+   217→        <div className="max-w-[1400px] mx-auto px-6 h-14 flex items-center justify-between">
+   218→          {/* Logo */}
+   219→          <div className="flex items-center gap-3">
+   220→            <div className="relative h-8 w-8 rounded-lg bg-gradient-to-br from-blue-500 to-sky-500 flex items-center justify-center shadow-lg shadow-blue-500/25">
+   221→              <Zap className="h-4 w-4 text-white" />
+   222→            </div>
+   223→            <div className="flex items-baseline gap-2">
+   224→              <span className="text-sm font-semibold tracking-tight text-slate-800">ENERGISA</span>
+   225→              <span className="text-[11px] text-slate-400 font-medium">Extractor</span>
+   226→            </div>
+   227→          </div>
+   228→
+   229→          {/* Nav pills */}
+   230→          <nav className="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5 border border-slate-200">
+   231→            <button
+   232→              onClick={() => setActiveTab('upload')}
+   233→              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+   234→                activeTab === 'upload'
+   235→                  ? 'bg-white text-slate-800 shadow-sm'
+   236→                  : 'text-slate-500 hover:text-slate-700'
+   237→              }`}
+   238→            >
+   239→              Upload
+   240→            </button>
+   241→            <button
+   242→              onClick={() => results.length > 0 && setActiveTab('results')}
+   243→              disabled={results.length === 0}
+   244→              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+   245→                activeTab === 'results'
+   246→                  ? 'bg-white text-slate-800 shadow-sm'
+   247→                  : 'text-slate-500 hover:text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed'
+   248→              }`}
+   249→            >
+   250→              Resultados {results.length > 0 && <span className="ml-1 text-blue-600">({results.length})</span>}
+   251→            </button>
+   252→          </nav>
+   253→
+   254→          {/* Actions */}
+   255→          <div className="flex items-center gap-2">
+   256→            {results.length > 0 && (
+   257→              <button
+   258→                onClick={exportToExcel}
+   259→                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 transition-all"
+   260→              >
+   261→                <Download className="h-3.5 w-3.5" />
+   262→                <span className="hidden sm:inline">Excel</span>
+   263→              </button>
+   264→            )}
+   265→          </div>
+   266→        </div>
+   267→      </header>
+   268→
+   269→      {/* ══════════ MAIN ══════════ */}
+   270→      <main className="flex-1 max-w-[1400px] mx-auto w-full px-6 py-8">
+   271→
+   272→        {/* ══════════ UPLOAD TAB ══════════ */}
+   273→        {activeTab === 'upload' && (
+   274→          <div className="space-y-8">
+   275→            {/* Hero */}
+   276→            <div className="text-center max-w-xl mx-auto pt-8 pb-2">
+   277→              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-600 text-[11px] font-medium mb-6">
+   278→                <Sparkles className="h-3 w-3" />
+   279→                Extração automática de 40+ campos
+   280→              </div>
+   281→              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-800 mb-3">
+   282→                Extraia dados de faturas<br />
+   283→                <span className="bg-gradient-to-r from-blue-600 to-sky-500 bg-clip-text text-transparent">ENERGISA</span> em segundos
+   284→              </h1>
+   285→              <p className="text-sm text-slate-500 leading-relaxed">
+   286→                Arraste PDFs de faturas de energia e obtenha consumo, demanda, tributos e mais — pronto para Excel.
+   287→              </p>
+   288→            </div>
+   289→
+   290→            {/* Upload zone */}
+   291→            <div
+   292→              onDrop={handleDrop}
+   293→              onDragOver={handleDragOver}
+   294→              onDragLeave={handleDragLeave}
+   295→              onClick={() => fileInputRef.current?.click()}
+   296→              className={`
+   297→                relative group cursor-pointer rounded-2xl border border-dashed transition-all duration-300
+   298→                ${isProcessing ? 'pointer-events-none opacity-50 border-slate-300' : isDragging ? 'border-blue-400 bg-blue-50/50 scale-[1.01]' : 'border-slate-300 bg-white hover:border-blue-400 hover:bg-blue-50/30'}
+   299→              `}
+   300→            >
+   301→              <input ref={fileInputRef} type="file" accept="application/pdf" multiple onChange={handleFileChange} className="hidden" />
+   302→              <div className="p-12 sm:p-16 flex flex-col items-center gap-4">
+   303→                {!isProcessing && (
+   304→                  <>
+   305→                    <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-blue-100 to-sky-100 border border-blue-200 flex items-center justify-center">
+   306→                      <Upload className="h-6 w-6 text-blue-500" />
+   307→                    </div>
+   308→                    <div className="text-center">
+   309→                      <p className="text-sm font-medium text-slate-700">Arraste faturas PDF aqui</p>
+   310→                      <p className="text-xs text-slate-400 mt-1">ou clique para selecionar</p>
+   311→                    </div>
+   312→                    <label
+   313→                      onClick={(e) => e.stopPropagation()}
+   314→                      className="flex items-center gap-2 mt-2 cursor-pointer select-none"
+   315→                    >
+   316→                      <input type="checkbox" checked={debugMode} onChange={(e) => setDebugMode(e.target.checked)} className="rounded border-slate-300 bg-white text-blue-500 focus:ring-blue-500/30" />
+   317→                      <Bug className="h-3 w-3 text-slate-400" />
+   318→                      <span className="text-[11px] text-slate-400">Debug</span>
+   319→                    </label>
+   320→                  </>
+   321→                )}
+   322→
+   323→                {/* Processing */}
+   324→                {isProcessing && fileProgress.length > 0 && (
+   325→                  <div className="w-full max-w-lg mx-auto space-y-4">
+   326→                    <div className="flex items-center justify-between text-xs">
+   327→                      <span className="text-slate-600 font-medium">Processando faturas</span>
+   328→                      <span className="text-blue-600 font-mono">
+   329→                        {fileProgress.filter((p) => p.status === 'done' || p.status === 'error').length}/{fileProgress.length}
+   330→                      </span>
+   331→                    </div>
+   332→                    <Progress
+   333→                      value={(fileProgress.filter((p) => p.status === 'done' || p.status === 'error').length / fileProgress.length) * 100}
+   334→                      className="h-1 bg-slate-200 [&>div]:bg-gradient-to-r [&>div]:from-blue-500 [&>div]:to-sky-400 [&>div]:rounded-full"
+   335→                    />
+   336→                    <div className="space-y-2 max-h-56 overflow-y-auto">
+   337→                      {fileProgress.map((fp, i) => (
+   338→                        <div key={i} className={`flex items-center gap-3 px-3 py-2 rounded-lg text-xs ${
+   339→                          fp.status === 'processing' ? 'bg-blue-50 border border-blue-200' :
+   340→                          fp.status === 'error' ? 'bg-red-50 border border-red-200' :
+   341→                          fp.status === 'done' ? 'bg-slate-50' : 'bg-white'
+   342→                        }`}>
+   343→                          <div className="flex-shrink-0">
+   344→                            {fp.status === 'pending' && <div className="h-4 w-4 rounded-full border border-slate-300" />}
+   345→                            {fp.status === 'processing' && <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />}
+   346→                            {fp.status === 'done' && <CheckCircle2 className="h-4 w-4 text-emerald-500" />}
+   347→                            {fp.status === 'error' && <AlertCircle className="h-4 w-4 text-red-500" />}
+   348→                          </div>
+   349→                          <span className={`flex-1 truncate ${fp.status === 'processing' ? 'text-blue-700' : fp.status === 'error' ? 'text-red-600' : 'text-slate-600'}`}>
+   350→                            {fp.fileName}
+   351→                          </span>
+   352→                          {fp.status === 'done' && fp.result && (
+   353→                            <span className="text-emerald-600 font-mono">{fp.result.stats.extractionRate}%</span>
+   354→                          )}
+   355→                        </div>
+   356→                      ))}
+   357→                    </div>
+   358→                  </div>
+   359→                )}
+   360→              </div>
+   361→            </div>
+   362→
+   363→            {/* Feature pills */}
+   364→            <div className="flex flex-wrap justify-center gap-3">
+   365→              {[
+   366→                { icon: <Zap className="h-3.5 w-3.5" />, label: '40+ Campos', desc: 'UC, consumo, demanda, tributos' },
+   367→                { icon: <FileSpreadsheet className="h-3.5 w-3.5" />, label: 'Exportar Excel', desc: 'Com Gerência e LOCINS' },
+   368→                { icon: <Sparkles className="h-3.5 w-3.5" />, label: 'Multi-modelo', desc: 'Conv., Azul, Verde, GDI' },
+   369→              ].map((f, i) => (
+   370→                <div key={i} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white border border-slate-200 shadow-sm">
+   371→                  <div className="text-slate-500">{f.icon}</div>
+   372→                  <div>
+   373→                    <p className="text-xs font-medium text-slate-700">{f.label}</p>
+   374→                    <p className="text-[10px] text-slate-400">{f.desc}</p>
+   375→                  </div>
+   376→                </div>
+   377→              ))}
+   378→            </div>
+   379→
+   380→            {/* Existing results quick bar */}
+   381→            {results.length > 0 && (
+   382→              <div className="flex items-center justify-between px-5 py-3 rounded-xl bg-white border border-slate-200 shadow-sm">
+   383→                <span className="text-xs text-slate-500">{results.length} fatura{results.length !== 1 ? 's' : ''} processada{results.length !== 1 ? 's' : ''}</span>
+   384→                <div className="flex gap-2">
+   385→                  <button onClick={clearAll} className="text-xs text-red-500/70 hover:text-red-500 transition-colors flex items-center gap-1">
+   386→                    <Trash2 className="h-3 w-3" /> Limpar
+   387→                  </button>
+   388→                  <button onClick={() => setActiveTab('results')} className="text-xs text-blue-600 hover:text-blue-700 transition-colors flex items-center gap-1">
+   389→                    Ver resultados <ArrowUpRight className="h-3 w-3" />
+   390→                  </button>
+   391→                </div>
+   392→              </div>
+   393→            )}
+   394→          </div>
+   395→        )}
+   396→
+   397→        {/* ══════════ RESULTS TAB ══════════ */}
+   398→        {activeTab === 'results' && (
+   399→          <div className="space-y-8">
+   400→            {results.length === 0 ? (
+   401→              <div className="text-center py-20">
+   402→                <FileText className="h-10 w-10 text-slate-300 mx-auto mb-3" />
+   403→                <p className="text-sm text-slate-400">Nenhuma fatura processada.</p>
+   404→              </div>
+   405→            ) : (
+   406→              results.map((result, idx) => {
+   407→                const d = result.data;
+   408→                const rate = result.stats.extractionRate;
+   409→                const isGood = rate >= 70;
+   410→                const isMid = rate >= 40 && !isGood;
+   411→
+   412→                return (
+   413→                  <div key={`${result.fileName}-${idx}`} className="space-y-5">
+   414→
+   415→                    {/* ─── INVOICE HEADER ─── */}
+   416→                    <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+   417→                      {/* Top accent line */}
+   418→                      <div className={`h-0.5 w-full ${
+   419→                        isGood ? 'bg-gradient-to-r from-blue-500 to-sky-400' :
+   420→                        isMid ? 'bg-gradient-to-r from-amber-400 to-yellow-400' :
+   421→                        'bg-gradient-to-r from-red-400 to-rose-400'
+   422→                      }`} />
+   423→
+   424→                      <div className="p-6">
+   425→                        {/* Row 1: file + key info */}
+   426→                        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+   427→                          <div className="flex items-start gap-4 min-w-0">
+   428→                            <div className="h-10 w-10 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center flex-shrink-0">
+   429→                              <FileText className="h-5 w-5 text-slate-500" />
+   430→                            </div>
+   431→                            <div className="min-w-0">
+   432→                              <h2 className="text-sm font-semibold text-slate-800 truncate">{result.fileName}</h2>
+   433→                              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5">
+   434→                                {d.UC && (
+   435→                                  <span className="inline-flex items-center gap-1 text-xs text-blue-600">
+   436→                                    <MapPin className="h-3 w-3" />
+   437→                                    <span className="font-mono">{d.UC}</span>
+   438→                                  </span>
+   439→                                )}
+   440→                                {d.Cidade && <span className="text-xs text-slate-500">{d.Cidade}</span>}
+   441→                                {d.MesReferencia && (
+   442→                                  <span className="inline-flex items-center gap-1 text-xs text-violet-600">
+   443→                                    <Calendar className="h-3 w-3" />{d.MesReferencia}
+   444→                                  </span>
+   445→                                )}
+   446→                                {d.ModalidadeTarifaria && (
+   447→                                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+   448→                                    {d.ModalidadeTarifaria}
+   449→                                  </span>
+   450→                                )}
+   451→                                {d.Subgrupo && (
+   452→                                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+   453→                                    {d.Subgrupo}
+   454→                                  </span>
+   455→                                )}
+   456→                              </div>
+   457→                            </div>
+   458→                          </div>
+   459→
+   460→                          {/* Right: KPIs */}
+   461→                          <div className="flex items-center gap-5 flex-shrink-0">
+   462→                            {d.ValorTotal && (
+   463→                              <div className="text-right">
+   464→                                <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-0.5">Valor Total</p>
+   465→                                <p className="text-xl font-bold font-mono bg-gradient-to-r from-blue-600 to-sky-500 bg-clip-text text-transparent">
+   466→                                  R$ {d.ValorTotal}
+   467→                                </p>
+   468→                              </div>
+   469→                            )}
+   470→                            <div className="text-right">
+   471→                              <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-0.5">Extração</p>
+   472→                              <div className="flex items-center gap-2">
+   473→                                <div className="h-1.5 w-16 rounded-full bg-slate-200 overflow-hidden">
+   474→                                  <div
+   475→                                    className={`h-full rounded-full ${
+   476→                                      isGood ? 'bg-emerald-500' : isMid ? 'bg-amber-500' : 'bg-red-500'
+   477→                                    }`}
+   478→                                    style={{ width: `${rate}%` }}
+   479→                                  />
+   480→                                </div>
+   481→                                <span className={`text-sm font-bold font-mono ${
+   482→                                  isGood ? 'text-emerald-600' : isMid ? 'text-amber-600' : 'text-red-600'
+   483→                                }`}>
+   484→                                  {rate}%
+   485→                                </span>
+   486→                              </div>
+   487→                            </div>
+   488→                            <button
+   489→                              onClick={() => removeResult(idx)}
+   490→                              className="h-8 w-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all"
+   491→                            >
+   492→                              <X className="h-3.5 w-3.5" />
+   493→                            </button>
+   494→                          </div>
+   495→                        </div>
+   496→
+   497→                        {/* Quick stats strip */}
+   498→                        <div className="flex flex-wrap gap-4 mt-5 pt-4 border-t border-slate-100">
+   499→                          {[
+   500→                            { v: d.ConsumoTotal, l: 'Consumo', u: 'kWh', icon: <Zap className="h-3 w-3 text-blue-500" /> },
+   501→                            { v: d.ConsumoPonta, l: 'Ponta', u: 'kWh', icon: null },
+   502→                            { v: d.ConsumoForaPonta, l: 'FP', u: 'kWh', icon: null },
+   503→                            { v: d.Vencimento, l: 'Vencimento', u: '', icon: <Clock className="h-3 w-3 text-violet-500" /> },
+   504→                            { v: d.NotaFiscal, l: 'NF', u: '', icon: <Hash className="h-3 w-3 text-slate-400" /> },
+   505→                          ].filter(x => x.v).map((s, i) => (
+   506→                            <div key={i} className="flex items-center gap-1.5 text-xs">
+   507→                              {s.icon}
+   508→                              <span className="text-slate-400">{s.l}:</span>
+   509→                              <span className="font-mono text-slate-700">{s.v}{s.u && <span className="text-slate-400 ml-0.5">{s.u}</span>}</span>
+   510→                            </div>
+   511→                          ))}
+   512→                          <div className="flex items-center gap-1.5 text-xs text-slate-400">
+   513→                            <FileText className="h-3 w-3" />{result.stats.pageCount} pág.
+   514→                          </div>
+   515→                        </div>
+   516→                      </div>
+   517→                    </div>
+   518→
+   519→                    {/* ─── CATEGORY GRID ─── */}
+   520→                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+   521→                      {FIELD_CATEGORIES.map((cat) => {
+   522→                        const cfg = CAT_CFG[cat.category] || FALLBACK_CFG;
+   523→                        const extracted = cat.fields.filter((f) => d[f]).length;
+   524→                        const total = cat.fields.length;
+   525→                        const catRate = Math.round((extracted / total) * 100);
+   526→                        const hasData = extracted > 0;
+   527→
+   528→                        return (
+   529→                          <div
+   530→                            key={cat.category}
+   531→                            className={`rounded-xl border p-4 transition-all duration-200 ${
+   532→                              hasData
+   533→                                ? `bg-white border-slate-200 hover:border-slate-300 hover:shadow-sm`
+   534→                                : `bg-slate-50/50 border-slate-100 opacity-40`
+   535→                            }`}
+   536→                          >
+   537→                            {/* Cat header */}
+   538→                            <div className="flex items-center justify-between mb-3">
+   539→                              <div className="flex items-center gap-2">
+   540→                                <span className={cfg.accent}>{cfg.icon}</span>
+   541→                                <span className={`text-xs font-semibold ${cfg.accent}`}>{cat.category}</span>
+   542→                              </div>
+   543→                              <span className={`text-[10px] font-bold font-mono px-1.5 py-0.5 rounded-md ${
+   544→                                catRate === 100 ? 'bg-emerald-50 text-emerald-600' :
+   545→                                catRate > 0 ? 'bg-amber-50 text-amber-600' :
+   546→                                'bg-slate-100 text-slate-400'
+   547→                              }`}>
+   548→                                {extracted}/{total}
+   549→                              </span>
+   550→                            </div>
+   551→
+   552→                            {/* Fields */}
+   553→                            <div className="space-y-1">
+   554→                              {cat.fields.map((fk) => {
+   555→                                const val = d[fk];
+   556→                                const empty = !val;
+   557→                                const label = shortenLabel(FIELD_LABELS[fk]);
+   558→                                return (
+   559→                                  <div
+   560→                                    key={fk}
+   561→                                    className={`flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-xs ${
+   562→                                      empty ? 'bg-slate-50/50' : 'bg-slate-50'
+   563→                                    }`}
+   564→                                  >
+   565→                                    <span className={`truncate ${empty ? 'text-slate-300' : 'text-slate-600'}`}>
+   566→                                      {label}
+   567→                                    </span>
+   568→                                    {empty ? (
+   569→                                      <span className="text-slate-300 flex-shrink-0">—</span>
+   570→                                    ) : (
+   571→                                      <span className="font-mono text-[11px] font-medium text-slate-800 bg-white px-1.5 py-0.5 rounded border border-slate-200 flex-shrink-0">
+   572→                                        {val}
+   573→                                      </span>
+   574→                                    )}
+   575→                                  </div>
+   576→                                );
+   577→                              })}
+   578→                            </div>
+   579→                          </div>
+   580→                        );
+   581→                      })}
+   582→                    </div>
+   583→
+   584→                    {/* ─── CAMPOS MANUAIS ─── */}
+   585→                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 flex items-center gap-4">
+   586→                      <AlertCircle className="h-4 w-4 text-amber-600 flex-shrink-0" />
+   587→                      <span className="text-xs text-amber-700">
+   588→                        Campos para preenchimento manual no Excel:
+   589→                      </span>
+   590→                      <div className="flex gap-2">
+   591→                        <span className="text-[10px] font-medium px-2 py-1 rounded-md bg-amber-100 text-amber-800 border border-amber-200">Gerência</span>
+   592→                        <span className="text-[10px] font-medium px-2 py-1 rounded-md bg-amber-100 text-amber-800 border border-amber-200">LOCINS</span>
+   593→                      </div>
+   594→                    </div>
+   595→
+   596→                    {/* Debug raw text */}
+   597→                    {debugMode && result.rawText && (
+   598→                      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+   599→                        <p className="text-xs font-medium text-amber-700 mb-2 flex items-center gap-1.5">
+   600→                          <Bug className="h-3 w-3" /> Texto Bruto
+   601→                        </p>
+   602→                        <pre className="text-[10px] leading-tight text-slate-600 bg-slate-800 rounded-lg p-3 overflow-auto max-h-72 font-mono whitespace-pre-wrap break-all border border-slate-700">
+   603→                          {result.rawText}
+   604→                        </pre>
+   605→                      </div>
+   606→                    )}
+   607→                  </div>
+   608→                );
+   609→              })
+   610→            )}
+   611→
+   612→            {/* Export bar */}
+   613→            {results.length > 0 && (
+   614→              <div className="flex items-center justify-between px-5 py-3 rounded-xl bg-white border border-slate-200 shadow-sm">
+   615→                <div className="flex items-center gap-2 text-xs text-slate-500">
+   616→                  <FileSpreadsheet className="h-4 w-4" />
+   617→                  <span><strong className="text-slate-700">{results.length}</strong> fatura{results.length !== 1 ? 's' : ''} pronta{results.length !== 1 ? 's' : ''} para exportação</span>
+   618→                </div>
+   619→                <button
+   620→                  onClick={exportToExcel}
+   621→                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium bg-gradient-to-r from-blue-600 to-sky-500 text-white shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 transition-all"
+   622→                >
+   623→                  <Download className="h-3.5 w-3.5" />
+   624→                  Exportar Excel
+   625→                </button>
+   626→              </div>
+   627→            )}
+   628→          </div>
+   629→        )}
+   630→      </main>
+   631→
+   632→      {/* ══════════ FOOTER ══════════ */}
+   633→      <footer className="border-t border-slate-200 mt-auto">
+   634→        <div className="max-w-[1400px] mx-auto px-6 py-3 flex items-center justify-between">
+   635→          <span className="text-[10px] text-slate-400">ENERGISA Extractor</span>
+   636→          <span className="text-[10px] text-slate-400">Colunas em amarelo no Excel devem ser preenchidas manualmente</span>
+   637→        </div>
+   638→      </footer>
+   639→    </div>
+   640→  );
+   641→}
+   642→
