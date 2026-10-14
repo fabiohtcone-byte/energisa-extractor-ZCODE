@@ -188,40 +188,54 @@ function extractEnergisaData(rawText, tableExtraction) {
       if (num.length >= 3) return num;
     }
     {
-      let bestMatch = "";
-      let bestLineIdx = Infinity;
+      const s3matches = [];
+      const s4matches = [];
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         const m4 = line.match(/^(\d{1,2}\.\d{3}\.\d{3}\.\d{3}-\d{1,2})$/);
-        if (m4 && !isCnpjCpf(m4[1]) && i < bestLineIdx) {
-          bestMatch = m4[1];
-          bestLineIdx = i;
-        }
+        if (m4 && !isCnpjCpf(m4[1])) s4matches.push({ val: m4[1], line: i });
         const m3 = line.match(/^(\d{1,3}\.\d{3}\.\d{3}-\d{2})$/);
-        if (m3 && i < bestLineIdx) {
-          bestMatch = m3[1];
-          bestLineIdx = i;
-        }
+        if (m3) s3matches.push({ val: m3[1], line: i });
       }
-      if (bestMatch) return bestMatch;
+      if (s3matches.length > 0 && s4matches.length > 0) {
+        s3matches.sort((a, b) => a.line - b.line);
+        return s3matches[0].val;
+      }
+      if (s3matches.length > 0) {
+        s3matches.sort((a, b) => a.line - b.line);
+        return s3matches[0].val;
+      }
+      if (s4matches.length > 0) {
+        s4matches.sort((a, b) => a.line - b.line);
+        return s4matches[0].val;
+      }
     }
     {
-      let bestMatch = "";
-      let bestLineIdx = Infinity;
+      const s3matches = [];
+      const s4matches = [];
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         const m4 = line.match(/(\d{1,2}\.\d{3}\.\d{3}\.\d{3}-\d{1,2})/);
-        if (m4 && line.length < 50 && !/CNPJ|CPF|CEP/i.test(line) && !isCnpjCpf(m4[1]) && i < bestLineIdx) {
-          bestMatch = m4[1];
-          bestLineIdx = i;
+        if (m4 && line.length < 50 && !/CNPJ|CPF|CEP/i.test(line) && !isCnpjCpf(m4[1])) {
+          s4matches.push({ val: m4[1], line: i });
         }
         const m3 = line.match(/(\d{1,3}\.\d{3}\.\d{3}-\d{2})/);
-        if (m3 && line.length < 50 && !/CNPJ|CPF|CEP/i.test(line) && i < bestLineIdx) {
-          bestMatch = m3[1];
-          bestLineIdx = i;
+        if (m3 && line.length < 50 && !/CNPJ|CPF|CEP/i.test(line)) {
+          s3matches.push({ val: m3[1], line: i });
         }
       }
-      if (bestMatch) return bestMatch;
+      if (s3matches.length > 0 && s4matches.length > 0) {
+        s3matches.sort((a, b) => a.line - b.line);
+        return s3matches[0].val;
+      }
+      if (s3matches.length > 0) {
+        s3matches.sort((a, b) => a.line - b.line);
+        return s3matches[0].val;
+      }
+      if (s4matches.length > 0) {
+        s4matches.sort((a, b) => a.line - b.line);
+        return s4matches[0].val;
+      }
     }
     const ucMat = flat.match(/MATR[IÍ]CULA\s*:\s*0*(\d{4,13})(?:-\d{4}-\d{2}-\d)?/i);
     if (ucMat) return ucMat[1];

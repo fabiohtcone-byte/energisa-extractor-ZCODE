@@ -259,45 +259,62 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
       const num = slashCtx[2].replace(/^0+/, '') || '0';
       if (num.length >= 3) return num;
     }
-    // Strategy 3+4: Collect BOTH 4-group and 3-group dotted formats on own lines,
-    // then pick the one that appears FIRST (first via of the document = the real UC).
-    // Previously S3 ran before S4 and could grab a second-via code (e.g., 2.835.230.051-35)
-    // instead of the real UC (e.g., 894.319.051-52).
+    // Strategy 3+4: Collect BOTH 4-group and 3-group dotted formats on own lines.
+    // Key insight from analysis of all PDFs:
+    // - When ONLY 3-group exists → it's the UC (e.g., "7.247.051-86")
+    // - When ONLY 4-group exists → it's the UC (e.g., "1.409.407.051-47")
+    // - When BOTH exist → 3-group is ALWAYS the real UC, 4-group values are
+    //   codes from other document vias/sections (e.g., "2.835.230.051-35" is NOT the UC,
+    //   "894.319.051-52" IS the UC)
     {
-      let bestMatch = '';
-      let bestLineIdx = Infinity;
+      const s3matches: { val: string; line: number }[] = [];
+      const s4matches: { val: string; line: number }[] = [];
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         // 4-group: X.XXX.XXX.XXX-XX (12-digit UC, e.g., "1.409.407.051-47")
         const m4 = line.match(/^(\d{1,2}\.\d{3}\.\d{3}\.\d{3}-\d{1,2})$/);
-        if (m4 && !isCnpjCpf(m4[1]) && i < bestLineIdx) {
-          bestMatch = m4[1]; bestLineIdx = i;
-        }
+        if (m4 && !isCnpjCpf(m4[1])) s4matches.push({ val: m4[1], line: i });
         // 3-group: X.XXX.XXX-XX (e.g., "894.319.051-52")
         const m3 = line.match(/^(\d{1,3}\.\d{3}\.\d{3}-\d{2})$/);
-        if (m3 && i < bestLineIdx) {
-          bestMatch = m3[1]; bestLineIdx = i;
-        }
+        if (m3) s3matches.push({ val: m3[1], line: i });
       }
-      if (bestMatch) return bestMatch;
+      // If both formats exist, 3-group is the real UC (pick first occurrence)
+      if (s3matches.length > 0 && s4matches.length > 0) {
+        s3matches.sort((a, b) => a.line - b.line);
+        return s3matches[0].val;
+      }
+      // If only one format exists, use it (pick first occurrence)
+      if (s3matches.length > 0) {
+        s3matches.sort((a, b) => a.line - b.line);
+        return s3matches[0].val;
+      }
+      if (s4matches.length > 0) {
+        s4matches.sort((a, b) => a.line - b.line);
+        return s4matches[0].val;
+      }
     }
     // Strategy 5+6: Both 4-group and 3-group dotted formats on short lines (not CNPJ/CPF/CEP).
-    // Pick whichever appears first in the document.
+    // Same rule as Strategy 3+4: when both exist, prefer 3-group.
     {
-      let bestMatch = '';
-      let bestLineIdx = Infinity;
+      const s3matches: { val: string; line: number }[] = [];
+      const s4matches: { val: string; line: number }[] = [];
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         const m4 = line.match(/(\d{1,2}\.\d{3}\.\d{3}\.\d{3}-\d{1,2})/);
-        if (m4 && line.length < 50 && !/CNPJ|CPF|CEP/i.test(line) && !isCnpjCpf(m4[1]) && i < bestLineIdx) {
-          bestMatch = m4[1]; bestLineIdx = i;
+        if (m4 && line.length < 50 && !/CNPJ|CPF|CEP/i.test(line) && !isCnpjCpf(m4[1])) {
+          s4matches.push({ val: m4[1], line: i });
         }
         const m3 = line.match(/(\d{1,3}\.\d{3}\.\d{3}-\d{2})/);
-        if (m3 && line.length < 50 && !/CNPJ|CPF|CEP/i.test(line) && i < bestLineIdx) {
-          bestMatch = m3[1]; bestLineIdx = i;
+        if (m3 && line.length < 50 && !/CNPJ|CPF|CEP/i.test(line)) {
+          s3matches.push({ val: m3[1], line: i });
         }
       }
-      if (bestMatch) return bestMatch;
+      if (s3matches.length > 0 && s4matches.length > 0) {
+        s3matches.sort((a, b) => a.line - b.line);
+        return s3matches[0].val;
+      }
+      if (s3matches.length > 0) { s3matches.sort((a, b) => a.line - b.line); return s3matches[0].val; }
+      if (s4matches.length > 0) { s4matches.sort((a, b) => a.line - b.line); return s4matches[0].val; }
     }
     // Strategy 7: MATRÍCULA field — extended to support up to 13 digits
     // e.g., "MATRÍCULA:0140940705147-2025-08-6"
