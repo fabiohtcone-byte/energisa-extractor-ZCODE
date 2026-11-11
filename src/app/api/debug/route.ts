@@ -13,7 +13,9 @@ export async function POST(request: NextRequest) {
     // Step 1: text extraction
     let text = '';
     try {
-      const pdfModule = await import('pdf-parse');
+      // Import the internal lib directly: pdf-parse's index.js runs a debug
+      // routine (reading test/data/05-versions-space.pdf) when bundled.
+      const pdfModule: any = await import('pdf-parse/lib/pdf-parse.js');
       const pdfData = await (pdfModule.default || pdfModule)(buffer);
       text = pdfData.text;
     } catch (e) {

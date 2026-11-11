@@ -83,12 +83,15 @@ function extractEnergisaData(rawText, tableExtraction) {
   const flat = lines.join(" ");
   const Concessionaria = (() => {
     const u = flat.toUpperCase();
-    const isEnergyInvoice = /DANF3E|ENERGIA\s*EL[eÉ]TRICA|DISTR\.\s*DE\s*ENERGIA/i.test(u);
+    if (/02\.328\.280|ELEKTRO|NEOENERGIA/i.test(u)) return "ELEKTRO";
+    const isEnergyInvoice = /DANF3E|ENERGIA\s*EL[eÉ]TRICA|DISTR\.\s*DE\s*ENERGIA|NF3E|CHAVE\s*DE\s*ACESSO/i.test(u);
     if (isEnergyInvoice) {
-      if (/ELEKTRO/i.test(u)) return "ELEKTRO";
+      if (/ELEKTRO|02\.328\.280/i.test(u)) return "ELEKTRO";
       if (/NEOENERGIA/i.test(u)) return "NEOENERGIA";
-      if (/ENERGISA/i.test(u)) return "ENERGISA";
+      if (/ENERGISA|00\.864\.214|07\.522\.669/i.test(u)) return "ENERGISA";
     }
+    if (/02\.328\.280/i.test(u)) return "ELEKTRO";
+    if (/00\.864\.214|07\.522\.669/i.test(u)) return "ENERGISA";
     if (/SANESUL/i.test(u)) return "SANESUL";
     if (/ELEKTRO/i.test(u)) return "ELEKTRO";
     if (/NEOENERGIA/i.test(u)) return "NEOENERGIA";
@@ -891,10 +894,9 @@ function extractEnergisaData(rawText, tableExtraction) {
   let DemandaContratada = EMPTY;
   let DemandaContratadaPonta = EMPTY;
   let DemandaContratadaForaPonta = EMPTY;
+  let DemandaTodosOsPeriodos = EMPTY;
   let DemandaMedidaPonta = EMPTY;
   let DemandaMedidaForaPonta = EMPTY;
-  let DemandaFaturadaPonta = EMPTY;
-  let DemandaFaturadaForaPonta = EMPTY;
   let ValorDemandaPonta = EMPTY;
   let ValorDemandaForaPonta = EMPTY;
   if (isSplitTariff) {
@@ -951,25 +953,89 @@ function extractEnergisaData(rawText, tableExtraction) {
         }
       }
     }
-    if (!DemandaContratada) {
-      const todosColonMatch = flat.match(/Demanda\s+Todos\s+(?:os\s+)?Per[ií]odos?\s*:\s*(\d+(?:[.,]\d+)?)\s*kW/i);
+    const isElektro = /ELEKTRO|NEOENERGIA|02\.328\.280/i.test(flat) || /ELEKTRO|NEOENERGIA/i.test(Concessionaria);
+    const isVerde = /VERDE/i.test(ModalidadeTarifaria) || /VERDE/i.test(flat);
+    const isElektroVerde = isElektro && isVerde;
+    if (isElektroVerde) {
+      const todosColonMatch = flat.match(/Demanda\s+Todos\s+(?:os\s+)?Per[ií]odos?\s*:\s*(\d+(?:[.,]\d+)?)/i);
       if (todosColonMatch) {
-        const val = todosColonMatch[1].replace(".", ",");
-        DemandaContratada = val;
-        if (!DemandaContratadaPonta) DemandaContratadaPonta = val;
-        if (!DemandaContratadaForaPonta) DemandaContratadaForaPonta = val;
+        DemandaTodosOsPeriodos = todosColonMatch[1].replace(".", ",");
+      }
+      if (!DemandaTodosOsPeriodos) {
+        const todosMatch = flat.match(/Demanda\s+Todos\s+(?:os\s+)?Per[ií]odos?\s*-\s*kW\s+(\d+(?:[.,]\d+)?)/i);
+        if (todosMatch) {
+          DemandaTodosOsPeriodos = todosMatch[1].replace(".", ",");
+        }
+      }
+      if (!DemandaTodosOsPeriodos) {
+        const preValMatch = flat.match(/(\d+(?:[.,]\d+)?)\s*Demanda\s+Todos\s+(?:os\s+)?Per[ií]odo/i);
+        if (preValMatch) {
+          DemandaTodosOsPeriodos = preValMatch[1].replace(".", ",");
+        }
+      }
+      if (!DemandaTodosOsPeriodos) {
+        const todosLineIdx = lines.findIndex((l) => /Demanda\s+Todos/i.test(l) && /Per[ií]odo/i.test(l));
+        if (todosLineIdx >= 0) {
+          const lText = lines[todosLineIdx];
+          const mKw = lText.match(/-\s*kW\s+(\d+(?:[.,]\d+)?)/i);
+          const mColon = lText.match(/:\s*(\d+(?:[.,]\d+)?)/i);
+          const mEndNum = lText.match(/(\d+(?:[.,]\d+)?)\s*(?:kW)?\s*$/i);
+          if (mKw) {
+            DemandaTodosOsPeriodos = mKw[1].replace(".", ",");
+          } else if (mColon) {
+            DemandaTodosOsPeriodos = mColon[1].replace(".", ",");
+          } else if (mEndNum && !/-\s*kW\s*$/i.test(lText)) {
+            DemandaTodosOsPeriodos = mEndNum[1].replace(".", ",");
+          } else {
+            for (let i = todosLineIdx + 1; i < Math.min(todosLineIdx + 4, lines.length); i++) {
+              const mNext = lines[i].match(/^(\d+(?:[.,]\d+)?)$/);
+              if (mNext) {
+                DemandaTodosOsPeriodos = mNext[1].replace(".", ",");
+                break;
+              }
+            }
+          }
+        }
+      }
+      if (!DemandaTodosOsPeriodos) {
+        const grandIdx = lines.findIndex((l) => /Grandezas\s+Contratadas/i.test(l));
+        if (grandIdx >= 0) {
+          for (let i = grandIdx + 1; i < Math.min(grandIdx + 8, lines.length); i++) {
+            if (/Demanda\s+Todos/i.test(lines[i])) {
+              const m = lines[i].match(/(\d+(?:[.,]\d+)?)/);
+              if (m) {
+                DemandaTodosOsPeriodos = m[1].replace(".", ",");
+                break;
+              }
+            }
+          }
+        }
+      }
+      if (DemandaTodosOsPeriodos) {
+        if (!DemandaContratada) DemandaContratada = DemandaTodosOsPeriodos;
+        if (!DemandaContratadaPonta) DemandaContratadaPonta = DemandaTodosOsPeriodos;
+        if (!DemandaContratadaForaPonta) DemandaContratadaForaPonta = DemandaTodosOsPeriodos;
+      }
+    } else {
+      if (!DemandaContratada) {
+        const todosColonMatch = flat.match(/Demanda\s+Todos\s+(?:os\s+)?Per[ií]odos?\s*:\s*(\d+(?:[.,]\d+)?)\s*kW/i);
+        if (todosColonMatch) {
+          const val = todosColonMatch[1].replace(".", ",");
+          DemandaContratada = val;
+          if (!DemandaContratadaPonta) DemandaContratadaPonta = val;
+          if (!DemandaContratadaForaPonta) DemandaContratadaForaPonta = val;
+        }
+      }
+      if (!DemandaContratada) {
+        const todosMatch = flat.match(/Demanda\s+Todos\s+(?:os\s+)?Per[ií]odos?\s*-\s*kW\s+(\d+(?:[.,]\d+)?)/i);
+        if (todosMatch) {
+          const val = todosMatch[1].replace(".", ",");
+          DemandaContratada = val;
+          if (!DemandaContratadaPonta) DemandaContratadaPonta = val;
+          if (!DemandaContratadaForaPonta) DemandaContratadaForaPonta = val;
+        }
       }
     }
-    if (!DemandaContratada) {
-      const todosMatch = flat.match(/Demanda\s+Todos\s+(?:os\s+)?Per[ií]odos?\s*-\s*kW\s+(\d+(?:[.,]\d+)?)/i);
-      if (todosMatch) {
-        const val = todosMatch[1].replace(".", ",");
-        DemandaContratada = val;
-        if (!DemandaContratadaPonta) DemandaContratadaPonta = val;
-        if (!DemandaContratadaForaPonta) DemandaContratadaForaPonta = val;
-      }
-    }
-    const isVerde = /VERDE/i.test(ModalidadeTarifaria);
     if (isVerde) {
       if (DemandaContratadaForaPonta && !DemandaContratadaPonta) {
         DemandaContratadaPonta = DemandaContratadaForaPonta;
@@ -1080,15 +1146,11 @@ function extractEnergisaData(rawText, tableExtraction) {
     }
     DemandaMedidaPonta = findQtyNearLine(lines, /Demanda\s+Medida.*Ponta(?!.*Fora)/i);
     DemandaMedidaForaPonta = findQtyNearLine(lines, /Demanda\s+Medida.*Fora\s*Ponta/i);
-    DemandaFaturadaPonta = findQtyNearLine(lines, /Demanda\s+Fatur[ae]da.*Ponta(?!.*Fora)/i) || DemandaMedidaPonta;
-    DemandaFaturadaForaPonta = findQtyNearLine(lines, /Demanda\s+Fatur[ae]da.*Fora\s*Ponta/i) || DemandaMedidaForaPonta;
     ValorDemandaPonta = findRValueNearLine(lines, flat, /Demanda\s+(?:Medida|Fatur[ae]da).*Ponta(?!.*Fora)/i);
     ValorDemandaForaPonta = findRValueNearLine(lines, flat, /Demanda\s+(?:Medida|Fatur[ae]da).*Fora\s*Ponta/i);
     if (isVerde) {
       if (DemandaMedidaForaPonta && !DemandaMedidaPonta) DemandaMedidaPonta = DemandaMedidaForaPonta;
       else if (DemandaMedidaPonta && !DemandaMedidaForaPonta) DemandaMedidaForaPonta = DemandaMedidaPonta;
-      if (DemandaFaturadaForaPonta && !DemandaFaturadaPonta) DemandaFaturadaPonta = DemandaFaturadaForaPonta;
-      else if (DemandaFaturadaPonta && !DemandaFaturadaForaPonta) DemandaFaturadaForaPonta = DemandaFaturadaPonta;
       if (ValorDemandaForaPonta && !ValorDemandaPonta) ValorDemandaPonta = ValorDemandaForaPonta;
       else if (ValorDemandaPonta && !ValorDemandaForaPonta) ValorDemandaForaPonta = ValorDemandaPonta;
     }
@@ -1461,10 +1523,9 @@ function extractEnergisaData(rawText, tableExtraction) {
     DemandaContratada,
     DemandaContratadaPonta,
     DemandaContratadaForaPonta,
+    DemandaTodosOsPeriodos,
     DemandaMedidaPonta,
     DemandaMedidaForaPonta,
-    DemandaFaturadaPonta,
-    DemandaFaturadaForaPonta,
     UltrapassagemPonta,
     UltrapassagemForaPonta,
     DemandaNaoConsumidaPonta,
@@ -1637,10 +1698,9 @@ var FIELD_LABELS = {
   DemandaContratada: "Demanda Contratada (kW)",
   DemandaContratadaPonta: "Demanda Contratada Ponta (kW)",
   DemandaContratadaForaPonta: "Demanda Contratada Fora Ponta (kW)",
+  DemandaTodosOsPeriodos: "Demanda Todos os Per\xEDodos (kW)",
   DemandaMedidaPonta: "Demanda Medida Ponta (kW)",
   DemandaMedidaForaPonta: "Demanda Medida Fora Ponta (kW)",
-  DemandaFaturadaPonta: "Demanda Faturada Ponta (kW)",
-  DemandaFaturadaForaPonta: "Demanda Faturada Fora Ponta (kW)",
   UltrapassagemPonta: "Ultrapassagem Ponta (kW)",
   UltrapassagemForaPonta: "Ultrapassagem Fora Ponta (kW)",
   DemandaNaoConsumidaPonta: "Demanda Pot\xEAncia N\xE3o Consumida - Ponta (kW)",
@@ -1676,9 +1736,8 @@ var FIELD_CATEGORIES = [
   { category: "Datas e Documentos", fields: ["MesReferencia", "AnoLeitura", "Vencimento", "NotaFiscal"] },
   { category: "Tarifa", fields: ["ModalidadeTarifaria", "Subgrupo"] },
   { category: "Consumo (kWh)", fields: ["ConsumoPonta", "ConsumoIntermediaria", "ConsumoForaPonta", "ConsumoTotal", "ConsumoGrupoB_kWh"] },
-  { category: "Demanda Contratada (kW)", fields: ["DemandaContratada", "DemandaContratadaPonta", "DemandaContratadaForaPonta"] },
+  { category: "Demanda Contratada (kW)", fields: ["DemandaContratada", "DemandaContratadaPonta", "DemandaContratadaForaPonta", "DemandaTodosOsPeriodos"] },
   { category: "Demanda Medida (kW)", fields: ["DemandaMedidaPonta", "DemandaMedidaForaPonta"] },
-  { category: "Demanda Faturada (kW)", fields: ["DemandaFaturadaPonta", "DemandaFaturadaForaPonta"] },
   { category: "Ultrapassagem (kW)", fields: ["UltrapassagemPonta", "UltrapassagemForaPonta"] },
   { category: "Demanda N\xE3o Consumida (kW)", fields: ["DemandaNaoConsumidaPonta", "DemandaNaoConsumidaForaPonta"] },
   { category: "Reativa Excedente (kWh)", fields: ["ReativaExcedentePonta", "ReativaExcedenteForaPonta", "EnergiaReativaTotal"] },

@@ -1,9 +1,11 @@
 // @ts-nocheck
 import * as pdfjsLib from 'pdfjs-dist';
 import path from 'path';
+import { pathToFileURL } from 'url';
 
 // Use worker path but disable it — run inline to avoid worker thread crashes
-pdfjsLib.GlobalWorkerOptions.workerSrc = path.join(process.cwd(), 'node_modules/pdfjs-dist/build/pdf.worker.mjs');
+// Must be a file:// URL: on Windows a raw "C:\..." path is rejected by the ESM loader.
+pdfjsLib.GlobalWorkerOptions.workerSrc = pathToFileURL(path.join(process.cwd(), 'node_modules/pdfjs-dist/build/pdf.worker.mjs')).href;
 
 export interface TableItem {
   label: string;

@@ -43,10 +43,9 @@ export interface EnergisaInvoiceData {
   DemandaContratada: string;
   DemandaContratadaPonta: string;
   DemandaContratadaForaPonta: string;
+  DemandaTodosOsPeriodos: string;
   DemandaMedidaPonta: string;
   DemandaMedidaForaPonta: string;
-  DemandaFaturadaPonta: string;
-  DemandaFaturadaForaPonta: string;
   UltrapassagemPonta: string;
   UltrapassagemForaPonta: string;
   DemandaNaoConsumidaPonta: string;
@@ -100,10 +99,9 @@ export const FIELD_LABELS: Record<keyof EnergisaInvoiceData, string> = {
   DemandaContratada: 'Demanda Contratada (kW)',
   DemandaContratadaPonta: 'Demanda Contratada Ponta (kW)',
   DemandaContratadaForaPonta: 'Demanda Contratada Fora Ponta (kW)',
+  DemandaTodosOsPeriodos: 'Demanda Todos os Períodos (kW)',
   DemandaMedidaPonta: 'Demanda Medida Ponta (kW)',
   DemandaMedidaForaPonta: 'Demanda Medida Fora Ponta (kW)',
-  DemandaFaturadaPonta: 'Demanda Faturada Ponta (kW)',
-  DemandaFaturadaForaPonta: 'Demanda Faturada Fora Ponta (kW)',
   UltrapassagemPonta: 'Ultrapassagem Ponta (kW)',
   UltrapassagemForaPonta: 'Ultrapassagem Fora Ponta (kW)',
   DemandaNaoConsumidaPonta: 'Demanda Potência Não Consumida - Ponta (kW)',
@@ -140,9 +138,8 @@ export const FIELD_CATEGORIES: { category: string; fields: (keyof EnergisaInvoic
   { category: 'Datas e Documentos', fields: ['MesReferencia', 'AnoLeitura', 'Vencimento', 'NotaFiscal'] },
   { category: 'Tarifa', fields: ['ModalidadeTarifaria', 'Subgrupo'] },
   { category: 'Consumo (kWh)', fields: ['ConsumoPonta', 'ConsumoIntermediaria', 'ConsumoForaPonta', 'ConsumoTotal', 'ConsumoGrupoB_kWh'] },
-  { category: 'Demanda Contratada (kW)', fields: ['DemandaContratada', 'DemandaContratadaPonta', 'DemandaContratadaForaPonta'] },
+  { category: 'Demanda Contratada (kW)', fields: ['DemandaContratada', 'DemandaContratadaPonta', 'DemandaContratadaForaPonta', 'DemandaTodosOsPeriodos'] },
   { category: 'Demanda Medida (kW)', fields: ['DemandaMedidaPonta', 'DemandaMedidaForaPonta'] },
-  { category: 'Demanda Faturada (kW)', fields: ['DemandaFaturadaPonta', 'DemandaFaturadaForaPonta'] },
   { category: 'Ultrapassagem (kW)', fields: ['UltrapassagemPonta', 'UltrapassagemForaPonta'] },
   { category: 'Demanda Não Consumida (kW)', fields: ['DemandaNaoConsumidaPonta', 'DemandaNaoConsumidaForaPonta'] },
   { category: 'Reativa Excedente (kWh)', fields: ['ReativaExcedentePonta', 'ReativaExcedenteForaPonta', 'EnergiaReativaTotal'] },

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { FIELD_LABELS, FIELD_CATEGORIES, type EnergisaInvoiceData } from '@/lib/energisa-fields';
+import { NetworkImport } from '@/components/network-import';
 import {
   Upload,
   FileText,
@@ -51,6 +52,8 @@ interface FileProgress {
 
 interface ExtractionResult {
   fileName: string;
+  /** "<Pasta>_<AAAAMM>" when imported from the network share (used to name exports). */
+  source?: string;
   data: EnergisaInvoiceData;
   stats: {
     extractedCount: number;
@@ -69,7 +72,6 @@ const CAT_CFG: Record<string, { icon: React.ReactNode; accent: string; soft: str
   'Consumo (kWh)':                    { icon: <Zap className="h-3.5 w-3.5" />,       accent: 'text-emerald-700', soft: 'bg-emerald-50', ring: 'ring-emerald-200' },
   'Demanda Contratada (kW)':         { icon: <Shield className="h-3.5 w-3.5" />,    accent: 'text-sky-700',     soft: 'bg-sky-50',     ring: 'ring-sky-200' },
   'Demanda Medida (kW)':             { icon: <Gauge className="h-3.5 w-3.5" />,     accent: 'text-teal-700',    soft: 'bg-teal-50',    ring: 'ring-teal-200' },
-  'Demanda Faturada (kW)':           { icon: <TrendingUp className="h-3.5 w-3.5" />, accent: 'text-cyan-700',    soft: 'bg-cyan-50',    ring: 'ring-cyan-200' },
   'Ultrapassagem (kW)':              { icon: <ArrowUpRight className="h-3.5 w-3.5" />, accent: 'text-orange-700', soft: 'bg-orange-50',  ring: 'ring-orange-200' },
   'Demanda Não Consumida (kW)':      { icon: <Minus className="h-3.5 w-3.5" />,     accent: 'text-rose-700',    soft: 'bg-rose-50',    ring: 'ring-rose-200' },
   'Reativa Excedente (kWh)':         { icon: <BatteryCharging className="h-3.5 w-3.5" />, accent: 'text-amber-700', soft: 'bg-amber-50',  ring: 'ring-amber-200' },
@@ -89,6 +91,7 @@ const FALLBACK_CFG = { icon: <Tag className="h-3.5 w-3.5" />, accent: 'text-slat
 /* ── Helpers ── */
 function shortenLabel(label: string): string {
   return label
+    .replace(/^Demanda Todos os Períodos/, 'Todos os Períodos')
     .replace(/^Demanda (Contratada|Medida|Faturada) /, '')
     .replace(/^Demanda Potência Não Consumida - /, 'Não Consumida ')
     .replace(/^Valor (Consumo|Demanda|Ultrapassagem|Reativa Excedente|Não Consumida) /, '')
@@ -113,10 +116,32 @@ export default function Home() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   [isDragging]; // used in className
-  const [activeTab, setActiveTab] = useState<'upload' | 'results'>('upload');
+  const [activeTab, setActiveTab] = useState<'upload' | 'network' | 'results'>('upload');
   const [debugMode, setDebugMode] = useState(false);
   const [fileProgress, setFileProgress] = useState<FileProgress[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  /* ── merge new results (dedupe by UC + source) ── */
+  const mergeResults = useCallback((newResults: ExtractionResult[]) => {
+    // Same UC from different network folders/months are distinct invoices
+    const keyOf = (r: ExtractionResult) => {
+      const uc = r.data.UC.replace(/\D/g, '');
+      return uc ? `${uc}|${r.source ?? ''}` : '';
+    };
+    setResults((prev) => {
+      const updated = [...newResults];
+      for (const e of prev) {
+        const k = keyOf(e);
+        if (k && !updated.some((r) => keyOf(r) === k)) updated.push(e);
+      }
+      for (const n of newResults) {
+        const k = keyOf(n);
+        if (k && prev.some((r) => keyOf(r) === k)) toast.info(`UC ${n.data.UC} atualizada.`);
+      }
+      return updated;
+    });
+    if (newResults.length > 0) setActiveTab('results');
+  }, []);
 
   /* ── file processing ── */
   const processFiles = useCallback(async (files: FileList | File[]) => {
@@ -160,25 +185,13 @@ export default function Home() {
         }
       }
 
-      setResults((prev) => {
-        const updated = [...newResults];
-        for (const e of prev) {
-          const uc = e.data.UC.replace(/\D/g, '');
-          if (uc && !updated.some((r) => r.data.UC.replace(/\D/g, '') === uc)) updated.push(e);
-        }
-        for (const n of newResults) {
-          const uc = n.data.UC.replace(/\D/g, '');
-          if (uc && prev.some((r) => r.data.UC.replace(/\D/g, '') === uc)) toast.info(`UC ${n.data.UC} atualizada.`);
-        }
-        return updated;
-      });
-      if (newResults.length > 0) setActiveTab('results');
+      mergeResults(newResults);
     } finally {
       // ALWAYS reset processing state, even if something unexpected happens
       setIsProcessing(false);
       setFileProgress([]);
     }
-  }, []);
+  }, [mergeResults]);
 
   const handleDrop = useCallback((e: React.DragEvent) => { e.preventDefault(); setIsDragging(false); if (e.dataTransfer.files.length > 0) processFiles(e.dataTransfer.files); }, [processFiles]);
   const handleDragOver = useCallback((e: React.DragEvent) => { e.preventDefault(); setIsDragging(true); }, []);
@@ -189,18 +202,29 @@ export default function Home() {
 
   const exportToExcel = useCallback(async () => {
     if (!results.length) { toast.error('Nenhuma fatura.'); return; }
+    // One file per source folder (e.g. Energisa_202609); manual uploads keep the default name
+    const groups = new Map<string, ExtractionResult[]>();
+    for (const r of results) {
+      const name = r.source ? r.source.replace(/[\\/:*?"<>|]/g, '_') : 'faturas_energisa';
+      groups.set(name, [...(groups.get(name) ?? []), r]);
+    }
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000);
-      let res: Response;
-      try {
-        res = await fetch('/api/export-excel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ invoices: results.map((r) => ({ ...r.data, _fileName: r.fileName })) }), signal: controller.signal });
-      } finally { clearTimeout(timeoutId); }
-      if (!res.ok) { toast.error('Erro ao gerar Excel.'); return; }
-      const blob = await res.blob(); const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = 'faturas_energisa.xlsx';
-      document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
-      toast.success('Excel exportado!');
+      for (const [name, items] of groups) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
+        let res: Response;
+        try {
+          res = await fetch('/api/export-excel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ invoices: items.map((r) => ({ ...r.data, _fileName: r.fileName })) }), signal: controller.signal });
+        } finally { clearTimeout(timeoutId); }
+        if (!res.ok) { toast.error(`Erro ao gerar Excel (${name}).`); return; }
+        const blob = await res.blob(); const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = `${name}.xlsx`;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+        toast.success(`Excel exportado: ${name}.xlsx`);
+        if (groups.size > 1) {
+          await new Promise((resolve) => setTimeout(resolve, 350));
+        }
+      }
     } catch (err) {
       const isTimeout = err instanceof DOMException && err.name === 'AbortError';
       toast.error(isTimeout ? 'Tempo esgotado ao exportar.' : 'Erro ao exportar.');
@@ -240,6 +264,16 @@ export default function Home() {
               Upload
             </button>
             <button
+              onClick={() => setActiveTab('network')}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                activeTab === 'network'
+                  ? 'bg-white text-slate-800 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              Rede
+            </button>
+            <button
               onClick={() => results.length > 0 && setActiveTab('results')}
               disabled={results.length === 0}
               className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
@@ -269,6 +303,9 @@ export default function Home() {
 
       {/* ══════════ MAIN ══════════ */}
       <main className="flex-1 max-w-[1400px] mx-auto w-full px-6 py-8">
+
+        {/* ══════════ NETWORK TAB ══════════ */}
+        {activeTab === 'network' && <NetworkImport onDone={mergeResults} />}
 
         {/* ══════════ UPLOAD TAB ══════════ */}
         {activeTab === 'upload' && (

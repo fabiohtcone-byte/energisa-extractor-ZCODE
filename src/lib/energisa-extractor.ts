@@ -40,10 +40,9 @@ export interface EnergisaInvoiceData {
   DemandaContratada: string;
   DemandaContratadaPonta: string;
   DemandaContratadaForaPonta: string;
+  DemandaTodosOsPeriodos: string;
   DemandaMedidaPonta: string;
   DemandaMedidaForaPonta: string;
-  DemandaFaturadaPonta: string;
-  DemandaFaturadaForaPonta: string;
   UltrapassagemPonta: string;
   UltrapassagemForaPonta: string;
   DemandaNaoConsumidaPonta: string;
@@ -158,14 +157,17 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
   // For water/sewage invoices, SANESUL is the issuer.
   const Concessionaria = (() => {
     const u = flat.toUpperCase();
-    const isEnergyInvoice = /DANF3E|ENERGIA\s*EL[eÉ]TRICA|DISTR\.\s*DE\s*ENERGIA/i.test(u);
+    if (/02\.328\.280|ELEKTRO|NEOENERGIA/i.test(u)) return 'ELEKTRO';
+    const isEnergyInvoice = /DANF3E|ENERGIA\s*EL[eÉ]TRICA|DISTR\.\s*DE\s*ENERGIA|NF3E|CHAVE\s*DE\s*ACESSO/i.test(u);
     if (isEnergyInvoice) {
       // For energy invoices, the issuing utility is ENERGISA/ELEKTRO/NEOENERGIA
-      if (/ELEKTRO/i.test(u)) return 'ELEKTRO';
+      if (/ELEKTRO|02\.328\.280/i.test(u)) return 'ELEKTRO';
       if (/NEOENERGIA/i.test(u)) return 'NEOENERGIA';
-      if (/ENERGISA/i.test(u)) return 'ENERGISA';
+      if (/ENERGISA|00\.864\.214|07\.522\.669/i.test(u)) return 'ENERGISA';
     }
     // For non-energy invoices or when no energy indicator found
+    if (/02\.328\.280/i.test(u)) return 'ELEKTRO';
+    if (/00\.864\.214|07\.522\.669/i.test(u)) return 'ENERGISA';
     if (/SANESUL/i.test(u)) return 'SANESUL';
     if (/ELEKTRO/i.test(u)) return 'ELEKTRO';
     if (/NEOENERGIA/i.test(u)) return 'NEOENERGIA';
@@ -1177,10 +1179,9 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
   let DemandaContratada = EMPTY;
   let DemandaContratadaPonta = EMPTY;
   let DemandaContratadaForaPonta = EMPTY;
+  let DemandaTodosOsPeriodos = EMPTY;
   let DemandaMedidaPonta = EMPTY;
   let DemandaMedidaForaPonta = EMPTY;
-  let DemandaFaturadaPonta = EMPTY;
-  let DemandaFaturadaForaPonta = EMPTY;
   let ValorDemandaPonta = EMPTY;
   let ValorDemandaForaPonta = EMPTY;
 
@@ -1268,36 +1269,105 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
       }
     }
 
-    // ===== DEMANDA TODOS OS PERÍODOS (Horária Verde / Sem separação Ponta/Fora) =====
-    // For Grupo A Horária Verde, the demand is the SAME for all periods.
-    // The invoice may show:
-    //   "Demanda Todos os Períodos:30 kW"  (colon separator, common in Energisa)
-    //   "Demanda Todos os Período - kW <value>"
-    // When found, set DemandaContratada (single field) AND copy to both Ponta/ForaPonta.
-    if (!DemandaContratada) {
-      // Strategy 4a: "Demanda Todos os Períodos:<value> kW" (colon format)
-      const todosColonMatch = flat.match(/Demanda\s+Todos\s+(?:os\s+)?Per[ií]odos?\s*:\s*(\d+(?:[.,]\d+)?)\s*kW/i);
+    // ===== DEMANDA TODOS OS PERÍODOS (Somente ELEKTRO MODALIDADE VERDE) =====
+    const isElektro = /ELEKTRO|NEOENERGIA|02\.328\.280/i.test(flat) || /ELEKTRO|NEOENERGIA/i.test(Concessionaria);
+    const isVerde = /VERDE/i.test(ModalidadeTarifaria) || /VERDE/i.test(flat);
+    const isElektroVerde = isElektro && isVerde;
+
+    if (isElektroVerde) {
+      // Strategy 4a: "Demanda Todos os Períodos: <value> kW" or "Demanda Todos os Períodos:<value>" (colon format)
+      const todosColonMatch = flat.match(/Demanda\s+Todos\s+(?:os\s+)?Per[ií]odos?\s*:\s*(\d+(?:[.,]\d+)?)/i);
       if (todosColonMatch) {
-        const val = todosColonMatch[1].replace('.', ',');
-        DemandaContratada = val;
-        if (!DemandaContratadaPonta) DemandaContratadaPonta = val;
-        if (!DemandaContratadaForaPonta) DemandaContratadaForaPonta = val;
+        DemandaTodosOsPeriodos = todosColonMatch[1].replace('.', ',');
       }
-    }
-    if (!DemandaContratada) {
+
       // Strategy 4a2: "Demanda Todos os Período - kW <value>" (dash format)
-      const todosMatch = flat.match(/Demanda\s+Todos\s+(?:os\s+)?Per[ií]odos?\s*-\s*kW\s+(\d+(?:[.,]\d+)?)/i);
-      if (todosMatch) {
-        const val = todosMatch[1].replace('.', ',');
-        DemandaContratada = val;
-        if (!DemandaContratadaPonta) DemandaContratadaPonta = val;
-        if (!DemandaContratadaForaPonta) DemandaContratadaForaPonta = val;
+      if (!DemandaTodosOsPeriodos) {
+        const todosMatch = flat.match(/Demanda\s+Todos\s+(?:os\s+)?Per[ií]odos?\s*-\s*kW\s+(\d+(?:[.,]\d+)?)/i);
+        if (todosMatch) {
+          DemandaTodosOsPeriodos = todosMatch[1].replace('.', ',');
+        }
+      }
+
+      // Strategy 4a3: Prefix format "37Demanda Todos os Período - kW"
+      if (!DemandaTodosOsPeriodos) {
+        const preValMatch = flat.match(/(\d+(?:[.,]\d+)?)\s*Demanda\s+Todos\s+(?:os\s+)?Per[ií]odo/i);
+        if (preValMatch) {
+          DemandaTodosOsPeriodos = preValMatch[1].replace('.', ',');
+        }
+      }
+
+      // Strategy 4a4: Line-by-line inspection near "Demanda Todos"
+      if (!DemandaTodosOsPeriodos) {
+        const todosLineIdx = lines.findIndex(l => /Demanda\s+Todos/i.test(l) && /Per[ií]odo/i.test(l));
+        if (todosLineIdx >= 0) {
+          const lText = lines[todosLineIdx];
+          const mKw = lText.match(/-\s*kW\s+(\d+(?:[.,]\d+)?)/i);
+          const mColon = lText.match(/:\s*(\d+(?:[.,]\d+)?)/i);
+          const mEndNum = lText.match(/(\d+(?:[.,]\d+)?)\s*(?:kW)?\s*$/i);
+          if (mKw) {
+            DemandaTodosOsPeriodos = mKw[1].replace('.', ',');
+          } else if (mColon) {
+            DemandaTodosOsPeriodos = mColon[1].replace('.', ',');
+          } else if (mEndNum && !/-\s*kW\s*$/i.test(lText)) {
+            DemandaTodosOsPeriodos = mEndNum[1].replace('.', ',');
+          } else {
+            for (let i = todosLineIdx + 1; i < Math.min(todosLineIdx + 4, lines.length); i++) {
+              const mNext = lines[i].match(/^(\d+(?:[.,]\d+)?)$/);
+              if (mNext) {
+                DemandaTodosOsPeriodos = mNext[1].replace('.', ',');
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      // Strategy 4a5: In "Grandezas Contratadas" section
+      if (!DemandaTodosOsPeriodos) {
+        const grandIdx = lines.findIndex(l => /Grandezas\s+Contratadas/i.test(l));
+        if (grandIdx >= 0) {
+          for (let i = grandIdx + 1; i < Math.min(grandIdx + 8, lines.length); i++) {
+            if (/Demanda\s+Todos/i.test(lines[i])) {
+              const m = lines[i].match(/(\d+(?:[.,]\d+)?)/);
+              if (m) {
+                DemandaTodosOsPeriodos = m[1].replace('.', ',');
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      if (DemandaTodosOsPeriodos) {
+        if (!DemandaContratada) DemandaContratada = DemandaTodosOsPeriodos;
+        if (!DemandaContratadaPonta) DemandaContratadaPonta = DemandaTodosOsPeriodos;
+        if (!DemandaContratadaForaPonta) DemandaContratadaForaPonta = DemandaTodosOsPeriodos;
+      }
+    } else {
+      // Para outras faturas que não sejam ELEKTRO VERDE, se encontrar Demanda Todos, preenche apenas DemandaContratada
+      if (!DemandaContratada) {
+        const todosColonMatch = flat.match(/Demanda\s+Todos\s+(?:os\s+)?Per[ií]odos?\s*:\s*(\d+(?:[.,]\d+)?)\s*kW/i);
+        if (todosColonMatch) {
+          const val = todosColonMatch[1].replace('.', ',');
+          DemandaContratada = val;
+          if (!DemandaContratadaPonta) DemandaContratadaPonta = val;
+          if (!DemandaContratadaForaPonta) DemandaContratadaForaPonta = val;
+        }
+      }
+      if (!DemandaContratada) {
+        const todosMatch = flat.match(/Demanda\s+Todos\s+(?:os\s+)?Per[ií]odos?\s*-\s*kW\s+(\d+(?:[.,]\d+)?)/i);
+        if (todosMatch) {
+          const val = todosMatch[1].replace('.', ',');
+          DemandaContratada = val;
+          if (!DemandaContratadaPonta) DemandaContratadaPonta = val;
+          if (!DemandaContratadaForaPonta) DemandaContratadaForaPonta = val;
+        }
       }
     }
 
     // Strategy 4b: For VERDE tariff, if only one demand value found, assign to both
     // In Horária Verde, the demand is the same for Ponta and Fora Ponta
-    const isVerde = /VERDE/i.test(ModalidadeTarifaria);
     if (isVerde) {
       if (DemandaContratadaForaPonta && !DemandaContratadaPonta) {
         DemandaContratadaPonta = DemandaContratadaForaPonta;
@@ -1429,17 +1499,13 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
 
     DemandaMedidaPonta = findQtyNearLine(lines, /Demanda\s+Medida.*Ponta(?!.*Fora)/i);
     DemandaMedidaForaPonta = findQtyNearLine(lines, /Demanda\s+Medida.*Fora\s*Ponta/i);
-    DemandaFaturadaPonta = findQtyNearLine(lines, /Demanda\s+Fatur[ae]da.*Ponta(?!.*Fora)/i) || DemandaMedidaPonta;
-    DemandaFaturadaForaPonta = findQtyNearLine(lines, /Demanda\s+Fatur[ae]da.*Fora\s*Ponta/i) || DemandaMedidaForaPonta;
     ValorDemandaPonta = findRValueNearLine(lines, flat, /Demanda\s+(?:Medida|Fatur[ae]da).*Ponta(?!.*Fora)/i);
     ValorDemandaForaPonta = findRValueNearLine(lines, flat, /Demanda\s+(?:Medida|Fatur[ae]da).*Fora\s*Ponta/i);
 
-    // For VERDE tariff, DemandaMedida and DemandaFaturada are also the same for all periods
+    // For VERDE tariff, DemandaMedida is also the same for all periods
     if (isVerde) {
       if (DemandaMedidaForaPonta && !DemandaMedidaPonta) DemandaMedidaPonta = DemandaMedidaForaPonta;
       else if (DemandaMedidaPonta && !DemandaMedidaForaPonta) DemandaMedidaForaPonta = DemandaMedidaPonta;
-      if (DemandaFaturadaForaPonta && !DemandaFaturadaPonta) DemandaFaturadaPonta = DemandaFaturadaForaPonta;
-      else if (DemandaFaturadaPonta && !DemandaFaturadaForaPonta) DemandaFaturadaForaPonta = DemandaFaturadaPonta;
       if (ValorDemandaForaPonta && !ValorDemandaPonta) ValorDemandaPonta = ValorDemandaForaPonta;
       else if (ValorDemandaPonta && !ValorDemandaForaPonta) ValorDemandaForaPonta = ValorDemandaPonta;
     }
@@ -1935,9 +2001,8 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
     MesReferencia, AnoLeitura, Vencimento, NotaFiscal,
     ModalidadeTarifaria, Subgrupo,
     ConsumoPonta, ConsumoIntermediaria, ConsumoForaPonta, ConsumoTotal, ConsumoGrupoB_kWh, ConsumoGrupoB_Valor,
-    DemandaContratada, DemandaContratadaPonta, DemandaContratadaForaPonta,
+    DemandaContratada, DemandaContratadaPonta, DemandaContratadaForaPonta, DemandaTodosOsPeriodos,
     DemandaMedidaPonta, DemandaMedidaForaPonta,
-    DemandaFaturadaPonta, DemandaFaturadaForaPonta,
     UltrapassagemPonta, UltrapassagemForaPonta,
     DemandaNaoConsumidaPonta, DemandaNaoConsumidaForaPonta,
     ValorNaoConsumidaPonta, ValorNaoConsumidaForaPonta,
@@ -2119,10 +2184,9 @@ export const FIELD_LABELS: Record<keyof EnergisaInvoiceData, string> = {
   DemandaContratada: 'Demanda Contratada (kW)',
   DemandaContratadaPonta: 'Demanda Contratada Ponta (kW)',
   DemandaContratadaForaPonta: 'Demanda Contratada Fora Ponta (kW)',
+  DemandaTodosOsPeriodos: 'Demanda Todos os Períodos (kW)',
   DemandaMedidaPonta: 'Demanda Medida Ponta (kW)',
   DemandaMedidaForaPonta: 'Demanda Medida Fora Ponta (kW)',
-  DemandaFaturadaPonta: 'Demanda Faturada Ponta (kW)',
-  DemandaFaturadaForaPonta: 'Demanda Faturada Fora Ponta (kW)',
   UltrapassagemPonta: 'Ultrapassagem Ponta (kW)',
   UltrapassagemForaPonta: 'Ultrapassagem Fora Ponta (kW)',
   DemandaNaoConsumidaPonta: 'Demanda Potência Não Consumida - Ponta (kW)',
@@ -2159,9 +2223,8 @@ export const FIELD_CATEGORIES: { category: string; fields: (keyof EnergisaInvoic
   { category: 'Datas e Documentos', fields: ['MesReferencia', 'AnoLeitura', 'Vencimento', 'NotaFiscal'] },
   { category: 'Tarifa', fields: ['ModalidadeTarifaria', 'Subgrupo'] },
   { category: 'Consumo (kWh)', fields: ['ConsumoPonta', 'ConsumoIntermediaria', 'ConsumoForaPonta', 'ConsumoTotal', 'ConsumoGrupoB_kWh'] },
-  { category: 'Demanda Contratada (kW)', fields: ['DemandaContratada', 'DemandaContratadaPonta', 'DemandaContratadaForaPonta'] },
+  { category: 'Demanda Contratada (kW)', fields: ['DemandaContratada', 'DemandaContratadaPonta', 'DemandaContratadaForaPonta', 'DemandaTodosOsPeriodos'] },
   { category: 'Demanda Medida (kW)', fields: ['DemandaMedidaPonta', 'DemandaMedidaForaPonta'] },
-  { category: 'Demanda Faturada (kW)', fields: ['DemandaFaturadaPonta', 'DemandaFaturadaForaPonta'] },
   { category: 'Ultrapassagem (kW)', fields: ['UltrapassagemPonta', 'UltrapassagemForaPonta'] },
   { category: 'Demanda Não Consumida (kW)', fields: ['DemandaNaoConsumidaPonta', 'DemandaNaoConsumidaForaPonta'] },
   { category: 'Reativa Excedente (kWh)', fields: ['ReativaExcedentePonta', 'ReativaExcedenteForaPonta', 'EnergiaReativaTotal'] },

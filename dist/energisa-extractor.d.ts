@@ -35,10 +35,9 @@ export interface EnergisaInvoiceData {
     ConsumoGrupoB_Valor: string;
     DemandaContratadaPonta: string;
     DemandaContratadaForaPonta: string;
+    DemandaTodosOsPeriodos: string;
     DemandaMedidaPonta: string;
     DemandaMedidaForaPonta: string;
-    DemandaFaturadaPonta: string;
-    DemandaFaturadaForaPonta: string;
     UltrapassagemPonta: string;
     UltrapassagemForaPonta: string;
     DemandaNaoConsumidaPonta: string;

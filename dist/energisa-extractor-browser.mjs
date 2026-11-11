@@ -336,13 +336,25 @@ function extractEnergisaData(rawText, tableExtraction) {
   }
   let DemandaContratadaPonta = EMPTY;
   let DemandaContratadaForaPonta = EMPTY;
+  let DemandaTodosOsPeriodos = EMPTY;
   let DemandaMedidaPonta = EMPTY;
   let DemandaMedidaForaPonta = EMPTY;
-  let DemandaFaturadaPonta = EMPTY;
-  let DemandaFaturadaForaPonta = EMPTY;
   let ValorDemandaPonta = EMPTY;
   let ValorDemandaForaPonta = EMPTY;
   if (isSplitTariff) {
+    const isElektro = /ELEKTRO|NEOENERGIA|02\.328\.280/i.test(flat) || /ELEKTRO|NEOENERGIA/i.test(Concessionaria);
+    const isVerde = /VERDE/i.test(ModalidadeTarifaria) || /VERDE/i.test(flat);
+    if (isElektro && isVerde) {
+      const colonM = flat.match(/Demanda\s+Todos\s+(?:os\s+)?Per[ií]odos?\s*:\s*(\d+(?:[.,]\d+)?)/i);
+      const dashM = flat.match(/Demanda\s+Todos\s+(?:os\s+)?Per[ií]odos?\s*-\s*kW\s+(\d+(?:[.,]\d+)?)/i);
+      const preM = flat.match(/(\d+(?:[.,]\d+)?)\s*Demanda\s+Todos\s+(?:os\s+)?Per[ií]odo/i);
+      const val = colonM?.[1] || dashM?.[1] || preM?.[1];
+      if (val) {
+        DemandaTodosOsPeriodos = val.replace('.', ',');
+        DemandaContratadaPonta = DemandaTodosOsPeriodos;
+        DemandaContratadaForaPonta = DemandaTodosOsPeriodos;
+      }
+    }
     const dpSameLine = flat.match(/Demanda\s+ponta\s*-\s*kW\s+(\d+(?:[.,]\d+)?)/i);
     const dfpSameLine = flat.match(/Demanda\s+fora\s+ponta\s*-\s*kW\s+(\d+(?:[.,]\d+)?)/i);
     if (dpSameLine && dfpSameLine) {
@@ -398,8 +410,6 @@ function extractEnergisaData(rawText, tableExtraction) {
     }
     DemandaMedidaPonta = findQtyNearLine(lines, /Demanda\s+Medida.*Ponta(?!.*Fora)/i);
     DemandaMedidaForaPonta = findQtyNearLine(lines, /Demanda\s+Medida.*Fora\s*Ponta/i);
-    DemandaFaturadaPonta = findQtyNearLine(lines, /Demanda\s+Fatur[ae]da.*Ponta(?!.*Fora)/i) || DemandaMedidaPonta;
-    DemandaFaturadaForaPonta = findQtyNearLine(lines, /Demanda\s+Fatur[ae]da.*Fora\s*Ponta/i) || DemandaMedidaForaPonta;
     ValorDemandaPonta = findRValueNearLine(lines, flat, /Demanda\s+(?:Medida|Fatur[ae]da).*Ponta(?!.*Fora)/i);
     ValorDemandaForaPonta = findRValueNearLine(lines, flat, /Demanda\s+(?:Medida|Fatur[ae]da).*Fora\s*Ponta/i);
   }
@@ -679,10 +689,9 @@ function extractEnergisaData(rawText, tableExtraction) {
     ConsumoGrupoB_Valor,
     DemandaContratadaPonta,
     DemandaContratadaForaPonta,
+    DemandaTodosOsPeriodos,
     DemandaMedidaPonta,
     DemandaMedidaForaPonta,
-    DemandaFaturadaPonta,
-    DemandaFaturadaForaPonta,
     UltrapassagemPonta,
     UltrapassagemForaPonta,
     DemandaNaoConsumidaPonta,
@@ -851,10 +860,9 @@ var FIELD_LABELS = {
   ConsumoGrupoB_Valor: "Consumo (R$) (Grupo B)",
   DemandaContratadaPonta: "Demanda Contratada Ponta (kW)",
   DemandaContratadaForaPonta: "Demanda Contratada Fora Ponta (kW)",
+  DemandaTodosOsPeriodos: "Demanda Todos os Períodos (kW)",
   DemandaMedidaPonta: "Demanda Medida Ponta (kW)",
   DemandaMedidaForaPonta: "Demanda Medida Fora Ponta (kW)",
-  DemandaFaturadaPonta: "Demanda Faturada Ponta (kW)",
-  DemandaFaturadaForaPonta: "Demanda Faturada Fora Ponta (kW)",
   UltrapassagemPonta: "Ultrapassagem Ponta (kW)",
   UltrapassagemForaPonta: "Ultrapassagem Fora Ponta (kW)",
   DemandaNaoConsumidaPonta: "Demanda Pot\xEAncia N\xE3o Consumida - Ponta (kW)",
@@ -889,9 +897,8 @@ var FIELD_CATEGORIES = [
   { category: "Datas e Documentos", fields: ["MesReferencia", "AnoLeitura", "Vencimento", "NotaFiscal"] },
   { category: "Tarifa", fields: ["ModalidadeTarifaria", "Subgrupo"] },
   { category: "Consumo (kWh)", fields: ["ConsumoPonta", "ConsumoForaPonta", "ConsumoTotal", "ConsumoGrupoB_kWh"] },
-  { category: "Demanda Contratada (kW)", fields: ["DemandaContratadaPonta", "DemandaContratadaForaPonta"] },
+  { category: "Demanda Contratada (kW)", fields: ["DemandaContratadaPonta", "DemandaContratadaForaPonta", "DemandaTodosOsPeriodos"] },
   { category: "Demanda Medida (kW)", fields: ["DemandaMedidaPonta", "DemandaMedidaForaPonta"] },
-  { category: "Demanda Faturada (kW)", fields: ["DemandaFaturadaPonta", "DemandaFaturadaForaPonta"] },
   { category: "Ultrapassagem (kW)", fields: ["UltrapassagemPonta", "UltrapassagemForaPonta"] },
   { category: "Demanda N\xE3o Consumida (kW)", fields: ["DemandaNaoConsumidaPonta", "DemandaNaoConsumidaForaPonta"] },
   { category: "Reativa Excedente (kWh)", fields: ["ReativaExcedentePonta", "ReativaExcedenteForaPonta", "EnergiaReativaTotal"] },

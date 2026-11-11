@@ -21011,7 +21011,7 @@ var __webpack_exports__version = __webpack_exports__.version;
 
 // src/lib/energisa-table-extractor.ts
 var import_path = __toESM(require("path"));
-__webpack_exports__GlobalWorkerOptions.workerSrc = import_path.default.join(process.cwd(), "node_modules/pdfjs-dist/build/pdf.worker.mjs");
+__webpack_exports__GlobalWorkerOptions.workerSrc = require("url").pathToFileURL(import_path.default.join(process.cwd(), "node_modules/pdfjs-dist/build/pdf.worker.mjs")).href;
 async function extractTableFromPDF(pdfBuffer) {
   const pdf = await __webpack_exports__getDocument({ data: new Uint8Array(pdfBuffer), disableWorker: true }).promise;
   const result = { items: [], pisTotal: "", cofinsTotal: "", icmsTotal: "" };
