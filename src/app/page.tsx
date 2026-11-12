@@ -118,6 +118,7 @@ export default function Home() {
   [isDragging]; // used in className
   const [activeTab, setActiveTab] = useState<'upload' | 'network' | 'results'>('upload');
   const [debugMode, setDebugMode] = useState(false);
+  const [stagedFiles, setStagedFiles] = useState<File[]>([]);
   const [fileProgress, setFileProgress] = useState<FileProgress[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -143,11 +144,43 @@ export default function Home() {
     if (newResults.length > 0) setActiveTab('results');
   }, []);
 
-  /* ── file processing ── */
-  const processFiles = useCallback(async (files: FileList | File[]) => {
+  /* ── stage files (queue without auto-processing) ── */
+  const addFiles = useCallback((files: FileList | File[]) => {
     // Accept PDFs by MIME type OR by .pdf extension (some browsers report empty type)
     const pdfFiles = Array.from(files).filter((f) => f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf'));
     if (pdfFiles.length === 0) { toast.error('Selecione ao menos um arquivo PDF.'); return; }
+    setStagedFiles((prev) => {
+      const next = [...prev];
+      let addedCount = 0;
+      for (const file of pdfFiles) {
+        const exists = next.some((f) => f.name === file.name && f.size === file.size);
+        if (!exists) {
+          next.push(file);
+          addedCount++;
+        }
+      }
+      if (addedCount > 0) {
+        toast.info(`${addedCount} fatura${addedCount > 1 ? 's' : ''} carregada${addedCount > 1 ? 's' : ''} na fila (${next.length} no total).`);
+      } else {
+        toast.info('Os arquivos selecionados já estão na fila.');
+      }
+      return next;
+    });
+  }, []);
+
+  const removeStagedFile = useCallback((idx: number) => {
+    setStagedFiles((prev) => prev.filter((_, i) => i !== idx));
+  }, []);
+
+  const clearStagedFiles = useCallback(() => {
+    setStagedFiles([]);
+    toast.info('Fila de faturas limpa.');
+  }, []);
+
+  /* ── file processing (triggered on user command) ── */
+  const processStagedFiles = useCallback(async () => {
+    if (stagedFiles.length === 0) { toast.error('Carregue ao menos um arquivo PDF antes de processar.'); return; }
+    const pdfFiles = [...stagedFiles];
     setIsProcessing(true);
     const newResults: ExtractionResult[] = [];
     setFileProgress(pdfFiles.map((f) => ({ fileName: f.name, status: 'pending' as const })));
@@ -185,18 +218,21 @@ export default function Home() {
         }
       }
 
-      mergeResults(newResults);
+      if (newResults.length > 0) {
+        setStagedFiles([]);
+        mergeResults(newResults);
+      }
     } finally {
       // ALWAYS reset processing state, even if something unexpected happens
       setIsProcessing(false);
       setFileProgress([]);
     }
-  }, [mergeResults]);
+  }, [stagedFiles, mergeResults]);
 
-  const handleDrop = useCallback((e: React.DragEvent) => { e.preventDefault(); setIsDragging(false); if (e.dataTransfer.files.length > 0) processFiles(e.dataTransfer.files); }, [processFiles]);
+  const handleDrop = useCallback((e: React.DragEvent) => { e.preventDefault(); setIsDragging(false); if (e.dataTransfer.files.length > 0) addFiles(e.dataTransfer.files); }, [addFiles]);
   const handleDragOver = useCallback((e: React.DragEvent) => { e.preventDefault(); setIsDragging(true); }, []);
   const handleDragLeave = useCallback(() => setIsDragging(false), []);
-  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => { if (e.target.files?.length) { processFiles(e.target.files); e.target.value = ''; } }, [processFiles]);
+  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => { if (e.target.files?.length) { addFiles(e.target.files); e.target.value = ''; } }, [addFiles]);
   const clearAll = useCallback(() => { setResults([]); setActiveTab('upload'); toast.info('Faturas removidas.'); }, []);
   const removeResult = useCallback((i: number) => { setResults((p) => p.filter((_, x) => x !== i)); toast.info('Fatura removida.'); }, []);
 
@@ -345,7 +381,7 @@ export default function Home() {
                     </div>
                     <div className="text-center">
                       <p className="text-sm font-medium text-slate-700">Arraste faturas PDF aqui</p>
-                      <p className="text-xs text-slate-400 mt-1">ou clique para selecionar</p>
+                      <p className="text-xs text-slate-400 mt-1">ou clique para adicionar à fila de extração</p>
                     </div>
                     <label
                       onClick={(e) => e.stopPropagation()}
@@ -397,6 +433,73 @@ export default function Home() {
                 )}
               </div>
             </div>
+
+            {/* Staged files queue — waiting for user command to process */}
+            {!isProcessing && stagedFiles.length > 0 && (
+              <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden">
+                <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 border-b border-slate-100 bg-slate-50/60">
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-blue-600" />
+                    <span className="text-xs font-semibold text-slate-800">
+                      Faturas carregadas aguardando comando
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[11px] font-semibold">
+                      {stagedFiles.length}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1 transition-colors"
+                    >
+                      <Plus className="h-3.5 w-3.5" /> Adicionar mais
+                    </button>
+                    <button
+                      type="button"
+                      onClick={clearStagedFiles}
+                      className="text-xs text-red-500/80 hover:text-red-600 flex items-center gap-1 transition-colors"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" /> Limpar fila
+                    </button>
+                  </div>
+                </div>
+
+                <div className="max-h-64 overflow-y-auto divide-y divide-slate-100">
+                  {stagedFiles.map((file, idx) => (
+                    <div key={`${file.name}-${file.size}-${idx}`} className="flex items-center gap-3 px-5 py-2.5 text-xs hover:bg-slate-50/80 transition-colors">
+                      <FileText className="h-4 w-4 text-slate-400 flex-shrink-0" />
+                      <span className="flex-1 truncate font-mono text-slate-700">{file.name}</span>
+                      <span className="text-slate-400 font-mono text-[11px]">
+                        {file.size >= 1048576 ? (file.size / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(file.size / 1024)) + ' KB'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removeStagedFile(idx)}
+                        title="Remover da fila"
+                        className="p-1 rounded-md text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 border-t border-slate-100 bg-slate-50/60">
+                  <span className="text-xs text-slate-500">
+                    Pronto para extrair <strong className="text-slate-700">{stagedFiles.length}</strong> fatura{stagedFiles.length !== 1 ? 's' : ''}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={processStagedFiles}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-semibold bg-gradient-to-r from-blue-600 to-sky-500 text-white shadow-md shadow-blue-500/20 hover:shadow-blue-500/30 hover:from-blue-700 hover:to-sky-600 transition-all"
+                  >
+                    <Zap className="h-3.5 w-3.5" />
+                    Processar Extração ({stagedFiles.length})
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Feature pills */}
             <div className="flex flex-wrap justify-center gap-3">

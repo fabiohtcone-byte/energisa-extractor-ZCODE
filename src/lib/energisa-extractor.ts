@@ -621,7 +621,7 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
 
   // ===== NOTA FISCAL =====
   const NotaFiscal = (() => {
-    const m = flat.match(/NOTA\s+FISCAL\s*N[º°]?\s*[:\-]?\s*(\d[\d.]*)/i);
+    const m = flat.match(/NOTA\s+FISCAL\s*(?:N[º°o]\.?|N)?\s*[:\-]?\s*(\d[\d.]*)/i);
     return m ? m[1] : EMPTY;
   })();
 
@@ -1205,6 +1205,18 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
       DemandaContratadaForaPonta = dfpSameLine[1].replace('.', ',');
     }
 
+    // Strategy 1b: Elektro Horária Azul format ("Demanda Ponta:27 kW" / "Demanda Fora Ponta30 kW")
+    if (!DemandaContratadaPonta || !DemandaContratadaForaPonta) {
+      const dpElektro = flat.match(/Demanda\s+Ponta\s*:?\s*(\d+(?:[.,]\d+)?)\s*kW\b/i);
+      const dfpElektro = flat.match(/Demanda\s+Fora\s+(?:de\s+)?Ponta\s*:?\s*(\d+(?:[.,]\d+)?)\s*kW\b/i);
+      if (dpElektro && !DemandaContratadaPonta && parseFloat(dpElektro[1].replace(',', '.')) > 0) {
+        DemandaContratadaPonta = dpElektro[1].replace('.', ',');
+      }
+      if (dfpElektro && !DemandaContratadaForaPonta && parseFloat(dfpElektro[1].replace(',', '.')) > 0) {
+        DemandaContratadaForaPonta = dfpElektro[1].replace('.', ',');
+      }
+    }
+
     // Strategy 2: Detect pdf-parse column reordering in bottom line
     // When "Fora Ponta:" appears BEFORE "KW Ponta:" in the text, the values are
     // rearranged: "<fora_val> Fora Ponta: <ponta_val> KW Ponta:"
@@ -1499,6 +1511,60 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
 
     DemandaMedidaPonta = findQtyNearLine(lines, /Demanda\s+Medida.*Ponta(?!.*Fora)/i);
     DemandaMedidaForaPonta = findQtyNearLine(lines, /Demanda\s+Medida.*Fora\s*Ponta/i);
+
+    // Elektro / Neoenergia Meter Reading Table ("GRANDEZAS" + "POSTOS HORÁRIOS" + numeric readings + measured values)
+    // In Elektro PDFs, pdf-parse outputs N grandeza lines ("CONSUMO kWh", "DEMANDA kW", "EN.EXCE kWh"),
+    // followed by N posto lines ("PT", "FP", "TP"), followed by readings/constants and finally the N measured values.
+    if (!DemandaMedidaPonta || !DemandaMedidaForaPonta) {
+      const grandezaRe = /^(CONSUMO\s+(?:kWh|ENERGIA)|DEMANDA\s+kW|EN\.EXCE\s+(?:kWh|ENERGIA)|ENERGIA\s+REATIVA\s+\w+)$/i;
+      const postoRe = /^(PT|FP|TP|HR|IN)$/i;
+      const numBlockRe = /^(?:\d+(?:[.,]\d+)?|[.,]\d+)$/;
+      for (let i = 0; i < lines.length; i++) {
+        if (!grandezaRe.test(lines[i])) continue;
+        let nRows = 0;
+        while (i + nRows < lines.length && grandezaRe.test(lines[i + nRows])) nRows++;
+        let pCount = 0;
+        while (i + nRows + pCount < lines.length && postoRe.test(lines[i + nRows + pCount])) pCount++;
+        if (nRows >= 2 && pCount === nRows) {
+          const nums: string[] = [];
+          let k = i + nRows + pCount;
+          while (k < lines.length && numBlockRe.test(lines[k])) {
+            nums.push(lines[k]);
+            k++;
+          }
+          if (nums.length >= nRows) {
+            const measured = nums.slice(-nRows);
+            for (let r = 0; r < nRows; r++) {
+              if (/^DEMANDA\s+kW$/i.test(lines[i + r])) {
+                const posto = lines[i + nRows + r].toUpperCase();
+                const rawVal = measured[r];
+                const numVal = parseFloat(rawVal.replace(',', '.'));
+                const fmtVal = rawVal.replace('.', ',');
+                if (posto === 'PT') {
+                  const cur = DemandaMedidaPonta ? parseFloat(DemandaMedidaPonta.replace(',', '.')) : 0;
+                  if (!DemandaMedidaPonta || (cur === 0 && numVal > 0)) {
+                    DemandaMedidaPonta = fmtVal;
+                  }
+                } else if (posto === 'FP') {
+                  const cur = DemandaMedidaForaPonta ? parseFloat(DemandaMedidaForaPonta.replace(',', '.')) : 0;
+                  if (!DemandaMedidaForaPonta || (cur === 0 && numVal > 0)) {
+                    DemandaMedidaForaPonta = fmtVal;
+                  }
+                } else if (posto === 'TP' && isVerde) {
+                  const cur = DemandaMedidaForaPonta ? parseFloat(DemandaMedidaForaPonta.replace(',', '.')) : 0;
+                  if (!DemandaMedidaForaPonta || (cur === 0 && numVal > 0)) {
+                    DemandaMedidaForaPonta = fmtVal;
+                  }
+                }
+              }
+            }
+            break;
+          }
+        }
+        i += Math.max(0, nRows - 1);
+      }
+    }
+
     ValorDemandaPonta = findRValueNearLine(lines, flat, /Demanda\s+(?:Medida|Fatur[ae]da).*Ponta(?!.*Fora)/i);
     ValorDemandaForaPonta = findRValueNearLine(lines, flat, /Demanda\s+(?:Medida|Fatur[ae]da).*Fora\s*Ponta/i);
 
@@ -1948,6 +2014,130 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
     if (tbl_oUC_Valor) EnergiaAtvInjetadaGDIoUC_Valor = tbl_oUC_Valor;
     if (tbl_mUC_Qtd) EnergiaAtvInjetadaGDImUC_Qtd = tbl_mUC_Qtd;
     if (tbl_mUC_Valor) EnergiaAtvInjetadaGDImUC_Valor = tbl_mUC_Valor;
+  } else {
+    // ===== ELEKTRO / NEOENERGIA COLUMNAR "ITENS DE FATURA" EXTRACTION =====
+    // In Elektro PDFs, pdf-parse outputs the ITENS DE FATURA table column-by-column between
+    // "America/Sao_Paulo" and "ICMS":
+    //   1) L item labels (e.g. "CONSUMO PONTA TE", "CONSUMO PONTA TUSD", "DEMANDA PONTA TUSD", ...)
+    //   2) U unit lines ("kWh", "kW", "kVArh", "UN") where U <= L
+    //   3) U quantity lines
+    //   4) U unit-price lines (6 decimal places, e.g. "0,633269")
+    //   5) L valor (R$) lines (2 decimal places, e.g. "945,47", "327,22", ...)
+    const tzIdx = lines.findIndex(l => /America\/Sao_Paulo/i.test(l));
+    const icmsIdx = tzIdx >= 0 ? lines.findIndex((l, idx) => idx > tzIdx && /^ICMS$/i.test(l)) : -1;
+    if (tzIdx >= 0 && icmsIdx > tzIdx) {
+      const sec = lines.slice(tzIdx + 1, icmsIdx);
+      const itemLabels: string[] = [];
+      let ptr = 0;
+      while (ptr < sec.length && !/^(kWh|kW|kVArh|UN)$/i.test(sec[ptr]) && !/^\d/.test(sec[ptr])) {
+        itemLabels.push(sec[ptr]);
+        ptr++;
+      }
+      const itemUnits: string[] = [];
+      while (ptr < sec.length && /^(kWh|kW|kVArh|UN)$/i.test(sec[ptr])) {
+        itemUnits.push(sec[ptr]);
+        ptr++;
+      }
+      const nLabels = itemLabels.length;
+      const nUnits = itemUnits.length;
+      if (nLabels > 0 && nUnits > 0 && nUnits <= nLabels) {
+        const itemQuants = sec.slice(ptr, ptr + nUnits);
+        const itemPrecos = sec.slice(ptr + nUnits, ptr + 2 * nUnits);
+        const itemValores = sec.slice(ptr + 2 * nUnits, ptr + 2 * nUnits + nLabels);
+        const precosValid = itemPrecos.length === nUnits && itemPrecos.every(x => /^\d[\d.]*,\d{4,6}$/.test(x));
+        const valoresValid = itemValores.length === nLabels && itemValores.every(x => /^-?\d[\d.]*,\d{2}$/.test(x));
+        if (precosValid && valoresValid) {
+          let sumValorConsumoPonta = 0;
+          let sumValorConsumoForaPonta = 0;
+          let sumValorConsumoConv = 0;
+          let sumValorDemandaPonta = 0;
+          let sumValorDemandaForaPonta = 0;
+          let sumValorDemandaUnica = 0;
+          let sumValorUltrapPonta = 0;
+          let sumValorUltrapForaPonta = 0;
+          let sumValorReatPonta = 0;
+          let sumValorReatForaPonta = 0;
+
+          for (let r = 0; r < nLabels; r++) {
+            const lbl = itemLabels[r];
+            const qtd = r < nUnits ? itemQuants[r] : '';
+            const valStr = itemValores[r];
+            const valNum = parseBR(valStr);
+
+            if (/^CONSUMO\s+PONTA\s+(?:TE|TUSD)$/i.test(lbl)) {
+              if (qtd && !ConsumoPonta) ConsumoPonta = qtd;
+              sumValorConsumoPonta += valNum;
+            } else if (/^CONSUMO\s+FORA\s+PONTA\s+(?:TE|TUSD)$/i.test(lbl)) {
+              if (qtd && !ConsumoForaPonta) ConsumoForaPonta = qtd;
+              sumValorConsumoForaPonta += valNum;
+            } else if (/^CONSUMO\s+(?:TE|TUSD)$/i.test(lbl)) {
+              if (qtd && !ConsumoTotal) ConsumoTotal = qtd;
+              sumValorConsumoConv += valNum;
+            } else if (/^DEMANDA\s+PONTA\s+(?:TE|TUSD)$/i.test(lbl)) {
+              sumValorDemandaPonta += valNum;
+            } else if (/^DEMANDA\s+FORA\s+PONTA\s+(?:TE|TUSD)$/i.test(lbl)) {
+              sumValorDemandaForaPonta += valNum;
+            } else if (/^DEMANDA\s+(?:TE|TUSD)$/i.test(lbl)) {
+              sumValorDemandaUnica += valNum;
+            } else if (/^DEMANDA\s+ULTRAP\.?\s*PONTA/i.test(lbl)) {
+              if (qtd && !UltrapassagemPonta) UltrapassagemPonta = qtd.replace('.', ',');
+              sumValorUltrapPonta += valNum;
+            } else if (/^DEMANDA\s+ULTRAP\.?\s*(?:FORA\s+PONTA|TUSD|TE)/i.test(lbl)) {
+              if (qtd && !UltrapassagemForaPonta) UltrapassagemForaPonta = qtd.replace('.', ',');
+              sumValorUltrapForaPonta += valNum;
+            } else if (/^CONSUMO\s+REAT\.?\s*PONTA/i.test(lbl)) {
+              if (qtd && !ReativaExcedentePonta) ReativaExcedentePonta = qtd;
+              sumValorReatPonta += valNum;
+            } else if (/^CONSUMO\s+REAT\.?\s*FORA\s+PONTA/i.test(lbl)) {
+              if (qtd && !ReativaExcedenteForaPonta) ReativaExcedenteForaPonta = qtd;
+              sumValorReatForaPonta += valNum;
+            } else if (/ILUM.*PUBLICA|CIP\s*MUNICIPAL|^CONT\.IL\.PUB/i.test(lbl)) {
+              if (valStr && !CIP) CIP = valStr;
+            }
+          }
+
+          if (sumValorConsumoPonta > 0 && !ValorConsumoPonta) {
+            ValorConsumoPonta = formatBR(sumValorConsumoPonta);
+          }
+          if (sumValorConsumoForaPonta > 0 && !ValorConsumoForaPonta) {
+            ValorConsumoForaPonta = formatBR(sumValorConsumoForaPonta);
+          }
+          if (sumValorConsumoConv > 0) {
+            if (!ValorConsumoForaPonta) ValorConsumoForaPonta = formatBR(sumValorConsumoConv);
+            grupoB_consumoValor_total = sumValorConsumoConv;
+          }
+          if (sumValorDemandaPonta > 0 && !ValorDemandaPonta) {
+            ValorDemandaPonta = formatBR(sumValorDemandaPonta);
+          }
+          if (sumValorDemandaForaPonta > 0 && !ValorDemandaForaPonta) {
+            ValorDemandaForaPonta = formatBR(sumValorDemandaForaPonta);
+          }
+          if (sumValorDemandaUnica > 0) {
+            if (!ValorDemandaForaPonta) ValorDemandaForaPonta = formatBR(sumValorDemandaUnica);
+            if (/VERDE/i.test(ModalidadeTarifaria) && !ValorDemandaPonta) {
+              ValorDemandaPonta = formatBR(sumValorDemandaUnica);
+            }
+          }
+          if (sumValorUltrapPonta > 0 && !ValorUltrapassagemPonta) {
+            ValorUltrapassagemPonta = formatBR(sumValorUltrapPonta);
+          }
+          if (sumValorUltrapForaPonta > 0 && !ValorUltrapassagemForaPonta) {
+            ValorUltrapassagemForaPonta = formatBR(sumValorUltrapForaPonta);
+          }
+          if (sumValorReatPonta > 0 && !ValorReativaExcedentePonta) {
+            ValorReativaExcedentePonta = formatBR(sumValorReatPonta);
+          }
+          if (sumValorReatForaPonta > 0 && !ValorReativaExcedenteForaPonta) {
+            ValorReativaExcedenteForaPonta = formatBR(sumValorReatForaPonta);
+          }
+          if ((ReativaExcedentePonta || ReativaExcedenteForaPonta) && !EnergiaReativaTotal) {
+            const rp = ReativaExcedentePonta ? parseBR(ReativaExcedentePonta) : 0;
+            const rfp = ReativaExcedenteForaPonta ? parseBR(ReativaExcedenteForaPonta) : 0;
+            if (rp + rfp > 0) EnergiaReativaTotal = stripDecimalZero(formatBR(rp + rfp));
+          }
+        }
+      }
+    }
   }
 
   // ===== CONSUMO TOTAL: recompute from individual consumptions after table processing =====
@@ -1970,8 +2160,8 @@ export function extractEnergisaData(rawText: string, tableExtraction?: TableExtr
   }
 
   // ===== Grupo B: calculate dedicated fields =====
-  // For Subgrupo B (B1, B2, B3, B4), fill ConsumoGrupoB_kWh and ConsumoGrupoB_Valor
-  const isGrupoB = /^B/i.test(Subgrupo);
+  // For Subgrupo B (B1, B2, B3, B4) or Convencional tariff without demand, fill ConsumoGrupoB_kWh and ConsumoGrupoB_Valor
+  const isGrupoB = /^B/i.test(Subgrupo) || (!isSplitTariff && /CONVENCIONAL/i.test(ModalidadeTarifaria));
   if (isGrupoB) {
     // ConsumoGrupoB_kWh: total consumption in kWh
     if (grupoB_consumoKWh_total > 0) {
